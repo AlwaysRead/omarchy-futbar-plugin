@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "devbook.futbar",
+  "name": "FutBar",
+  "version": "1.0.0",
+  "author": "devbook",
+  "license": "MIT",
+  "description": "Live football scores for a chosen team.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "FutBar.qml"
+  },
+  "barWidget": {
+    "displayName": "FutBar",
+    "description": "Shows the live score, match clock, and recent goal scorers for a chosen team.",
+    "category": "Sports",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "schema": [
+      {
+        "key": "teamName",
+        "type": "string",
+        "label": "Team name",
+        "description": "Use the name shown by ESPN, for example Barcelona or Arsenal."
+      },
+      {
+        "key": "league",
+        "type": "string",
+        "label": "ESPN league code",
+        "description": "Examples: esp.1 (LaLiga), eng.1 (Premier League), ita.1 (Serie A), ger.1 (Bundesliga), uefa.champions."
+      }
+    ]
+  }
+}
