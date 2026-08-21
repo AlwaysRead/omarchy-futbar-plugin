@@ -111,7 +111,7 @@ BarWidget {
       var clock = root.sanitizePlainText(p.statusFor(p.liveMatch))
       root.liveTooltip = home + " vs " + away + " (" + homeScore + "–" + awayScore + "), " + clock
       var summary = root.sanitizePlainText(p.liveSummaryText())
-      root.tooltip = root.liveTooltip + (summary !== "" ? "\n\n" + summary : "")
+      root.tooltip = root.sanitizePlainText(root.liveTooltip + (summary !== "" ? "\n\n" + summary : ""))
       root.live = true
       return
     }
@@ -123,8 +123,8 @@ BarWidget {
       var nextComp = root.sanitizePlainText(p.competitionNameFor(p.nextMatch))
       var nextDay = root.sanitizePlainText(p.kickoffDay(p.nextMatch))
       var nextTime = root.sanitizePlainText(p.kickoffTime(p.nextMatch))
-      root.tooltip = "Next Match\n" + nextHome + " vs " + nextAway
-        + "\n" + nextComp + " · " + nextDay + " · " + nextTime
+      root.tooltip = root.sanitizePlainText("Next Match\n" + nextHome + " vs " + nextAway
+        + "\n" + nextComp + " · " + nextDay + " · " + nextTime)
       return
     }
     root.tooltip = root.sanitizePlainText("No live match found for " + root.teamName + " in " + root.league)
