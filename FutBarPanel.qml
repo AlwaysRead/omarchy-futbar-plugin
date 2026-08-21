@@ -90,10 +90,27 @@ Panel {
     onTriggered: root.ensureStarted()
   }
 
-  // Reads the remembered favorite on startup.
+  function safeIdentifier(val) {
+    if (!val || typeof val !== "string") return ""
+    var trimmed = val.trim()
+    return /^[a-zA-Z0-9_.\-]+$/.test(trimmed) ? trimmed : ""
+  }
+
+  function sanitizeImageUrl(raw) {
+    if (!raw || typeof raw !== "string") return ""
+    var url = raw.trim()
+    if (!/^https:\/\/[a-zA-Z0-9\-\._~:\/\?#\[\]@!\$&'\(\)\*\+,;=%]+$/.test(url)) {
+      return ""
+    }
+    return url
+  }
+
+  // Reads and safely persists the remembered favorite on startup without shell execution.
   FileView {
     id: favoriteStore
     path: root.favoritePath
+    watchChanges: false
+    atomicWrites: true
     printErrors: false
     onLoaded: { root.savedFavorite = root.parseFavorite(text()); root._favoriteLoaded = true }
     onLoadFailed: { root.savedFavorite = ({}); root._favoriteLoaded = true }
@@ -106,29 +123,12 @@ Panel {
     onTriggered: favoriteStore.reload()
   }
 
-  // Persists the current favorite so it survives reloads as the fallback.
-  Process {
-    id: saveFavoriteProc
-    stderr: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", "saveFavorite stderr:", detail)
-      }
-    }
-  }
   function saveFavorite(teamName, league, teamId) {
     var name = teamName !== undefined ? teamName : root.teamName
     var lg = league !== undefined ? league : root.league
     var tid = teamId !== undefined ? teamId : (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
-    // Mirror into memory so the teamName/teamId bindings update instantly
-    // instead of waiting for the next FileView read.
     root.savedFavorite = { teamName: name, league: lg, teamId: tid }
-    var payload = JSON.stringify({ teamName: name, league: lg, teamId: tid })
-    payload = payload.replace(/'/g, "'\\''")
-    var dir = root.favoritePath.substring(0, root.favoritePath.lastIndexOf("/"))
-    saveFavoriteProc.command = ["bash", "-c", "mkdir -p '" + dir + "' && printf '%s' '" + payload + "' > '" + root.favoritePath + "'"]
-    saveFavoriteProc.running = true
+    favoriteStore.setText(JSON.stringify({ teamName: name, league: lg, teamId: tid }, null, 2) + "\n")
   }
   onSettingsChanged: root.ensureStarted()
 
@@ -383,13 +383,16 @@ Panel {
     var next = root.fetchQueue.shift()
     root.fetchStage = next.kind
     var window = root.rangeDate(-120) + "-" + root.rangeDate(60)
-    var team = root.resolvedTeamId !== "" ? root.resolvedTeamId : root.teamId
+    var team = root.safeIdentifier(root.resolvedTeamId !== "" ? root.resolvedTeamId : root.teamId)
+    var leagueCode = root.safeIdentifier(root.league)
     if (next.kind === "teams") {
+      if (leagueCode === "") { root.loading = false; return }
       fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10",
-        "https://site.api.espn.com/apis/site/v2/sports/soccer/" + root.league + "/teams"]
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
     } else if (next.kind === "discover") {
+      if (team === "") { root.startScoreboards(); return }
       fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10",
-        "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + team + "/events?dates=" + window + "&limit=100"]
+        "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(team) + "/events?dates=" + encodeURIComponent(window) + "&limit=100"]
     }
     fixtureRequest.running = true
   }
@@ -413,11 +416,13 @@ Panel {
       var procs = [sbRequest1, sbRequest2, sbRequest3]
       for (var i = 0; i < procs.length; i++) {
         if (!procs[i].running) {
-          var slug = root.scoreboardQueue.shift()
+          var rawSlug = root.scoreboardQueue.shift()
+          var slug = root.safeIdentifier(rawSlug)
+          if (slug === "") continue
           root.sbSlugs[i] = slug
           var window = root.rangeDate(-120) + "-" + root.rangeDate(60)
           procs[i].command = ["curl", "-fsSL", "--max-time", "10",
-            "https://site.api.espn.com/apis/site/v2/sports/soccer/" + slug + "/scoreboard?dates=" + window + "&limit=500"]
+            "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
           procs[i].running = true
           assigned = true
           break
@@ -436,7 +441,7 @@ Panel {
       if (leagues.length > 0 && slug !== "") {
         var info = {}
         info.name = String(leagues[0].name || leagues[0].abbreviation || slug)
-        info.logo = leagues[0].logos && leagues[0].logos.length ? String(leagues[0].logos[0].href || "") : ""
+        info.logo = root.sanitizeImageUrl(leagues[0].logos && leagues[0].logos.length ? String(leagues[0].logos[0].href || "") : "")
         var map = root.leagueInfo
         map[slug] = info
         root.leagueInfo = map
@@ -508,7 +513,7 @@ Panel {
   function competitionLogoFor(event) {
     var slug = event ? String(event.competitionSlug || "") : ""
     var info = root.competitionInfo(slug)
-    return info && info.logo ? String(info.logo) : ""
+    return root.sanitizeImageUrl(info && info.logo ? String(info.logo) : "")
   }
 
   function setFixtures(data) {
@@ -562,7 +567,7 @@ Panel {
 
   function teamLogoFor(event, side) {
     var item = competitor(event, side)
-    return item && item.team ? String(item.team.logo || "") : ""
+    return root.sanitizeImageUrl(item && item.team ? String(item.team.logo || "") : "")
   }
 
   function scoreFor(event, side) {
@@ -593,15 +598,17 @@ Panel {
       root.summaryMatchId = ""
       return
     }
-    var id = String(root.liveMatch.id)
+    var id = root.safeIdentifier(String(root.liveMatch.id))
+    if (id === "") return
     if (root.summaryMatchId !== id) {
       root.liveEvents = []
       root.summaryMatchId = id
     }
     if (panelSummaryRequest.running) return
-    var slug = String(root.liveMatch.competitionSlug || root.league)
+    var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
+    if (slug === "") return
     panelSummaryRequest.command = ["curl", "-fsSL", "--max-time", "10",
-      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + slug + "/summary?event=" + id]
+      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     panelSummaryRequest.running = true
   }
 
@@ -610,10 +617,12 @@ Panel {
   function loadStandings() {
     if (root.needsTeam) return
     if (standingsRequest.running) return
+    var leagueCode = root.safeIdentifier(root.league)
+    if (leagueCode === "") return
     standingsLoading = true
     standingsError = ""
     standingsRequest.command = ["curl", "-fsSL", "--max-time", "10",
-      "https://site.web.api.espn.com/apis/v2/sports/soccer/" + root.league + "/standings"]
+      "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/standings"]
     standingsRequest.running = true
   }
 
@@ -771,7 +780,8 @@ Panel {
       root.stopLiveActivity()
       return
     }
-    var id = String(root.liveMatch.id)
+    var id = root.safeIdentifier(String(root.liveMatch.id))
+    if (id === "") return
     if (root.activityMatchId !== id) {
       // A different match went live while activity was on: start tracking it
       // cleanly, so its start/goals are reported from scratch.
@@ -781,9 +791,10 @@ Panel {
       root.activityEvents = []
     }
     if (activityRequest.running) return
-    var slug = String(root.liveMatch.competitionSlug || root.league)
+    var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
+    if (slug === "") return
     activityRequest.command = ["curl", "-fsSL", "--max-time", "10",
-      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + slug + "/summary?event=" + id]
+      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     activityRequest.running = true
   }
 
@@ -949,20 +960,44 @@ Panel {
     onTriggered: root.pollLiveActivity()
   }
 
+  property var _setWidgetQueue: []
+  function _queueSetBarWidget(key, value) {
+    var cleanKey = root.safeIdentifier(String(key))
+    if (cleanKey === "") return
+    var queue = root._setWidgetQueue.slice()
+    queue.push(["omarchy", "shell", "-q", "shell", "setBarWidget", root.moduleName, cleanKey, JSON.stringify(String(value)), "{}"])
+    root._setWidgetQueue = queue
+    root._runNextSetWidget()
+  }
+  function _runNextSetWidget() {
+    if (setTeamRequest.running || root._setWidgetQueue.length === 0) return
+    var queue = root._setWidgetQueue.slice()
+    var cmd = queue.shift()
+    root._setWidgetQueue = queue
+    setTeamRequest.command = cmd
+    setTeamRequest.running = true
+  }
+
   // Persists the user's club choice through the shell IPC, which writes
   // shell.json and patches the running widget's settings in place. After that
   // needsTeam flips to false and the fixtures take over.
   function selectLeague(code) {
-    if (code === "") return
+    var cleanCode = root.safeIdentifier(code)
+    if (cleanCode === "") return
     var match = null
     for (var i = 0; i < leagues.length; i++) {
-      if (leagues[i].value === code) { match = leagues[i]; break }
+      if (leagues[i].value === cleanCode) { match = leagues[i]; break }
     }
-    selectedLeague = code
-    selectedLeagueName = match ? String(match.label) : code
+    selectedLeague = cleanCode
+    selectedLeagueName = match ? String(match.label) : cleanCode
     teams = []
     selectedTeam = null
-    if (!teamsRequest.running) teamsRequest.running = true
+    var leagueCode = root.safeIdentifier(root.selectedLeague)
+    if (leagueCode !== "") {
+      teamsRequest.command = ["curl", "-fsSL", "--max-time", "10",
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
+      if (!teamsRequest.running) teamsRequest.running = true
+    }
   }
 
   function selectTeam(name) {
@@ -975,23 +1010,23 @@ Panel {
   function confirmTeam() {
     if (!selectedTeam) return
     root.editingTeam = false
-    root.resolvedTeamId = String(selectedTeam.id || "")
-    root.saveFavorite(String(selectedTeam.value), String(selectedLeague), String(selectedTeam.id || ""))
-    setTeamRequest.command = ["bash", "-c",
-      "omarchy shell shell setBarWidget '" + root.moduleName + "' teamName '" + JSON.stringify(String(selectedTeam.value))
-      + "' '{}' && omarchy shell shell setBarWidget '" + root.moduleName + "' league '" + JSON.stringify(String(selectedLeague))
-      + "' '{}' && omarchy shell shell setBarWidget '" + root.moduleName + "' teamId '" + JSON.stringify(String(selectedTeam.id || "")) + "' '{}'"]
-    setTeamRequest.running = true
+    var teamVal = String(selectedTeam.value || "")
+    var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
+    var teamIdVal = root.safeIdentifier(String(selectedTeam.id || ""))
+    root.resolvedTeamId = teamIdVal
+    root.saveFavorite(teamVal, leagueVal, teamIdVal)
+    root._queueSetBarWidget("teamName", teamVal)
+    root._queueSetBarWidget("league", leagueVal)
+    root._queueSetBarWidget("teamId", teamIdVal)
   }
 
   // Stores a team id resolved from the /teams list when the team was set
   // through the generic settings UI rather than the picker.
   function persistTeamId(id) {
-    if (id === "") return
-    root.saveFavorite(undefined, undefined, id)
-    setTeamRequest.command = ["bash", "-c",
-      "omarchy shell shell setBarWidget '" + root.moduleName + "' teamId '" + JSON.stringify(id) + "' '{}'"]
-    setTeamRequest.running = true
+    var cleanId = root.safeIdentifier(String(id || ""))
+    if (cleanId === "") return
+    root.saveFavorite(undefined, undefined, cleanId)
+    root._queueSetBarWidget("teamId", cleanId)
   }
 
   function leagueLabel() {
@@ -1042,9 +1077,16 @@ Panel {
               if (found) break
             }
             if (found) {
-              root.resolvedTeamId = String(found.id || "")
-              root.persistTeamId(root.resolvedTeamId)
-              root.buildFetchQueue()
+              var cleanFoundId = root.safeIdentifier(String(found.id || ""))
+              if (cleanFoundId !== "") {
+                root.resolvedTeamId = cleanFoundId
+                root.persistTeamId(cleanFoundId)
+                root.buildFetchQueue()
+              } else {
+                root.requestError = "Could not resolve team"
+                root.loading = false
+                return
+              }
             } else {
               console.warn("futbar", "could not resolve team id for " + root.teamName)
               root.requestError = "Could not resolve team"
@@ -1056,9 +1098,12 @@ Panel {
             var slugs = []
             for (var k = 0; k < items.length; k++) {
               var m = String(items[k].$ref || "").match(/\/leagues\/([^\/]+)\/events\//)
-              if (m && slugs.indexOf(m[1]) === -1) slugs.push(m[1])
+              if (m) {
+                var cleanSlug = root.safeIdentifier(m[1])
+                if (cleanSlug !== "" && slugs.indexOf(cleanSlug) === -1) slugs.push(cleanSlug)
+              }
             }
-            if (slugs.length === 0) slugs.push(root.league)
+            if (slugs.length === 0 && root.safeIdentifier(root.league) !== "") slugs.push(root.safeIdentifier(root.league))
             root.competitionSlugs = slugs
             root.competitionRefresh = new Date().getTime()
             root.buildFetchQueue()
@@ -1210,8 +1255,8 @@ Panel {
             return {
               rank: String(rankVal),
               teamName: String(team.displayName || team.name || "—"),
-              teamId: String(team.id || ""),
-              logo: team.logos && team.logos[0] ? String(team.logos[0].href || "") : "",
+              teamId: root.safeIdentifier(String(team.id || "")),
+              logo: root.sanitizeImageUrl(team.logos && team.logos[0] ? String(team.logos[0].href || "") : ""),
               note: entry.note || null,
               stats: stats
             }
@@ -1238,7 +1283,7 @@ Panel {
     id: teamsRequest
     // Fetched per league when the user picks one in the first-run picker.
     command: ["curl", "-fsSL", "--max-time", "10",
-      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + root.selectedLeague + "/teams"]
+      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(root.safeIdentifier(root.selectedLeague)) + "/teams"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -1253,7 +1298,9 @@ Panel {
             // the single `logo` string the scoreboard uses.
             var logo = String(team.logo || "")
             if (logo === "" && team.logos && team.logos[0]) logo = String(team.logos[0].href || "")
-            return name === "" ? null : { value: name, label: name, logo: logo, id: String(team.id || "") }
+            var safeLogo = root.sanitizeImageUrl(logo)
+            var safeId = root.safeIdentifier(String(team.id || ""))
+            return name === "" ? null : { value: name, label: name, logo: safeLogo, id: safeId }
           }).filter(function(item) { return item !== null })
           if (root.editingTeam) {
             for (var i = 0; i < root.teams.length; i++) {
@@ -1281,13 +1328,14 @@ Panel {
     id: setTeamRequest
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: { /* setBarWidget output is not needed */ }
+      onStreamFinished: root._runNextSetWidget()
     }
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         var error = String(text || "").trim()
         if (error !== "") console.warn("futbar", "team select failed: " + error)
+        root._runNextSetWidget()
       }
     }
   }
@@ -1327,6 +1375,7 @@ Panel {
         spacing: Style.space(14)
 
         Text {
+          textFormat: Text.PlainText
           text: root.editingTeam ? "Change your club" : "Choose your club"
           color: root.contentForeground
           font.family: root.contentFontFamily
@@ -1377,6 +1426,7 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
             Text {
+              textFormat: Text.PlainText
               text: root.selectedTeam ? String(root.selectedTeam.value) : ""
               color: root.contentForeground
               font.family: root.contentFontFamily
@@ -1384,6 +1434,7 @@ Panel {
               font.bold: true
             }
             Text {
+              textFormat: Text.PlainText
               text: root.selectedLeagueName
               color: Qt.darker(root.contentForeground, 1.5)
               font.family: root.contentFontFamily
@@ -1425,6 +1476,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.verticalCenter: parent.verticalCenter
           width: parent.width - (tournamentLogoImage.visible ? tournamentLogoImage.width + parent.spacing : 0)
             - (standingsButton.visible ? standingsButton.width + parent.spacing : 0)
@@ -1487,6 +1539,7 @@ Panel {
         visible: root.showStandings
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.standingsLoading ? "Loading standings…"
             : (root.standingsError !== "" ? "Could not load standings"
@@ -1498,6 +1551,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.standingsError
           color: Qt.darker(root.contentForeground, 1.5)
@@ -1523,13 +1577,14 @@ Panel {
               id: headerRow
               width: parent.width
               height: Style.space(26)
-              Text { width: standingsRankWidth; height: parent.height; text: "#"; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily; font.pixelSize: Style.font.caption; font.bold: true; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+              Text { textFormat: Text.PlainText; width: standingsRankWidth; height: parent.height; text: "#"; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily; font.pixelSize: Style.font.caption; font.bold: true; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
               Item { width: standingsRankGap; height: 1 }
               Item { width: standingsLogoWidth; height: 1 }
-              Text { width: standingsTeamWidth; height: parent.height; text: "Team"; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily; font.pixelSize: Style.font.caption; font.bold: true; verticalAlignment: Text.AlignVCenter }
+              Text { textFormat: Text.PlainText; width: standingsTeamWidth; height: parent.height; text: "Team"; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily; font.pixelSize: Style.font.caption; font.bold: true; verticalAlignment: Text.AlignVCenter }
               Repeater {
                 model: root.standingsColumns
                 Text {
+                  textFormat: Text.PlainText
                   width: root.standingsStatWidth; height: parent.height
                   text: modelData.label
                   color: Qt.darker(root.contentForeground, 1.6)
@@ -1577,6 +1632,7 @@ Panel {
                 }
 
                 Rectangle {
+                  id: zoneFavoriteThemeBar
                   visible: rowRect.favorite && !rowRect.hasZone
                   width: 3
                   anchors.top: parent.top
@@ -1591,6 +1647,7 @@ Panel {
                   height: parent.height
 
                   Text {
+                    textFormat: Text.PlainText
                     width: standingsRankWidth; height: parent.height
                     text: rowRect.entry.rank
                     color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root.contentForeground, 1.5)
@@ -1611,6 +1668,7 @@ Panel {
                     visible: rowRect.entry.logo !== ""
                   }
                   Text {
+                    textFormat: Text.PlainText
                     width: standingsTeamWidth; height: parent.height
                     text: rowRect.entry.teamName
                     color: rowRect.favorite ? rowRect.rowAccent : root.contentForeground
@@ -1623,6 +1681,7 @@ Panel {
                   Repeater {
                     model: root.standingsColumns
                     Text {
+                      textFormat: Text.PlainText
                       width: root.standingsStatWidth; height: rowRect.height
                       text: root.statFor(rowRect.entry.stats, modelData.name)
                       color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root.contentForeground, 1.5)
@@ -1655,6 +1714,7 @@ Panel {
                 color: modelData.color
               }
               Text {
+                textFormat: Text.PlainText
                 text: modelData.label
                 color: Qt.darker(root.contentForeground, 1.8)
                 font.family: root.contentFontFamily
@@ -1665,6 +1725,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: "Standings refresh when opened."
           color: Qt.darker(root.contentForeground, 1.8)
@@ -1680,6 +1741,7 @@ Panel {
         visible: root.liveMatch && !root.showStandings
 
         Text {
+          textFormat: Text.PlainText
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           text: "LIVE MATCH"
@@ -1691,6 +1753,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           text: root.statusFor(root.liveMatch)
@@ -1734,8 +1797,9 @@ Panel {
             spacing: Style.space(8)
 
             Image { width: Style.space(44); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; sourceSize.width: 44; sourceSize.height: 44; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-            Text { width: Style.space(76); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
+            Text { textFormat: Text.PlainText; width: Style.space(76); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
             Text {
+              textFormat: Text.PlainText
               width: Style.space(86)
               anchors.verticalCenter: parent.verticalCenter
               horizontalAlignment: Text.AlignHCenter
@@ -1745,7 +1809,7 @@ Panel {
               font.pixelSize: Style.font.title
               font.bold: true
             }
-            Text { width: Style.space(76); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
+            Text { textFormat: Text.PlainText; width: Style.space(76); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
             Image { width: Style.space(44); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; sourceSize.width: 44; sourceSize.height: 44; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
           }
 
@@ -1760,6 +1824,7 @@ Panel {
             visible: root.liveHasDetails()
 
             Text {
+              textFormat: Text.PlainText
               width: (parent.width - parent.spacing) / 2
               text: root.liveDetailsFor("home")
               color: Qt.darker(root.contentForeground, 1.5)
@@ -1770,6 +1835,7 @@ Panel {
             }
 
             Text {
+              textFormat: Text.PlainText
               width: (parent.width - parent.spacing) / 2
               text: root.liveDetailsFor("away")
               color: Qt.darker(root.contentForeground, 1.5)
@@ -1785,6 +1851,7 @@ Panel {
             spacing: Style.space(5)
             Image { id: competitionLogo; width: Style.space(14); height: width; source: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; sourceSize.width: 14; sourceSize.height: 14; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: source !== "" }
             Text {
+              textFormat: Text.PlainText
               text: root.competitionNameFor(root.liveMatch)
               anchors.verticalCenter: competitionLogo.verticalCenter
               color: Qt.darker(root.contentForeground, 1.5)
@@ -1811,6 +1878,7 @@ Panel {
         visible: !root.showStandings
 
         Text {
+          textFormat: Text.PlainText
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           text: "NEXT MATCH"
@@ -1822,6 +1890,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           text: root.kickoffDay(root.nextMatch) + " · " + root.kickoffTime(root.nextMatch)
@@ -1847,9 +1916,9 @@ Panel {
             spacing: Style.space(8)
 
             Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.nextMatch, "home"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-            Text { width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.nextMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
-            Text { width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignHCenter; text: "vs"; color: Qt.darker(root.contentForeground, 1.5); font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall }
-            Text { width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.nextMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.nextMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignHCenter; text: "vs"; color: Qt.darker(root.contentForeground, 1.5); font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.nextMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
             Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.nextMatch, "away"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
           }
 
@@ -1863,6 +1932,7 @@ Panel {
             spacing: Style.space(5)
             Image { width: Style.space(18); height: width; source: root.competitionLogoFor(root.nextMatch); fillMode: Image.PreserveAspectFit; sourceSize.width: 18; sourceSize.height: 18; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
             Text {
+              textFormat: Text.PlainText
               text: root.competitionNameFor(root.nextMatch)
               color: Qt.darker(root.contentForeground, 1.5)
               font.family: root.contentFontFamily
@@ -1885,6 +1955,7 @@ Panel {
         visible: !root.showStandings
 
         Text {
+          textFormat: Text.PlainText
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           text: "PREVIOUS MATCH"
@@ -1924,9 +1995,9 @@ Panel {
             width: Style.space(320)
             spacing: Style.space(8)
             Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.previousMatch, "home"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-            Text { width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.previousMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
-            Text { width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignHCenter; text: root.scoreFor(root.previousMatch, "home") + " – " + root.scoreFor(root.previousMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
-            Text { width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignLeft; text: root.teamNameFor(root.previousMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.previousMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignHCenter; text: root.scoreFor(root.previousMatch, "home") + " – " + root.scoreFor(root.previousMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignLeft; text: root.teamNameFor(root.previousMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
             Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.previousMatch, "away"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
           }
 
@@ -1935,6 +2006,7 @@ Panel {
             spacing: Style.space(5)
             Image { width: Style.space(18); height: width; source: root.competitionLogoFor(root.previousMatch); fillMode: Image.PreserveAspectFit; sourceSize.width: 18; sourceSize.height: 18; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
             Text {
+              textFormat: Text.PlainText
               text: root.competitionNameFor(root.previousMatch)
               color: Qt.darker(root.contentForeground, 1.5)
               font.family: root.contentFontFamily
@@ -1945,6 +2017,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         visible: !root.showStandings && (root.loading || root.requestError !== "" || (!root.nextMatch && !root.previousMatch))
         opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
         text: root.loading ? "Loading fixtures…" : (root.requestError !== "" ? root.requestError : "No fixtures found for " + root.teamName)

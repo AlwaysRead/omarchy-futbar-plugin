@@ -126,9 +126,9 @@ You can select your team directly from the **in-panel picker**, or set it via Om
 
 If you want to modify or test FutBar locally:
 
-1. **Clone the repository**:
+1. **Navigate to the repository directory**:
+   Open a terminal in your local checkout of the plugin repository:
    ```bash
-   git clone https://github.com/AlwaysRead/omarchy-futbar-plugin.git
    cd omarchy-futbar-plugin
    ```
 
