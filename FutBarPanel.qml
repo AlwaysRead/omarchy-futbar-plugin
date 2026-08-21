@@ -111,7 +111,7 @@ Panel {
     var prev = ""
     while (prev !== str) {
       prev = str
-      str = str.replace(/<[^>]*>/g, '')
+      str = str.replace(/<[^<>]*>/g, '')
     }
     str = str.replace(/[<>]/g, '')
     str = str.replace(/&(?:[a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);/g, '')
