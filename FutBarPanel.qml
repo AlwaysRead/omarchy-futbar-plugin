@@ -31,11 +31,11 @@ Panel {
   // The state file is authoritative: the shell's injected settings can be
   // stale at reload (it hands over the previous in-memory team before syncing
   // shell.json), so prefer the remembered favorite over settings.
-  readonly property string teamName: String(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
+  readonly property string teamName: root.sanitizePlainText(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
     ? root.savedFavorite.teamName : setting("teamName", ""))
-  readonly property string league: String(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
+  readonly property string league: root.sanitizePlainText(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
     ? root.savedFavorite.league : setting("league", ""))
-  readonly property string teamId: String(root.savedFavorite.teamId !== undefined && root.savedFavorite.teamId !== ""
+  readonly property string teamId: root.safeIdentifier(root.savedFavorite.teamId !== undefined && root.savedFavorite.teamId !== ""
     ? root.savedFavorite.teamId : setting("teamId", ""))
   // Bar widgets expose their text color as barForeground. Using `foreground`
   // here resolves to an invalid (transparent) color on the popup.
@@ -94,6 +94,28 @@ Panel {
     if (!val || typeof val !== "string") return ""
     var trimmed = val.trim()
     return /^[a-zA-Z0-9_.\-]+$/.test(trimmed) ? trimmed : ""
+  }
+
+  function sanitizePlainText(raw) {
+    if (raw === undefined || raw === null) return ""
+    var str = String(raw)
+    str = str.replace(/&#(?:60|0*60|x0*3c|x0*3C);/gi, '<')
+             .replace(/&#(?:62|0*62|x0*3e|x0*3E);/gi, '>')
+             .replace(/&lt;/gi, '<')
+             .replace(/&gt;/gi, '>')
+             .replace(/&quot;/gi, '"')
+             .replace(/&apos;/gi, "'")
+             .replace(/&#39;/gi, "'")
+             .replace(/&amp;/gi, '&')
+    str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    var prev = ""
+    while (prev !== str) {
+      prev = str
+      str = str.replace(/<[^>]*>/g, '')
+    }
+    str = str.replace(/[<>]/g, '')
+    str = str.replace(/&(?:[a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);/g, '')
+    return str.trim()
   }
 
   function sanitizeImageUrl(raw) {
@@ -440,7 +462,7 @@ Panel {
       var leagues = Array.isArray(data.leagues) ? data.leagues : []
       if (leagues.length > 0 && slug !== "") {
         var info = {}
-        info.name = String(leagues[0].name || leagues[0].abbreviation || slug)
+        info.name = root.sanitizePlainText(String(leagues[0].name || leagues[0].abbreviation || slug))
         info.logo = root.sanitizeImageUrl(leagues[0].logos && leagues[0].logos.length ? String(leagues[0].logos[0].href || "") : "")
         var map = root.leagueInfo
         map[slug] = info
@@ -505,9 +527,9 @@ Panel {
   function competitionNameFor(event) {
     var slug = event ? String(event.competitionSlug || "") : ""
     var info = root.competitionInfo(slug)
-    if (info && info.name) return String(info.name)
+    if (info && info.name) return root.sanitizePlainText(String(info.name))
     if (slug === "") return root.leagueLabel()
-    return slug
+    return root.safeIdentifier(slug)
   }
 
   function competitionLogoFor(event) {
@@ -562,7 +584,8 @@ Panel {
 
   function teamNameFor(event, side) {
     var item = competitor(event, side)
-    return item && item.team ? String(item.team.shortDisplayName || item.team.displayName || "—") : "—"
+    var raw = item && item.team ? String(item.team.shortDisplayName || item.team.displayName || "—") : "—"
+    return root.sanitizePlainText(raw)
   }
 
   function teamLogoFor(event, side) {
@@ -572,20 +595,22 @@ Panel {
 
   function scoreFor(event, side) {
     var item = competitor(event, side)
-    return item ? String(item.score || "0") : "—"
+    var raw = item ? String(item.score || "0") : "—"
+    return root.sanitizePlainText(raw)
   }
 
   function kickoffDay(event) {
-    return event ? Qt.formatDate(new Date(event.date), "ddd d MMM") : ""
+    return event ? root.sanitizePlainText(Qt.formatDate(new Date(event.date), "ddd d MMM")) : ""
   }
 
   function kickoffTime(event) {
-    return event ? Qt.formatTime(new Date(event.date), "HH:mm") : ""
+    return event ? root.sanitizePlainText(Qt.formatTime(new Date(event.date), "HH:mm")) : ""
   }
 
   function statusFor(event) {
     var status = event && event.status
-    return status && status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
+    var raw = status && status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
+    return root.sanitizePlainText(raw)
   }
 
   // Fetches the live match's play-by-play so scorers and red cards can be shown
@@ -685,9 +710,9 @@ Panel {
       var person = first.athlete || first
       var team = e.team || first.team || {}
       out.push({
-        minute: String((e.clock && e.clock.displayValue) || "").replace("'", ""),
-        player: String(person.displayName || person.shortName || "?"),
-        teamName: String(team.displayName || team.shortName || ""),
+        minute: root.sanitizePlainText(String((e.clock && e.clock.displayValue) || "").replace("'", "")),
+        player: root.sanitizePlainText(String(person.displayName || person.shortName || "?")),
+        teamName: root.sanitizePlainText(String(team.displayName || team.shortName || "")),
         own: String(e.text || "").indexOf("Own Goal") !== -1,
         penalty: root.isPenaltyEvent(e),
         isHome: root.teamSide(String(team.id || ""))
@@ -704,9 +729,10 @@ Panel {
     for (var i = 0; i < events.length; i++) {
       if (String(events[i].isHome) !== side) continue
       var minute = events[i].minute !== "" ? events[i].minute + "'" : ""
-      out.push(prefix + (minute !== "" ? minute + " " : "") + events[i].player + (events[i].own ? " (og)" : "") + (events[i].penalty ? " (P)" : ""))
+      var player = root.sanitizePlainText(events[i].player)
+      out.push(prefix + (minute !== "" ? minute + " " : "") + player + (events[i].own ? " (og)" : "") + (events[i].penalty ? " (P)" : ""))
     }
-    return out.join("\n")
+    return root.sanitizePlainText(out.join("\n"))
   }
 
   function liveGoalsFor(side) { return root.formatEvents(root.liveGoals(), side, "") }
@@ -733,15 +759,18 @@ Panel {
     var parts = []
     if (home !== "") parts.push(root.teamNameFor(root.liveMatch, "home") + ": " + home.split("\n").join(" · "))
     if (away !== "") parts.push(root.teamNameFor(root.liveMatch, "away") + ": " + away.split("\n").join(" · "))
-    return parts.join("\n")
+    return root.sanitizePlainText(parts.join("\n"))
   }
 
   // Sends a desktop notification through the freedesktop daemon the shell
   // runs, which the omarchy notifications service renders as a popup.
   function notify(title, body) {
     if (!title) return
+    var cleanTitle = root.sanitizePlainText(String(title))
+    var cleanBody = root.sanitizePlainText(String(body || ""))
+    if (cleanTitle === "") return
     notifyRequest.command = ["notify-send", "-a", "futbar", "-i", "dialog-information",
-      String(title), String(body || "")]
+      cleanTitle, cleanBody]
     notifyRequest.running = true
   }
 
@@ -834,7 +863,7 @@ Panel {
     if (desc.indexOf("Overtime") !== -1) return "overtime"
     if (desc.indexOf("Penalty Shootout") !== -1) return "penalty shootout"
     var detail = String(typeObj && (typeObj.shortDetail || typeObj.detail) || "")
-    return detail !== "" ? detail : "in progress"
+    return root.sanitizePlainText(detail !== "" ? detail : "in progress")
   }
 
   // Compares a fresh summary against what has already been reported.
@@ -898,17 +927,17 @@ Panel {
       var e = events[i]
       if (root.activityAlreadySeen(e)) continue
       var t = String(e.type && e.type.text || "")
-      var minute = String(e.clock && e.clock.displayValue || "").replace("'", "")
+      var minute = root.sanitizePlainText(String(e.clock && e.clock.displayValue || "").replace("'", ""))
       var players = e.athletesInvolved || e.participants || []
       var team = e.team || (players[0] && players[0].team) || {}
-      var teamName = String(team.displayName || team.shortName || "")
+      var teamName = root.sanitizePlainText(String(team.displayName || team.shortName || ""))
       var score = root.scoreText()
 
       if (root.isGoalEvent(e)) {
         if (!players.length) { root.activityMarkSeen(e); continue }
         var first = players[0]
         var person = first.athlete || first
-        var playerName = String(person.displayName || "?")
+        var playerName = root.sanitizePlainText(String(person.displayName || "?"))
         root.activityMarkSeen(e)
         if (root.isPenaltyEvent(e)) {
           root.notify("Penalty — " + teamName, (minute !== "" ? minute + "' · " : "") + score)
@@ -919,7 +948,7 @@ Panel {
         if (!players.length) { root.activityMarkSeen(e); continue }
         var cardFirst = players[0]
         var cardPerson = cardFirst.athlete || cardFirst
-        var cardName = String(cardPerson.displayName || "?")
+        var cardName = root.sanitizePlainText(String(cardPerson.displayName || "?"))
         var cardKind = t.indexOf("Yellow") !== -1 ? "Yellow Card" : "Red Card"
         var parts = []
         if (minute !== "") parts.push(minute + "'")
@@ -1001,16 +1030,17 @@ Panel {
   }
 
   function selectTeam(name) {
-    if (name === "") return
+    var cleanName = root.sanitizePlainText(name)
+    if (cleanName === "") return
     for (var i = 0; i < teams.length; i++) {
-      if (String(teams[i].value) === name) { selectedTeam = teams[i]; break }
+      if (String(teams[i].value) === cleanName) { selectedTeam = teams[i]; break }
     }
   }
 
   function confirmTeam() {
     if (!selectedTeam) return
     root.editingTeam = false
-    var teamVal = String(selectedTeam.value || "")
+    var teamVal = root.sanitizePlainText(String(selectedTeam.value || ""))
     var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
     var teamIdVal = root.safeIdentifier(String(selectedTeam.id || ""))
     root.resolvedTeamId = teamIdVal
@@ -1236,7 +1266,7 @@ Panel {
             name = String(children[c].name || "")
             if (entries.length) break
           }
-          root.standingsGroupName = name
+          root.standingsGroupName = root.sanitizePlainText(name)
           root.standings = entries.map(function(entry, index) {
             var team = entry.team || {}
             var stats = {}
@@ -1244,8 +1274,8 @@ Panel {
             for (var s = 0; s < list.length; s++) {
               var item = list[s]
               if (!item) continue
-              var key = String(item.name || "")
-              if (key !== "") stats[key] = item.displayValue !== undefined && item.displayValue !== null ? String(item.displayValue) : "0"
+              var key = root.safeIdentifier(String(item.name || ""))
+              if (key !== "") stats[key] = item.displayValue !== undefined && item.displayValue !== null ? root.sanitizePlainText(String(item.displayValue)) : "0"
             }
             var rankVal = stats.rank
             if (rankVal === undefined || rankVal === "") {
@@ -1253,8 +1283,8 @@ Panel {
               rankVal = noteRank !== undefined && noteRank !== null ? String(noteRank) : String(index + 1)
             }
             return {
-              rank: String(rankVal),
-              teamName: String(team.displayName || team.name || "—"),
+              rank: root.sanitizePlainText(String(rankVal)),
+              teamName: root.sanitizePlainText(String(team.displayName || team.name || "—")),
               teamId: root.safeIdentifier(String(team.id || "")),
               logo: root.sanitizeImageUrl(team.logos && team.logos[0] ? String(team.logos[0].href || "") : ""),
               note: entry.note || null,
@@ -1293,7 +1323,8 @@ Panel {
           var list = (leagues[0] && leagues[0].teams) || []
           root.teams = list.map(function(entry) {
             var team = entry.team || {}
-            var name = String(team.displayName || team.name || "")
+            var rawName = String(team.displayName || team.name || "")
+            var name = root.sanitizePlainText(rawName)
             // The /teams endpoint nests logos in a `logos[]` array rather than
             // the single `logo` string the scoreboard uses.
             var logo = String(team.logo || "")

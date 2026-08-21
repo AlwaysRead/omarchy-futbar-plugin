@@ -21,9 +21,30 @@ BarWidget {
       return parsed && typeof parsed === "object" ? parsed : ({})
     } catch (e) { return ({}) }
   }
-  readonly property string teamName: String(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
+  function sanitizePlainText(raw) {
+    if (raw === undefined || raw === null) return ""
+    var str = String(raw)
+    str = str.replace(/&#(?:60|0*60|x0*3c|x0*3C);/gi, '<')
+             .replace(/&#(?:62|0*62|x0*3e|x0*3E);/gi, '>')
+             .replace(/&lt;/gi, '<')
+             .replace(/&gt;/gi, '>')
+             .replace(/&quot;/gi, '"')
+             .replace(/&apos;/gi, "'")
+             .replace(/&#39;/gi, "'")
+             .replace(/&amp;/gi, '&')
+    str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    var prev = ""
+    while (prev !== str) {
+      prev = str
+      str = str.replace(/<[^>]*>/g, '')
+    }
+    str = str.replace(/[<>]/g, '')
+    str = str.replace(/&(?:[a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);/g, '')
+    return str.trim()
+  }
+  readonly property string teamName: root.sanitizePlainText(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
     ? root.savedFavorite.teamName : setting("teamName", ""))
-  readonly property string league: String(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
+  readonly property string league: root.sanitizePlainText(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
     ? root.savedFavorite.league : setting("league", ""))
   FileView {
     id: favoriteStore
@@ -75,21 +96,21 @@ BarWidget {
     }
     if (!p) return
     if (p.loading) {
-      root.tooltip = "Fetching " + root.teamName + "…"
+      root.tooltip = root.sanitizePlainText("Fetching " + root.teamName + "…")
       return
     }
     if (p.requestError) {
-      root.tooltip = String(p.requestError)
+      root.tooltip = root.sanitizePlainText(String(p.requestError))
       return
     }
     if (p.liveMatch) {
-      var home = String(p.teamNameFor(p.liveMatch, "home"))
-      var away = String(p.teamNameFor(p.liveMatch, "away"))
-      var homeScore = String(p.scoreFor(p.liveMatch, "home"))
-      var awayScore = String(p.scoreFor(p.liveMatch, "away"))
-      var clock = String(p.statusFor(p.liveMatch))
+      var home = root.sanitizePlainText(p.teamNameFor(p.liveMatch, "home"))
+      var away = root.sanitizePlainText(p.teamNameFor(p.liveMatch, "away"))
+      var homeScore = root.sanitizePlainText(p.scoreFor(p.liveMatch, "home"))
+      var awayScore = root.sanitizePlainText(p.scoreFor(p.liveMatch, "away"))
+      var clock = root.sanitizePlainText(p.statusFor(p.liveMatch))
       root.liveTooltip = home + " vs " + away + " (" + homeScore + "–" + awayScore + "), " + clock
-      var summary = p.liveSummaryText()
+      var summary = root.sanitizePlainText(p.liveSummaryText())
       root.tooltip = root.liveTooltip + (summary !== "" ? "\n\n" + summary : "")
       root.live = true
       return
@@ -97,11 +118,16 @@ BarWidget {
     root.live = false
     root.liveTooltip = ""
     if (p.nextMatch) {
-      root.tooltip = "Next Match\n" + p.teamNameFor(p.nextMatch, "home") + " vs " + p.teamNameFor(p.nextMatch, "away")
-        + "\n" + p.competitionNameFor(p.nextMatch) + " · " + p.kickoffDay(p.nextMatch) + " · " + p.kickoffTime(p.nextMatch)
+      var nextHome = root.sanitizePlainText(p.teamNameFor(p.nextMatch, "home"))
+      var nextAway = root.sanitizePlainText(p.teamNameFor(p.nextMatch, "away"))
+      var nextComp = root.sanitizePlainText(p.competitionNameFor(p.nextMatch))
+      var nextDay = root.sanitizePlainText(p.kickoffDay(p.nextMatch))
+      var nextTime = root.sanitizePlainText(p.kickoffTime(p.nextMatch))
+      root.tooltip = "Next Match\n" + nextHome + " vs " + nextAway
+        + "\n" + nextComp + " · " + nextDay + " · " + nextTime
       return
     }
-    root.tooltip = "No live match found for " + root.teamName + " in " + root.league
+    root.tooltip = root.sanitizePlainText("No live match found for " + root.teamName + " in " + root.league)
   }
 
   function injectPanel() {
