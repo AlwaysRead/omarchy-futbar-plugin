@@ -109,7 +109,7 @@ You can select your team directly from the **in-panel picker**, or set it via Om
 ## Security & Dependencies
 
 - **Dependencies**: Uses Omarchy's built-in Quickshell modules (`Quickshell`, `Quickshell.Io`, `qs.Commons`, `qs.Ui`). Optional `notify-send` for desktop activity alerts.
-- **Network Data**: Connects exclusively over HTTPS to public ESPN REST endpoints (`site.api.espn.com`). No tokens, authentication, or tracking needed.
+- **Network Data**: Connects exclusively over HTTPS to public ESPN REST endpoints (`site.api.espn.com`). All remote requests enforce strict size bounds (`--max-filesize` and in-memory byte limits) and timeouts (`--max-time 10`). No tokens, authentication, or tracking needed.
 - **Privilege Boundary**: Operates entirely within standard user privileges. All state is isolated to `~/.config/omarchy/plugins/devbook.futbar` and `~/.local/state/omarchy/futbar.json`.
 
 ---

@@ -15,7 +15,7 @@ BarWidget {
   readonly property string favoritePath: Quickshell.env("HOME") + "/.local/state/omarchy/futbar.json"
   property var savedFavorite: ({})
   function parseFavorite(txt) {
-    if (!txt) return ({})
+    if (!txt || typeof txt !== "string" || txt.length > 65536) return ({})
     try {
       var parsed = JSON.parse(txt)
       return parsed && typeof parsed === "object" ? parsed : ({})

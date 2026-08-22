@@ -22,7 +22,7 @@ Panel {
   property var savedFavorite: ({})
   property bool _favoriteLoaded: false
   function parseFavorite(txt) {
-    if (!txt) return ({})
+    if (!txt || typeof txt !== "string" || txt.length > 65536) return ({})
     try {
       var parsed = JSON.parse(txt)
       return parsed && typeof parsed === "object" ? parsed : ({})
@@ -409,11 +409,11 @@ Panel {
     var leagueCode = root.safeIdentifier(root.league)
     if (next.kind === "teams") {
       if (leagueCode === "") { root.loading = false; return }
-      fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10",
+      fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
         "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
     } else if (next.kind === "discover") {
       if (team === "") { root.startScoreboards(); return }
-      fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10",
+      fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
         "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(team) + "/events?dates=" + encodeURIComponent(window) + "&limit=100"]
     }
     fixtureRequest.running = true
@@ -443,7 +443,7 @@ Panel {
           if (slug === "") continue
           root.sbSlugs[i] = slug
           var window = root.rangeDate(-120) + "-" + root.rangeDate(60)
-          procs[i].command = ["curl", "-fsSL", "--max-time", "10",
+          procs[i].command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "5242880",
             "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
           procs[i].running = true
           assigned = true
@@ -457,6 +457,14 @@ Panel {
 
   function handleScoreboard(index, text) {
     var slug = root.sbSlugs[index]
+    if (typeof text !== "string" || text.length === 0 || text.length > 5242880) {
+      if (typeof text === "string" && text.length > 5242880) {
+        console.warn("futbar", "scoreboard response exceeded byte limit for " + slug)
+      }
+      root.sbSlugs[index] = ""
+      root.kickScoreboards()
+      return
+    }
     try {
       var data = JSON.parse(text)
       var leagues = Array.isArray(data.leagues) ? data.leagues : []
@@ -632,7 +640,7 @@ Panel {
     if (panelSummaryRequest.running) return
     var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
     if (slug === "") return
-    panelSummaryRequest.command = ["curl", "-fsSL", "--max-time", "10",
+    panelSummaryRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
       "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     panelSummaryRequest.running = true
   }
@@ -646,7 +654,7 @@ Panel {
     if (leagueCode === "") return
     standingsLoading = true
     standingsError = ""
-    standingsRequest.command = ["curl", "-fsSL", "--max-time", "10",
+    standingsRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
       "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/standings"]
     standingsRequest.running = true
   }
@@ -822,7 +830,7 @@ Panel {
     if (activityRequest.running) return
     var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
     if (slug === "") return
-    activityRequest.command = ["curl", "-fsSL", "--max-time", "10",
+    activityRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
       "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     activityRequest.running = true
   }
@@ -1023,7 +1031,7 @@ Panel {
     selectedTeam = null
     var leagueCode = root.safeIdentifier(root.selectedLeague)
     if (leagueCode !== "") {
-      teamsRequest.command = ["curl", "-fsSL", "--max-time", "10",
+      teamsRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
         "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
       if (!teamsRequest.running) teamsRequest.running = true
     }
@@ -1091,6 +1099,13 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          if (typeof text === "string" && text.length > 2097152) {
+            console.warn("futbar", root.fetchStage + " response exceeded byte limit")
+          }
+          root.startNextFetch()
+          return
+        }
         try {
           var data = JSON.parse(text)
           if (root.fetchStage === "teams") {
@@ -1206,6 +1221,10 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          root.liveEvents = []
+          return
+        }
         try {
           var data = JSON.parse(text)
           root.liveEvents = Array.isArray(data.keyEvents) ? data.keyEvents : []
@@ -1229,6 +1248,7 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) return
         try {
           root.handleActivitySummary(JSON.parse(text))
         } catch (error) {
@@ -1255,6 +1275,11 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          root.standingsError = "Could not load standings"
+          root.standingsLoading = false
+          return
+        }
         try {
           var data = JSON.parse(text)
           var children = data.children || []
@@ -1312,11 +1337,12 @@ Panel {
   Process {
     id: teamsRequest
     // Fetched per league when the user picks one in the first-run picker.
-    command: ["curl", "-fsSL", "--max-time", "10",
+    command: ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
       "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(root.safeIdentifier(root.selectedLeague)) + "/teams"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) return
         try {
           var data = JSON.parse(text)
           var leagues = data.sports && data.sports[0] && data.sports[0].leagues || []
