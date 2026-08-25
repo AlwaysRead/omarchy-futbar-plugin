@@ -292,6 +292,7 @@ Panel {
   // matchweek is detected as the cluster of fixture days around today;
   // chevron arrows page through the other rounds in the window.
   property bool showMatches: false
+  property bool showClubFixtures: false
   property bool matchListLoading: false
   property string matchListError: ""
   property var matchClusters: []
@@ -333,7 +334,7 @@ Panel {
   property string matchDetailLineupView: "pitch"
   property bool matchDetailCrestsLoaded: false
   property var matchDetailJerseyUrls: []
-  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showMatchDetail || root.leagueMode
+  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.leagueMode
   // Per-match league tracking: each followed live fixture notifies its own
   // goals and cards independently (no phase notifications).
   property var followedLeagueMatches: []
@@ -517,6 +518,7 @@ Panel {
     // toggles.
     root.showStandings = false
     root.showStats = false
+    root.showClubFixtures = false
     root.leagueBrowseAll = false
     root.showMatches = root.leagueMode
     if (root.leagueMode) root.loadMatchList()
@@ -535,6 +537,7 @@ Panel {
   // Closing always returns the League Matches view to the live round: the
   // next open refetches the standard window and lands on today's matchweek.
   function resetMatchWeekNav() {
+    root.showClubFixtures = false
     root.leagueBrowseAll = false
     root.matchWindowOffset = 0
     root.pendingEdge = ""
@@ -1046,6 +1049,7 @@ Panel {
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
+    root.showClubFixtures = false
     root.matchDetailLoading = true
     root.matchDetailError = ""
     root.matchDetailTab = isStarted ? "stats" : "info"
@@ -2450,6 +2454,7 @@ Panel {
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
+    root.showClubFixtures = false
     root.showMatchDetail = false
     root.clubFixturePage = 0
     root.loading = true
@@ -2688,16 +2693,27 @@ Panel {
     root.showMatchDetail = false
     root.showStandings = false
     root.showStats = false
+    root.showClubFixtures = false
     root.showMatches = true
     if (root.leagueMode) {
       root.leagueBrowseAll = true
       root.matchWindowOffset = 0
       root.loadMatchList(true)
     } else {
-      root.initClubFixturePage()
-      if (root.collectedEvents.length === 0 && !root.loading) {
-        root.refresh()
-      }
+      root.matchWindowOffset = 0
+      root.loadMatchList(true)
+    }
+  }
+
+  function showClubAllFixtures() {
+    root.showMatchDetail = false
+    root.showStandings = false
+    root.showStats = false
+    root.showMatches = false
+    root.showClubFixtures = true
+    root.initClubFixturePage()
+    if (root.collectedEvents.length === 0 && !root.loading) {
+      root.refresh()
     }
   }
 
@@ -4265,9 +4281,11 @@ root.warnStderr("team select failed", text)
           height: width
           // League identity while browsing matchweeks, stats, table, or in league-follow;
           // club identity otherwise.
-          source: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
-            ? (root.leagueLogoUrl() !== "" ? root.leagueLogoUrl() : root.clubLogoUrl())
-            : (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl())
+          source: root.showClubFixtures
+            ? (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl())
+            : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+              ? (root.leagueLogoUrl() !== "" ? root.leagueLogoUrl() : root.clubLogoUrl())
+              : (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl()))
           fillMode: Image.PreserveAspectFit
           asynchronous: true
           cache: true
@@ -4288,9 +4306,11 @@ root.warnStderr("team select failed", text)
           Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
-              ? (root.tournamentName || root.leagueLabel())
-              : (root.teamName || root.tournamentName || root.leagueLabel())
+            text: root.showClubFixtures
+              ? (root.teamName + " Fixtures")
+              : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+                ? (root.tournamentName || root.leagueLabel())
+                : (root.teamName || root.tournamentName || root.leagueLabel()))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
@@ -4303,9 +4323,11 @@ root.warnStderr("team select failed", text)
           Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
-              ? (root.leagueMode ? "" : root.teamName)
-              : root.leagueLabel()
+            text: root.showClubFixtures
+              ? root.leagueLabel()
+              : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+                ? (root.leagueMode ? "" : root.teamName)
+                : root.leagueLabel())
             color: Qt.darker(root.contentForeground, 1.25)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -4323,16 +4345,17 @@ root.warnStderr("team select failed", text)
           width: Style.space(32)
           height: Style.space(32)
           iconText: "󰕲"
-          tooltipText: root.leagueMode ? (root.leagueBrowseAll ? "Daily Slate" : "All League Fixtures") : (root.showMatches ? "Match Overview" : (root.teamName + " Fixtures"))
+          tooltipText: root.leagueMode ? (root.leagueBrowseAll ? "Daily Slate" : "All League Fixtures") : "League Fixtures"
           fontFamily: root.contentFontFamily
           foreground: root.contentForeground
           accent: root.contentForeground
           iconSize: Style.font.body
           horizontalPadding: 0
           verticalPadding: 0
-          selected: root.leagueMode ? (!root.showStandings && !root.showStats && root.leagueBrowseAll) : (root.showMatches && !root.showStandings && !root.showStats)
+          selected: root.leagueMode ? (!root.showStandings && !root.showStats && root.leagueBrowseAll) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures)
           onClicked: {
             root.showMatchDetail = false
+            root.showClubFixtures = false
             if (root.leagueMode) {
               if (root.showStandings || root.showStats) {
                 root.showStandings = false
@@ -4349,12 +4372,12 @@ root.warnStderr("team select failed", text)
               root.showStandings = false
               root.showStats = false
               root.showMatches = true
-              if (root.collectedEvents.length === 0 && !root.loading) root.refresh()
+              root.loadMatchList()
               return
             }
             root.showMatches = !root.showMatches
-            if (root.showMatches && root.collectedEvents.length === 0 && !root.loading) {
-              root.refresh()
+            if (root.showMatches) {
+              root.loadMatchList()
             }
           }
         }
@@ -4374,6 +4397,7 @@ root.warnStderr("team select failed", text)
           selected: root.showStandings
           onClicked: {
             root.showMatchDetail = false
+            root.showClubFixtures = false
             root.showStandings = !root.showStandings
             if (root.showStandings) {
               root.showMatches = false
@@ -4404,6 +4428,7 @@ root.warnStderr("team select failed", text)
           selected: root.showStats
           onClicked: {
             root.showMatchDetail = false
+            root.showClubFixtures = false
             root.showStats = !root.showStats
             if (root.showStats) {
               root.showMatches = false
@@ -4432,7 +4457,10 @@ root.warnStderr("team select failed", text)
           iconSize: Style.font.body
           horizontalPadding: 0
           verticalPadding: 0
-          onClicked: root.openTeamPicker()
+          onClicked: {
+            root.showClubFixtures = false
+            root.openTeamPicker()
+          }
         }
       }
 
@@ -7322,10 +7350,112 @@ root.warnStderr("team select failed", text)
         }
       }
 
+      // Selected club's own full fixtures list (5 matches per view with Earlier/Later navigation)
       Column {
         width: parent.width
         spacing: Style.space(12)
-        visible: (root.leagueMode ? (!root.showStandings && !root.showStats && !root.showMatchDetail) : (root.showMatches && !root.showStandings && !root.showStats && !root.showMatchDetail))
+        visible: !root.leagueMode && root.showClubFixtures && !root.showStandings && !root.showStats && !root.showMatchDetail
+
+        Item {
+          width: parent.width
+          height: clubFixturesTitleText.implicitHeight
+
+          Text {
+            id: clubFixturesTitleText
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width
+            opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
+            text: root.loading
+              ? ("Fetching " + root.teamName + " fixtures…")
+              : (root.teamFixtureRows.length > 0 ? (root.teamName + " Fixtures") : ("No fixtures found for " + root.teamName))
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            elide: Text.ElideRight
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: 0
+          visible: root.teamFixtureRows.length > 0
+
+          Repeater {
+            model: root.pagedClubRows
+            delegate: matchRowDelegate
+          }
+        }
+
+        // Navigation arrows below the 5 fixtures
+        Row {
+          width: parent.width
+          height: Style.space(32)
+          visible: root.clubPageCount > 1
+
+          Button {
+            id: clubPrevPageBtn
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(85)
+            height: Style.space(28)
+            iconText: ""
+            text: "Earlier"
+            enabled: root.clubFixturePage > 0
+            opacity: root.clubFixturePage > 0 ? 1.0 : 0.4
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            iconSize: Style.font.caption
+            horizontalPadding: Style.space(8)
+            verticalPadding: 0
+            onClicked: {
+              if (root.clubFixturePage > 0) root.clubFixturePage--
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.centerIn: parent
+            text: (root.clubFixturePage * root.clubPageSize + 1) + "–" + Math.min((root.clubFixturePage + 1) * root.clubPageSize, root.teamFixtureRows.length) + " of " + root.teamFixtureRows.length
+            color: Qt.darker(root.contentForeground, 1.5)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+
+          Button {
+            id: clubNextPageBtn
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(85)
+            height: Style.space(28)
+            iconText: ""
+            text: "Later"
+            enabled: root.clubFixturePage < root.clubPageCount - 1
+            opacity: root.clubFixturePage < root.clubPageCount - 1 ? 1.0 : 0.4
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            iconSize: Style.font.caption
+            horizontalPadding: Style.space(8)
+            verticalPadding: 0
+            onClicked: {
+              if (root.clubFixturePage < root.clubPageCount - 1) root.clubFixturePage++
+            }
+          }
+        }
+      }
+
+      // League Matchweek Fixtures and Daily Slate container
+      Column {
+        width: parent.width
+        spacing: Style.space(12)
+        visible: (root.leagueMode ? (!root.showStandings && !root.showStats && !root.showMatchDetail) : (root.showMatches && !root.showStandings && !root.showStats && !root.showMatchDetail && !root.showClubFixtures))
 
         // League name on the left; on the right, chevrons page between the
         // detected fixture rounds around the date-range label.
@@ -7340,23 +7470,18 @@ root.warnStderr("team select failed", text)
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - (matchWeekNav.visible ? matchWeekNav.width + parent.spacing : 0)
               - (liveBadge.visible ? liveBadge.width + parent.spacing : 0)
-            opacity: (root.leagueMode ? root.matchListLoading : root.loading) ? 0.4 + 0.6 * root._pulse : 1.0
+            opacity: root.matchListLoading ? 0.4 + 0.6 * root._pulse : 1.0
             text: root.matchListError !== "" ? "Could not load matches"
-              : (root.leagueMode
-                ? (root.leagueBrowseAll
-                  ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
-                  : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0
-                    ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No matches today")))
-                : (root.loading
-                  ? ("Fetching " + root.teamName + " fixtures…")
-                  : (root.teamFixtureRows.length > 0 ? (root.teamName + " Fixtures") : ("No fixtures found for " + root.teamName))))
+              : (root.leagueBrowseAll || !root.leagueMode
+                ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
+                : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0
+                  ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No matches today")))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
             font.bold: true
             elide: Text.ElideRight
           }
-
 
           Text {
             id: liveBadge
@@ -7378,7 +7503,7 @@ root.warnStderr("team select failed", text)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
-            visible: root.leagueMode && root.leagueBrowseAll
+            visible: (root.leagueMode && root.leagueBrowseAll) || (!root.leagueMode && root.showMatches)
 
             Button {
               id: prevWeekButton
@@ -7449,92 +7574,14 @@ root.warnStderr("team select failed", text)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
           wrapMode: Text.WordWrap
-          visible: root.leagueMode && root.matchListError !== ""
-        }
-
-        // Selected club's own full fixtures list (5 matches per view with navigation arrows)
-        Column {
-          width: parent.width
-          spacing: Style.space(8)
-          visible: !root.leagueMode && root.showMatches && root.teamFixtureRows.length > 0
-
-          Column {
-            width: parent.width
-            spacing: 0
-
-            Repeater {
-              model: root.pagedClubRows
-              delegate: matchRowDelegate
-            }
-          }
-
-          // Navigation arrows below the 5 fixtures
-          Row {
-            width: parent.width
-            height: Style.space(32)
-            visible: root.clubPageCount > 1
-
-            Button {
-              id: clubPrevPageBtn
-              anchors.left: parent.left
-              anchors.verticalCenter: parent.verticalCenter
-              width: Style.space(85)
-              height: Style.space(28)
-              iconText: ""
-              text: "Earlier"
-              enabled: root.clubFixturePage > 0
-              opacity: root.clubFixturePage > 0 ? 1.0 : 0.4
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              fontSize: Style.font.caption
-              iconSize: Style.font.caption
-              horizontalPadding: Style.space(8)
-              verticalPadding: 0
-              onClicked: {
-                if (root.clubFixturePage > 0) root.clubFixturePage--
-              }
-            }
-
-            Text {
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: (root.clubFixturePage * root.clubPageSize + 1) + "–" + Math.min((root.clubFixturePage + 1) * root.clubPageSize, root.teamFixtureRows.length) + " of " + root.teamFixtureRows.length
-              color: Qt.darker(root.contentForeground, 1.5)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-            }
-
-            Button {
-              id: clubNextPageBtn
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              width: Style.space(85)
-              height: Style.space(28)
-              iconText: ""
-              text: "Later"
-              enabled: root.clubFixturePage < root.clubPageCount - 1
-              opacity: root.clubFixturePage < root.clubPageCount - 1 ? 1.0 : 0.4
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              fontSize: Style.font.caption
-              iconSize: Style.font.caption
-              horizontalPadding: Style.space(8)
-              verticalPadding: 0
-              onClicked: {
-                if (root.clubFixturePage < root.clubPageCount - 1) root.clubFixturePage++
-              }
-            }
-          }
+          visible: root.matchListError !== ""
         }
 
         // Full league fixtures by matchweek
         Column {
           width: parent.width
           spacing: 0
-          visible: root.leagueMode && root.leagueBrowseAll && root.matchWeekRows.length > 0
+          visible: ((root.leagueMode && root.leagueBrowseAll) || (!root.leagueMode && root.showMatches)) && root.matchWeekRows.length > 0
 
           Repeater {
             model: root.matchWeekRows
@@ -8167,7 +8214,7 @@ root.warnStderr("team select failed", text)
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.showAllFixtures()
+          onClicked: root.showClubAllFixtures()
         }
 
         Row {
