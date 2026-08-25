@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -31,19 +32,47 @@ Panel {
   // The state file is authoritative: the shell's injected settings can be
   // stale at reload (it hands over the previous in-memory team before syncing
   // shell.json), so prefer the remembered favorite over settings.
-  readonly property string teamName: root.sanitizePlainText(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
+  readonly property string teamName: root.leagueMode ? "" : root.sanitizePlainText(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
     ? root.savedFavorite.teamName : setting("teamName", ""))
   readonly property string league: root.sanitizePlainText(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
     ? root.savedFavorite.league : setting("league", ""))
-  readonly property string teamId: root.safeIdentifier(root.savedFavorite.teamId !== undefined && root.savedFavorite.teamId !== ""
+  readonly property string teamId: root.leagueMode ? "" : root.safeIdentifier(root.savedFavorite.teamId !== undefined && root.savedFavorite.teamId !== ""
     ? root.savedFavorite.teamId : setting("teamId", ""))
   // Bar widgets expose their text color as barForeground. Using `foreground`
   // here resolves to an invalid (transparent) color on the popup.
   readonly property color contentForeground: bar ? bar.barForeground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property string themeColorsPath: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
+  property var themePalette: ({})
+
+  FileView {
+    id: themeColorsFile
+    path: root.themeColorsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      var lines = String(text() || "").split("\n")
+      var pal = {}
+      for (var i = 0; i < lines.length; i++) {
+        var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+        if (match) pal[match[1]] = match[2]
+      }
+      root.themePalette = pal
+    }
+  }
+
+  readonly property color statsHomeColor: (root.themePalette && (root.themePalette.cyan || root.themePalette.blue || root.themePalette.bright_cyan || root.themePalette.bright_blue))
+    ? (root.themePalette.cyan || root.themePalette.blue || root.themePalette.bright_cyan || root.themePalette.bright_blue)
+    : Color.accent
+
+  readonly property color statsAwayColor: (root.themePalette && (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta))
+    ? (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta)
+    : Color.urgent
+
+  readonly property bool anyLoading: root.loading || root.matchListLoading || root.standingsLoading || root.statsLoading || root.matchDetailLoading || root.teamsLoading
 
   SequentialAnimation on _pulse {
-    running: root.loading
+    running: root.anyLoading
     loops: Animation.Infinite
     NumberAnimation { to: 1.0; duration: 450; easing.type: Easing.InOutQuad }
     NumberAnimation { to: 0.0; duration: 450; easing.type: Easing.InOutQuad }
@@ -51,9 +80,15 @@ Panel {
   // First run: no team has been stored in shell.json yet. The manifest default
   // only feeds the settings UI, so an untouched widget has an undefined value.
   // A remembered favorite (the state file) counts as a team too.
-  property bool needsTeam: root.settings
-    ? (root.settings.teamName === undefined && root.savedFavorite.teamName === undefined)
-    : true
+  property bool needsTeam: root.leagueMode
+    ? false
+    : (root.settings
+        ? (root.settings.teamName === undefined && root.savedFavorite.teamName === undefined)
+        : true)
+  // League-follow mode: the user tracks a whole competition instead of a
+  // single club. Stored in the favorite file (authoritative on reload).
+  readonly property bool leagueMode: root.savedFavorite.followLeague === true
+    && String(root.league || "") !== ""
   // True once the widget has started fetching with a real team. Reloads must
   // not fetch (or worse, resolve+persist) with stale in-memory settings before
   // the shell finishes syncing the current shell.json — the shell hands the
@@ -73,7 +108,7 @@ Panel {
     // Wait until the state file has actually been read (it is authoritative),
     // otherwise the injected (possibly stale) settings would win the race.
     if (!root._favoriteLoaded) return
-    if (!root.hasRealTeam()) return
+    if (!root.hasRealTeam() && !root.leagueMode) return
     var sig = root.teamSignature()
     if (sig !== root._startupSig) {
       root._startupSig = sig
@@ -121,9 +156,18 @@ Panel {
   function sanitizeImageUrl(raw) {
     if (!raw || typeof raw !== "string") return ""
     var url = raw.trim()
+    if (url.indexOf("http://") === 0) {
+      url = "https://" + url.substring(7)
+    }
     if (!/^https:\/\/[a-zA-Z0-9\-\._~:\/\?#\[\]@!\$&'\(\)\*\+,;=%]+$/.test(url)) {
       return ""
     }
+    // Automatically upgrade lower-resolution ESPN CDN URLs to crisp 500px high-res assets
+    url = url.replace(/\/soccer\/(?:50|100|200)\//g, "/soccer/500/")
+             .replace(/\/leaguelogos\/soccer\/(?:50|100|200)\//g, "/leaguelogos/soccer/500/")
+             .replace(/\/teamlogos\/soccer\/(?:50|100|200)\//g, "/teamlogos/soccer/500/")
+             .replace(/&w=\d+/g, "&w=500")
+             .replace(/&h=\d+/g, "&h=500")
     return url
   }
 
@@ -134,7 +178,13 @@ Panel {
     watchChanges: false
     atomicWrites: true
     printErrors: false
-    onLoaded: { root.savedFavorite = root.parseFavorite(text()); root._favoriteLoaded = true }
+    onLoaded: {
+      root.savedFavorite = root.parseFavorite(text())
+      var ids = root.savedFavorite.followMatchIds
+      root.followedLeagueMatches = Array.isArray(ids)
+        ? ids.filter(function(x) { return root.safeIdentifier(String(x)) !== "" }) : []
+      root._favoriteLoaded = true
+    }
     onLoadFailed: { root.savedFavorite = ({}); root._favoriteLoaded = true }
   }
 
@@ -149,8 +199,14 @@ Panel {
     var name = teamName !== undefined ? teamName : root.teamName
     var lg = league !== undefined ? league : root.league
     var tid = teamId !== undefined ? teamId : (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
-    root.savedFavorite = { teamName: name, league: lg, teamId: tid }
-    favoriteStore.setText(JSON.stringify({ teamName: name, league: lg, teamId: tid }, null, 2) + "\n")
+    // A fourth truthy argument saves a league-follow instead of a club; it
+    // also clears stale club fields so the favorite file stays consistent.
+    var asLeague = arguments.length > 3 && arguments[3] === true
+    var payload = asLeague
+      ? { teamName: "", league: lg, teamId: "", followLeague: true }
+      : { teamName: name, league: lg, teamId: tid }
+    root.savedFavorite = payload
+    favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
   }
   onSettingsChanged: root.ensureStarted()
 
@@ -178,26 +234,125 @@ Panel {
   // current state, so enabling Live Activity mid-match never retro-reports
   // events that already happened.
   property bool activityInitialized: false
-  // Last observed status state, so transitions like halftime→second half can
-  // be detected.
-  property string activityPrevState: ""
+  // True while Live Activity has seen the half-time break, so the moment play
+  // resumes can be announced as the start of the second half. Needed because
+  // soccer keeps both halves and the break under state "in".
+  property bool activityWasHT: false
+  // True once a knockout match has entered extra time, detected from the
+  // "Start Extra Time" key event. The summary header carries no period field,
+  // so this flag keeps the regular half-time logic from firing during ET.
+  property bool activityET: false
+  // How long before kickoff a not-yet-live match can be followed. Tracking
+  // before kickoff is what makes the "Match Started" notification possible:
+  // enabling during play adopts the current phase silently instead.
+  readonly property int followLeadMs: 30 * 60 * 1000
   property var activityEvents: []
+  // Goal toasts held back while ESPN's header score lags its key events (the
+  // race that made a fresh goal announce the previous scoreline). Maps
+  // liveActivityKey → { tries, title, minute, glyph }; resolved once the two
+  // sources agree, or after activityPendingMaxTries polls as a safety valve.
+  property var activityPending: ({})
+  readonly property int activityPendingMaxTries: 3
   // League standings for the selected league, shown from the header button.
   property bool showStandings: false
+  // How many seasons back the table is viewing (0 = live season). Reset
+  // when the popup closes.
+  property int standingsSeasonOffset: 0
+  // Soccer seasons straddle calendar years; a July flip covers the main
+  // European and American calendars well enough for a label.
+  readonly property int standingsSeasonYear: {
+    var now = new Date()
+    return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+  }
+  function seasonChipLabel(offset) {
+    var y = root.standingsSeasonYear - offset
+    return String(y % 100).padStart(2, "0") + "/" + String((y + 1) % 100).padStart(2, "0")
+  }
   property bool standingsLoading: false
   property string standingsError: ""
-  property string standingsGroupName: ""
-  property var standings: []
+  property var standingsGroups: []
+  property int standingsGroupIndex: 0
+  readonly property var activeStandingsGroup: standingsGroups.length > 0
+    ? standingsGroups[Math.max(0, Math.min(standingsGroupIndex, standingsGroups.length - 1))] : null
+  property string standingsGroupName: activeStandingsGroup ? (activeStandingsGroup.name || "") : ""
+  readonly property var standings: activeStandingsGroup ? (activeStandingsGroup.entries || []) : []
   readonly property real standingsRowHeight: Style.space(28)
   readonly property real standingsStatWidth: Style.space(26)
   readonly property real standingsRankWidth: Style.space(24)
   readonly property real standingsRankGap: Style.space(10)
   readonly property real standingsLogoWidth: Style.space(16)
-  // Table width tracks the panel's content area (which is narrower than the
-  // requested card width once padding/border are applied), so the rightmost
-  // columns (GD, Pts) are never clipped by the Flickable.
-  readonly property real standingsRowWidth: root.content ? root.content.width : Style.space(390)
+  // Table width tracks the actual standings viewport (bound to the live
+  // item below, whose width comes from the panel's real interior), so the
+  // rightmost columns (GD, Pts) are never clipped by the Flickable.
+  readonly property real standingsRowWidth: standingsTable ? standingsTable.width : Style.space(348)
   readonly property real standingsTeamWidth: root.standingsRowWidth - root.standingsRankWidth - root.standingsRankGap - root.standingsLogoWidth - 8 * root.standingsStatWidth
+  // Matches for the selected league's current matchweek, shown from a
+  // header button. ESPN carries no round field on soccer events, so the
+  // matchweek is detected as the cluster of fixture days around today;
+  // chevron arrows page through the other rounds in the window.
+  property bool showMatches: false
+  property bool matchListLoading: false
+  property string matchListError: ""
+  property var matchClusters: []
+  property int matchClusterIndex: 0
+  // League-follow board: everything live plus a slice of results/upcoming.
+  property var leagueLive: []
+  property var leagueRecent: []
+  property var leagueUpcoming: []
+  // One-line summary for the bar tooltip ("2 live · Real Madrid 1–0 Barça").
+  property string leagueBoardSummary: ""
+  // When true, the board lists every fixture across the shifted window
+  // (past and upcoming) instead of just today's slate.
+  property bool leagueBrowseAll: false
+  property bool showStats: false
+  property int statsSeasonOffset: 0
+  property string statsCategory: "goals"
+  readonly property bool showStatsMatchesColumn: !(root.league === "usa.1" && (root.statsCategory === "yellow" || root.statsCategory === "red"))
+  property var statsGoals: []
+  property var statsAssists: []
+  property var statsYellow: []
+  property var statsRed: []
+  property var rawYellowLeaders: []
+  property var rawRedLeaders: []
+  property var athleteMap: ({})
+  property bool statsLoading: false
+  property string statsError: ""
+  property real lastStandingsRefresh: 0
+  property string _lastStandingsKey: ""
+  property real lastStatsRefresh: 0
+  property string _lastStatsKey: ""
+  property real lastMatchListRefresh: 0
+  property string _lastMatchListKey: ""
+  property bool showMatchDetail: false
+  property var matchDetail: null
+  property bool matchDetailLoading: false
+  property string matchDetailError: ""
+  property string matchDetailTab: "stats"
+  property string matchDetailLineupTeam: "home"
+  property string matchDetailLineupView: "pitch"
+  property bool matchDetailCrestsLoaded: false
+  property var matchDetailJerseyUrls: []
+  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showMatchDetail || root.leagueMode
+  // Per-match league tracking: each followed live fixture notifies its own
+  // goals and cards independently (no phase notifications).
+  property var followedLeagueMatches: []
+  property var leagueSummaryQueue: []
+  property string leagueCurrentId: ""
+  readonly property var activeMatchCluster: matchClusters.length > 0
+    ? matchClusters[Math.max(0, Math.min(matchClusterIndex, matchClusters.length - 1))] : null
+  readonly property string matchWeekLabel: activeMatchCluster ? activeMatchCluster.label : ""
+  readonly property var matchWeekRows: activeMatchCluster ? activeMatchCluster.rows : []
+  // Manual matchweek paging extends the scoreboard window by this many days
+  // per step past its edge, so older/future rounds stay reachable one press
+  // at a time without preloading the whole season.
+  property int matchWindowOffset: 0
+  property string pendingEdge: ""
+  // Boundary day of the round being viewed when the window was extended;
+  // the refreshed payload lands on the round directly beyond it.
+  property string navAnchorDay: ""
+  readonly property real matchRowHeight: Style.space(52)
+  readonly property real matchLogoSize: Style.space(30)
+  readonly property real matchScoreWidth: Style.space(92)
   // Favorite team gets a green highlight in the standings for quick scanning.
   readonly property color favoriteTeamAccent: Color.accent
   readonly property color favoriteTeamTint: Util.alpha(Color.accent, 0.45)
@@ -312,10 +467,17 @@ Panel {
   property var selectedTeam: null
   // Reopens the first-run picker after setup so the favorite team can change.
   property bool editingTeam: false
+  // Picker-local: when true, Confirm saves a league-follow instead of a club.
+  property bool pickerLeagueOnly: false
 
   function open() {
-    // Always start on the fixtures view; the standings table is a toggle.
+    // Always start on the fixtures view; standings, stats and league matches are
+    // toggles.
     root.showStandings = false
+    root.showStats = false
+    root.leagueBrowseAll = false
+    root.showMatches = root.leagueMode
+    if (root.leagueMode) root.loadMatchList()
     root.controller.show()
     // Cached fixtures are shown instantly; only refetch when they are stale
     // or nothing has been fetched yet. The refresh never clears what is on
@@ -323,7 +485,23 @@ Panel {
     if (!root.fixtureFresh()) root.refresh()
   }
 
-  function close() { root.controller.hide() }
+  function close() {
+    root.resetMatchWeekNav()
+    root.controller.hide()
+  }
+
+  // Closing always returns the League Matches view to the live round: the
+  // next open refetches the standard window and lands on today's matchweek.
+  function resetMatchWeekNav() {
+    root.leagueBrowseAll = false
+    root.matchWindowOffset = 0
+    root.pendingEdge = ""
+    root.navAnchorDay = ""
+    root.standingsSeasonOffset = 0
+    root.statsSeasonOffset = 0
+    root.showStats = false
+    root.showMatchDetail = false
+  }
   function toggle() { if (root.opened) root.close(); else root.open() }
 
   // Fixture data is considered fresh until its TTL expires: 10 minutes when a
@@ -362,6 +540,10 @@ Panel {
   }
 
   function refresh() {
+    if (root.leagueMode) {
+      root.loadMatchList()
+      return
+    }
     if (root.needsTeam) return
     // Never fetch (or run teams-resolution/persist) before the startup gate
     // has seen the team inputs settle, otherwise a reload's stale settings
@@ -370,15 +552,16 @@ Panel {
     var key = root.fixtureTeamKey()
     if (key !== root._fixtureTeamKey) {
       root._fixtureTeamKey = key
-      // A pipeline already in flight targets the new team (its id is resolved
-      // before the fetch starts), so only reset when it is idle.
-      if (fixtureRequest.running) return
       root.resetTeamData()
     }
-    if (fixtureRequest.running) return
-    loading = true
-    requestError = ""
-    collectedEvents = []
+    root.loading = true
+    root.requestError = ""
+    root.collectedEvents = []
+    // Cancel in-flight requests to prevent stalls and start fresh
+    fixtureRequest.running = false
+    sbRequest1.running = false
+    sbRequest2.running = false
+    sbRequest3.running = false
     if (root.teamId === "" && root.resolvedTeamId === "") {
       fetchQueue = [{ kind: "teams" }]
     } else {
@@ -409,11 +592,11 @@ Panel {
     var leagueCode = root.safeIdentifier(root.league)
     if (next.kind === "teams") {
       if (leagueCode === "") { root.loading = false; return }
-      fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
-        "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
+      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
     } else if (next.kind === "discover") {
       if (team === "") { root.startScoreboards(); return }
-      fixtureRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
+      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
         "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(team) + "/events?dates=" + encodeURIComponent(window) + "&limit=100"]
     }
     fixtureRequest.running = true
@@ -443,8 +626,8 @@ Panel {
           if (slug === "") continue
           root.sbSlugs[i] = slug
           var window = root.rangeDate(-120) + "-" + root.rangeDate(60)
-          procs[i].command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "5242880",
-            "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
+          procs[i].command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
+            "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
           procs[i].running = true
           assigned = true
           break
@@ -472,7 +655,7 @@ Panel {
         var info = {}
         info.name = root.sanitizePlainText(String(leagues[0].name || leagues[0].abbreviation || slug))
         info.logo = root.sanitizeImageUrl(leagues[0].logos && leagues[0].logos.length ? String(leagues[0].logos[0].href || "") : "")
-        var map = root.leagueInfo
+        var map = Object.assign({}, root.leagueInfo)
         map[slug] = info
         root.leagueInfo = map
       }
@@ -541,9 +724,22 @@ Panel {
   }
 
   function competitionLogoFor(event) {
+    if (!event) return ""
+    if (event.competitionLogo) {
+      var directLogo = root.sanitizeImageUrl(String(event.competitionLogo))
+      if (directLogo !== "") return directLogo
+    }
     var slug = event ? String(event.competitionSlug || "") : ""
     var info = root.competitionInfo(slug)
-    return root.sanitizeImageUrl(info && info.logo ? String(info.logo) : "")
+    if (info && info.logo) {
+      var infoLogo = root.sanitizeImageUrl(String(info.logo))
+      if (infoLogo !== "") return infoLogo
+    }
+    if (root.tournamentLogo) {
+      var tourneyLogo = root.sanitizeImageUrl(String(root.tournamentLogo))
+      if (tourneyLogo !== "") return tourneyLogo
+    }
+    return ""
   }
 
   function setFixtures(data) {
@@ -591,19 +787,49 @@ Panel {
   }
 
   function teamNameFor(event, side) {
+    if (!event) return "—"
+    if (side === "home" && event.homeName) return root.sanitizePlainText(String(event.homeName))
+    if (side === "away" && event.awayName) return root.sanitizePlainText(String(event.awayName))
+    if (side === "home" && event.home && (event.home.name || event.home.displayName)) {
+      return root.sanitizePlainText(String(event.home.name || event.home.displayName))
+    }
+    if (side === "away" && event.away && (event.away.name || event.away.displayName)) {
+      return root.sanitizePlainText(String(event.away.name || event.away.displayName))
+    }
     var item = competitor(event, side)
-    var raw = item && item.team ? String(item.team.shortDisplayName || item.team.displayName || "—") : "—"
+    var raw = item && item.team ? String(item.team.shortDisplayName || item.team.displayName || item.team.name || "—") : "—"
     return root.sanitizePlainText(raw)
   }
 
   function teamLogoFor(event, side) {
+    if (!event) return ""
+    if (side === "home" && event.homeLogo) return root.sanitizeImageUrl(String(event.homeLogo))
+    if (side === "away" && event.awayLogo) return root.sanitizeImageUrl(String(event.awayLogo))
+    if (side === "home" && event.home && event.home.logo) return root.sanitizeImageUrl(String(event.home.logo))
+    if (side === "away" && event.away && event.away.logo) return root.sanitizeImageUrl(String(event.away.logo))
+
     var item = competitor(event, side)
-    return root.sanitizeImageUrl(item && item.team ? String(item.team.logo || "") : "")
+    if (!item) return ""
+    var t = item.team || {}
+    var l = String(t.logo || "")
+    if (l === "" && Array.isArray(t.logos) && t.logos.length > 0 && t.logos[0].href) {
+      l = String(t.logos[0].href)
+    }
+    if (l === "" && t.id) {
+      var safeId = root.safeIdentifier(String(t.id))
+      if (safeId !== "") l = "https://a.espncdn.com/i/teamlogos/soccer/500/" + safeId + ".png"
+    }
+    return root.sanitizeImageUrl(l)
   }
 
   function scoreFor(event, side) {
+    if (!event) return "—"
+    if (side === "home" && event.homeScore !== undefined && event.homeScore !== "") return root.sanitizePlainText(String(event.homeScore))
+    if (side === "away" && event.awayScore !== undefined && event.awayScore !== "") return root.sanitizePlainText(String(event.awayScore))
+    if (side === "home" && event.home && event.home.score !== undefined && event.home.score !== "") return root.sanitizePlainText(String(event.home.score))
+    if (side === "away" && event.away && event.away.score !== undefined && event.away.score !== "") return root.sanitizePlainText(String(event.away.score))
     var item = competitor(event, side)
-    var raw = item ? String(item.score || "0") : "—"
+    var raw = item ? String(item.score !== undefined ? item.score : "0") : "—"
     return root.sanitizePlainText(raw)
   }
 
@@ -619,6 +845,34 @@ Panel {
     var status = event && event.status
     var raw = status && status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
     return root.sanitizePlainText(raw)
+  }
+
+  function h2hSummary(h2hList, homeName, awayName) {
+    if (!Array.isArray(h2hList) || h2hList.length === 0) return ""
+    var hW = 0
+    var aW = 0
+    var d = 0
+    for (var i = 0; i < h2hList.length; i++) {
+      var item = h2hList[i]
+      var hs = parseInt(item.homeScore, 10)
+      var as_ = parseInt(item.awayScore, 10)
+      if (!isNaN(hs) && !isNaN(as_)) {
+        if (hs === as_) {
+          d++
+        } else if (hs > as_) {
+          if (item.home === homeName) hW++
+          else aW++
+        } else {
+          if (item.away === homeName) hW++
+          else aW++
+        }
+      }
+    }
+    var parts = []
+    if (homeName) parts.push(homeName + " " + hW + "W")
+    if (d > 0) parts.push(d + "D")
+    if (awayName) parts.push(awayName + " " + aW + "W")
+    return root.sanitizePlainText(parts.join(" · "))
   }
 
   // Fetches the live match's play-by-play so scorers and red cards can be shown
@@ -640,28 +894,677 @@ Panel {
     if (panelSummaryRequest.running) return
     var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
     if (slug === "") return
-    panelSummaryRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
-      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
+    panelSummaryRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     panelSummaryRequest.running = true
   }
 
   // Fetches the league standings table for the selected league. ESPN's site
   // API has no standings children for soccer; the web API does.
-  function loadStandings() {
+  function loadStandings(force) {
     if (root.needsTeam) return
-    if (standingsRequest.running) return
     var leagueCode = root.safeIdentifier(root.league)
     if (leagueCode === "") return
+    var key = leagueCode + "|" + String(root.standingsSeasonOffset)
+    var now = Date.now()
+    if (!force && key === root._lastStandingsKey && root.standings.length > 0 && (now - root.lastStandingsRefresh < 15 * 60 * 1000)) {
+      return
+    }
+    standingsRequest.running = false
     standingsLoading = true
     standingsError = ""
-    standingsRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/standings"]
+    var season = root.standingsSeasonYear - root.standingsSeasonOffset
+    standingsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(leagueCode)
+      + "/standings?season=" + encodeURIComponent(String(season))]
     standingsRequest.running = true
+  }
+
+  // Fetches player stats (goals and assists) and player card leaders (yellow and red cards).
+  function loadStats(force) {
+    if (root.needsTeam) return
+    var leagueCode = root.safeIdentifier(root.league)
+    if (leagueCode === "") return
+    var key = leagueCode + "|" + String(root.statsSeasonOffset)
+    var now = Date.now()
+    if (!force && key === root._lastStatsKey && (root.statsGoals.length > 0 || root.statsYellow.length > 0) && (now - root.lastStatsRefresh < 15 * 60 * 1000)) {
+      return
+    }
+    statsRequest.running = false
+    root.statsLoading = true
+    root.statsError = ""
+    root.rawYellowLeaders = []
+    root.rawRedLeaders = []
+    root.statsYellow = []
+    root.statsRed = []
+    var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
+    var statsUrl = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/statistics"
+    if (root.statsSeasonOffset > 0) {
+      statsUrl += "?season=" + encodeURIComponent(String(targetYear))
+    }
+    statsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", statsUrl]
+    statsRequest.running = true
+  }
+
+  function openMatchDetail(match) {
+    if (!match) return
+    var mid = root.safeIdentifier(String(match.id || ""))
+    if (mid === "") return
+    var slug = root.safeIdentifier(String(match.competitionSlug || root.league || "eng.1"))
+    var isStarted = match.state === "in" || match.state === "post"
+    if (match.status && (match.status === "Live" || match.status === "Full Time" || match.status === "FT" || match.status === "AET" || match.status === "Final")) {
+      isStarted = true
+    }
+    var isLive = match.state === "in" || (match.status && (match.status === "Live" || String(match.status).indexOf("'") !== -1 || match.status === "HT"))
+
+    root.showMatchDetail = true
+    root.showStandings = false
+    root.showStats = false
+    root.showMatches = false
+    root.matchDetailLoading = true
+    root.matchDetailError = ""
+    root.matchDetailTab = isStarted ? "stats" : "info"
+    root.matchDetailLineupTeam = "home"
+    root.matchDetailCrestsLoaded = false
+    root.matchDetailJerseyUrls = []
+
+    var initDateStr = ""
+    if (match.date) {
+      var mdObj = new Date(match.date)
+      var mdDay = Qt.formatDate(mdObj, "ddd d MMM")
+      var mdTime = Qt.formatTime(mdObj, "HH:mm")
+      initDateStr = mdDay + (mdTime !== "" ? (" · " + mdTime) : "")
+    } else if (match.dateText || match.timeText) {
+      initDateStr = (match.dateText || "") + ((match.dateText && match.timeText) ? " · " : "") + (match.timeText || "")
+    }
+
+    var initStatus = match.status || (match.state === "post" ? "Full Time" : (match.state === "in" ? (match.timeText || "Live") : "Scheduled"))
+
+    var hName = match.homeName || (match.competitions ? root.teamNameFor(match, "home") : (match.home ? (match.home.name || match.home.displayName) : "Home"))
+    var hLogo = match.homeLogo || (match.competitions ? root.teamLogoFor(match, "home") : (match.home ? match.home.logo : ""))
+    var aName = match.awayName || (match.competitions ? root.teamNameFor(match, "away") : (match.away ? (match.away.name || match.away.displayName) : "Away"))
+    var aLogo = match.awayLogo || (match.competitions ? root.teamLogoFor(match, "away") : (match.away ? match.away.logo : ""))
+    var cName = root.competitionNameFor(match) || match.competitionName || root.tournamentName || root.leagueLabel()
+    var cLogo = root.competitionLogoFor(match) || match.competitionLogo || root.tournamentLogo
+
+    var hScore = isStarted ? (match.homeScore !== undefined ? String(match.homeScore) : root.scoreFor(match, "home")) : ""
+    var aScore = isStarted ? (match.awayScore !== undefined ? String(match.awayScore) : root.scoreFor(match, "away")) : ""
+
+    root.matchDetail = {
+      id: mid,
+      started: isStarted,
+      isLive: isLive,
+      competitionSlug: slug,
+      competitionName: root.sanitizePlainText(cName),
+      competitionLogo: root.sanitizeImageUrl(cLogo),
+      status: root.sanitizePlainText(initStatus),
+      dateFormatted: root.sanitizePlainText(initDateStr),
+      dateText: root.sanitizePlainText(match.dateText || (match.date ? Qt.formatDate(new Date(match.date), "ddd d MMM") : "")),
+      timeText: root.sanitizePlainText(match.timeText || (match.date ? Qt.formatTime(new Date(match.date), "HH:mm") : "")),
+      home: {
+        name: root.sanitizePlainText(hName),
+        logo: root.sanitizeImageUrl(hLogo),
+        score: root.sanitizePlainText(hScore)
+      },
+      away: {
+        name: root.sanitizePlainText(aName),
+        logo: root.sanitizeImageUrl(aLogo),
+        score: root.sanitizePlainText(aScore)
+      },
+      homeScorers: [],
+      awayScorers: [],
+      events: [],
+      stats: [],
+      commentary: [],
+      leaders: [],
+      lineups: { available: false, homeFormation: "", awayFormation: "", homeStarters: [], homeSubs: [], awayStarters: [], awaySubs: [] },
+      h2h: [],
+      homeForm: [],
+      awayForm: [],
+      odds: null,
+      seriesNote: "",
+      shootoutNote: "",
+      info: { venue: "", attendance: "", officials: "" }
+    }
+
+    matchDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(mid)]
+    matchDetailRequest.running = true
+  }
+
+  function extractIdFromRef(ref, prefix) {
+    if (typeof ref !== "string" || ref === "") return ""
+    var parts = ref.split(prefix + "/")
+    if (parts.length > 1) {
+      var idPart = parts[1].split("/")[0].split("?")[0]
+      return root.safeIdentifier(idPart)
+    }
+    return ""
+  }
+
+  function teamNameForId(id) {
+    if (Array.isArray(root.teams)) {
+      for (var i = 0; i < root.teams.length; i++) {
+        if (String(root.teams[i].id) === String(id)) return root.teams[i].name || root.teams[i].label || ""
+      }
+    }
+    return ""
+  }
+
+  function sortLeaders(list) {
+    if (!Array.isArray(list)) return []
+    var sorted = list.slice().sort(function(a, b) {
+      var valA = Number(a.value) || 0
+      var valB = Number(b.value) || 0
+      if (valB !== valA) return valB - valA
+      var appA = a.appearances !== "" && a.appearances !== "—" ? (Number(a.appearances) || 0) : 999999
+      var appB = b.appearances !== "" && b.appearances !== "—" ? (Number(b.appearances) || 0) : 999999
+      if (appA !== appB) return appA - appB
+      return 0
+    })
+    for (var i = 0; i < sorted.length; i++) {
+      sorted[i].rank = i + 1
+    }
+    return sorted
+  }
+
+  function rebuildCardStats() {
+    var yellow = []
+    for (var y = 0; y < root.rawYellowLeaders.length; y++) {
+      var ly = root.rawYellowLeaders[y]
+      var aidY = ly.athleteId
+      var athY = root.athleteMap[aidY]
+      var nameY = athY ? athY.name : (ly.name || "Player")
+      var jerseyY = athY ? athY.jersey : ""
+      var appsY = athY && athY.appearances ? athY.appearances : "—"
+      var numValY = Number(ly.value) || 0
+      var numAppsY = Number(appsY) || 0
+      // Sanity guard: a player cannot receive more than 2 yellow cards per match
+      if (appsY !== "—" && numValY > 2 && numAppsY < Math.ceil(numValY / 2)) {
+        appsY = "—"
+      }
+      var teamNameY = root.teamNameForId(ly.teamId)
+      yellow.push({
+        rank: y + 1,
+        name: nameY,
+        jersey: jerseyY,
+        teamName: teamNameY,
+        teamLogo: ly.teamLogo,
+        appearances: appsY,
+        value: ly.value
+      })
+    }
+    root.statsYellow = root.sortLeaders(yellow)
+
+    var red = []
+    for (var r = 0; r < root.rawRedLeaders.length; r++) {
+      var lr = root.rawRedLeaders[r]
+      var aidR = lr.athleteId
+      var athR = root.athleteMap[aidR]
+      var nameR = athR ? athR.name : (lr.name || "Player")
+      var jerseyR = athR ? athR.jersey : ""
+      var appsR = athR && athR.appearances ? athR.appearances : "—"
+      var numValR = Number(lr.value) || 0
+      var numAppsR = Number(appsR) || 0
+      // Sanity guard: a player cannot receive more than 1 red card per match
+      if (appsR !== "—" && numValR > 1 && numAppsR < numValR) {
+        appsR = "—"
+      }
+      var teamNameR = root.teamNameForId(lr.teamId)
+      red.push({
+        rank: r + 1,
+        name: nameR,
+        jersey: jerseyR,
+        teamName: teamNameR,
+        teamLogo: lr.teamLogo,
+        appearances: appsR,
+        value: lr.value
+      })
+    }
+    root.statsRed = root.sortLeaders(red)
+  }
+
+  function parseCoreLeaders(data) {
+    var rawYellow = []
+    var rawRed = []
+    var athIds = []
+    var cats = data && Array.isArray(data.categories) ? data.categories : []
+    for (var c = 0; c < cats.length; c++) {
+      var cat = cats[c]
+      if (!cat) continue
+      var catName = String(cat.name || "")
+      if (catName === "yellowCards" || catName === "redCards") {
+        var leaders = Array.isArray(cat.leaders) ? cat.leaders : []
+        var list = []
+        for (var j = 0; j < leaders.length && j < 15; j++) {
+          var l = leaders[j]
+          if (!l) continue
+          var athRef = l.athlete && l.athlete.$ref ? String(l.athlete.$ref) : ""
+          var teamRef = l.team && l.team.$ref ? String(l.team.$ref) : ""
+          var aid = root.extractIdFromRef(athRef, "athletes")
+          var tid = root.extractIdFromRef(teamRef, "teams")
+          var val = root.sanitizePlainText(String(l.value !== undefined ? Math.round(Number(l.value)) : (l.displayValue || "0")))
+          var teamLogo = tid !== "" ? root.sanitizeImageUrl("https://a.espncdn.com/i/teamlogos/soccer/500/" + tid + ".png") : ""
+          list.push({
+            athleteId: aid,
+            teamId: tid,
+            teamLogo: teamLogo,
+            value: val
+          })
+          if (aid !== "" && athIds.indexOf(aid) === -1) {
+            athIds.push(aid)
+          }
+        }
+        if (catName === "yellowCards") rawYellow = list
+        else if (catName === "redCards") rawRed = list
+      }
+    }
+    root.rawYellowLeaders = rawYellow
+    root.rawRedLeaders = rawRed
+    root.rebuildCardStats()
+
+    if (athIds.length > 0) {
+      if (!athletesRequest.running) {
+        athletesRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+          "https://sports.core.api.espn.com/v2/sports/soccer/athletes/{" + athIds.join(",") + "}"]
+        athletesRequest.running = true
+      }
+      var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
+      var seasonYear = root.statsSeasonOffset > 0 ? String(targetYear) : (data.season && data.season.year ? String(data.season.year) : String(targetYear))
+      var leagueCode = root.safeIdentifier(root.league)
+      if (leagueCode !== "" && !athleteStatsRequest.running) {
+        athleteStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+          "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(leagueCode)
+          + "/seasons/" + encodeURIComponent(seasonYear) + "/types/1/athletes/{" + athIds.join(",") + "}/statistics/0"]
+        athleteStatsRequest.running = true
+      }
+    }
+  }
+
+  function parseAthletesStream(text) {
+    if (typeof text !== "string" || text.length === 0) return
+    var map = Object.assign({}, root.athleteMap)
+    var depth = 0
+    var start = -1
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i]
+      if (ch === "{") {
+        if (depth === 0) start = i
+        depth++
+      } else if (ch === "}") {
+        depth--
+        if (depth === 0 && start !== -1) {
+          try {
+            var obj = JSON.parse(text.substring(start, i + 1))
+            var aid = root.safeIdentifier(String(obj.id || ""))
+            var name = root.sanitizePlainText(String(obj.displayName || obj.fullName || obj.shortName || ""))
+            if (aid !== "" && name !== "") {
+              var existing = map[aid] || {}
+              map[aid] = {
+                name: name,
+                jersey: root.sanitizePlainText(String(obj.jersey || "")),
+                appearances: existing.appearances || "—"
+              }
+            }
+          } catch (e) {}
+          start = -1
+        }
+      }
+    }
+    root.athleteMap = map
+    root.rebuildCardStats()
+  }
+
+  function parseAthleteStatsStream(text) {
+    if (typeof text !== "string" || text.length === 0) return
+    var map = Object.assign({}, root.athleteMap)
+    var depth = 0
+    var start = -1
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i]
+      if (ch === "{") {
+        if (depth === 0) start = i
+        depth++
+      } else if (ch === "}") {
+        depth--
+        if (depth === 0 && start !== -1) {
+          try {
+            var obj = JSON.parse(text.substring(start, i + 1))
+            var ref = String(obj.$ref || (obj.athlete && obj.athlete.$ref) || "")
+            var aid = root.extractIdFromRef(ref, "athletes")
+            var apps = ""
+            var splits = obj.splits && Array.isArray(obj.splits.categories) ? obj.splits.categories : []
+            for (var c = 0; c < splits.length; c++) {
+              var stats = Array.isArray(splits[c].stats) ? splits[c].stats : []
+              for (var s = 0; s < stats.length; s++) {
+                if (stats[s] && stats[s].name === "appearances") {
+                  apps = String(stats[s].displayValue !== undefined ? stats[s].displayValue : (stats[s].value !== undefined ? Math.round(Number(stats[s].value)) : ""))
+                  break
+                }
+              }
+              if (apps !== "") break
+            }
+            if (aid !== "" && apps !== "") {
+              var cur = map[aid] || { name: "Player", jersey: "" }
+              cur.appearances = root.sanitizePlainText(apps)
+              map[aid] = cur
+            }
+          } catch (e) {}
+          start = -1
+        }
+      }
+    }
+    root.athleteMap = map
+    root.rebuildCardStats()
+  }
+
+  function parseStats(data) {
+    var goals = []
+    var assists = []
+    var statsList = data && Array.isArray(data.stats) ? data.stats : []
+    for (var i = 0; i < statsList.length; i++) {
+      var cat = statsList[i]
+      if (!cat) continue
+      var catName = String(cat.name || "")
+      var leaders = Array.isArray(cat.leaders) ? cat.leaders : []
+      var out = []
+      for (var j = 0; j < leaders.length; j++) {
+        var l = leaders[j]
+        if (!l) continue
+        var ath = l.athlete || {}
+        var team = ath.team || l.team || {}
+        var disp = String(l.displayValue || "")
+        var matchRegex = disp.match(/Matches:\s*(\d+)/i)
+        var apps = matchRegex ? matchRegex[1] : ""
+        if (apps === "") {
+          var athStats = Array.isArray(ath.statistics) ? ath.statistics : []
+          for (var s = 0; s < athStats.length; s++) {
+            if (athStats[s] && athStats[s].name === "appearances") {
+              apps = String(athStats[s].displayValue !== undefined ? athStats[s].displayValue : (athStats[s].value !== undefined ? Math.round(Number(athStats[s].value)) : ""))
+              break
+            }
+          }
+        }
+        var statVal = ""
+        if (l.value !== undefined && l.value !== null && l.value !== "") {
+          statVal = String(Math.round(Number(l.value)))
+        } else {
+          var statRegex = disp.match(/(?:Goals|Assists):\s*(\d+)/i)
+          statVal = statRegex ? statRegex[1] : disp
+        }
+        var teamLogo = ""
+        if (team.logos && team.logos[0]) {
+          teamLogo = root.sanitizeImageUrl(String(team.logos[0].href || ""))
+        }
+        var entry = {
+          rank: j + 1,
+          name: root.sanitizePlainText(String(ath.displayName || ath.shortName || "Unknown")),
+          jersey: root.sanitizePlainText(String(ath.jersey || "")),
+          teamName: root.sanitizePlainText(String(team.displayName || team.name || "")),
+          teamLogo: teamLogo,
+          appearances: root.sanitizePlainText(apps),
+          value: root.sanitizePlainText(statVal)
+        }
+        if (entry.name !== "") out.push(entry)
+      }
+      if (catName.indexOf("goals") !== -1) goals = root.sortLeaders(out)
+      else if (catName.indexOf("assists") !== -1) assists = root.sortLeaders(out)
+    }
+    return { goals: goals, assists: assists }
   }
 
   function statFor(stats, name) {
     var value = stats && stats[name]
     return value !== undefined && value !== null ? String(value) : "0"
+  }
+
+  function mergeRows(existing, incoming) {
+    if (!existing || existing.length === 0 || !incoming || incoming.length === 0) return incoming
+    if (existing.length !== incoming.length) return incoming
+    var changed = false
+    var merged = []
+    for (var i = 0; i < incoming.length; i++) {
+      var inR = incoming[i]
+      var exR = existing[i]
+      if (inR.id !== exR.id || inR.state !== exR.state || inR.homeScore !== exR.homeScore || inR.awayScore !== exR.awayScore || inR.status !== exR.status || inR.timeText !== exR.timeText || inR.dateText !== exR.dateText) {
+        changed = true
+        merged.push(inR)
+      } else {
+        merged.push(exR)
+      }
+    }
+    return changed ? merged : existing
+  }
+
+  function mergeMatchClusters(existing, incoming) {
+    if (!existing || existing.length === 0 || !incoming || incoming.length === 0) return incoming
+    if (existing.length !== incoming.length) return incoming
+    var changed = false
+    var merged = []
+    for (var c = 0; c < incoming.length; c++) {
+      var inCluster = incoming[c]
+      var exCluster = existing[c]
+      if (inCluster.label !== exCluster.label || inCluster.rows.length !== exCluster.rows.length) {
+        return incoming
+      }
+      var rows = root.mergeRows(exCluster.rows, inCluster.rows)
+      if (rows !== exCluster.rows) {
+        changed = true
+        merged.push({ label: inCluster.label, rows: rows })
+      } else {
+        merged.push(exCluster)
+      }
+    }
+    return changed ? merged : existing
+  }
+
+  // Fetches the scoreboard window for the selected league so the League
+  // Matches section can show what matters: everything live, the next few
+  // upcoming fixtures, and the last few results. Same endpoint class as the
+  // scoreboard pool, so the same 5 MiB bound. One week back, two weeks
+  // ahead, so a round that spills past day +7 (e.g. a Mon/Tue game after a
+  // weekend) is still fetched and clustered with its matchweek.
+  function loadMatchList(force) {
+    if (root.needsTeam) return
+    var slug = root.safeIdentifier(root.league)
+    if (slug === "") return
+    var key = slug + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
+    var now = Date.now()
+    if (!force && key === root._lastMatchListKey && (root.matchClusters.length > 0 || root.matchWeekRows.length > 0) && root.leagueLive.length === 0 && (now - root.lastMatchListRefresh < 30 * 1000)) {
+      return
+    }
+    matchListRequest.running = false
+    root.matchListLoading = true
+    root.matchListError = ""
+    // League board covers the local day plus its UTC neighbours: an
+    // evening UTC kickoff lands on the next morning east of Greenwich, so
+    // a strict single-day fetch would miss exactly those live matches.
+    var window
+    if (root.leagueMode && !root.leagueBrowseAll)
+      window = root.rangeDate(-1) + "-" + root.rangeDate(1)
+    else if (root.leagueMode)
+      window = root.rangeDate(-7 + root.matchWindowOffset)
+        + "-" + root.rangeDate(14 + root.matchWindowOffset)
+    else
+      window = root.rangeDate(-7 + root.matchWindowOffset)
+        + "-" + root.rangeDate(14 + root.matchWindowOffset)
+    matchListRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
+      + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
+    matchListRequest.running = true
+  }
+
+  // Shared row builder for every scoreboard-derived view. Names/scores go
+  // through the same helpers as every other sink; rows come back sorted by
+  // kickoff with their local calendar day attached.
+  function matchRowsFromEvents(events) {
+    var rows = []
+    for (var i = 0; i < events.length; i++) {
+      var e = events[i]
+      var type = e.status && e.status.type || {}
+      var state = String(type.state || "")
+      // Only unplayed fixtures carry a time: upcoming shows the full date
+      // and time; started matches just show their state ("67'", "HT", "FT").
+      var detail = root.sanitizePlainText(String(type.shortDetail || type.detail || ""))
+      var status = state === "pre"
+        ? root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM · HH:mm"))
+        : detail
+      var row = {
+        state: state,
+        id: root.safeIdentifier(String(e.id || "")),
+        kickoff: new Date(e.date).getTime() || 0,
+        // Split kickoff parts so upcoming rows can stack time over date
+        // inside the narrow centre column without truncation.
+        timeText: root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "HH:mm")),
+        dateText: root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM")),
+        // Local calendar day, not the raw UTC slice of the ISO timestamp:
+        // an evening UTC kickoff lands on the next day east of Greenwich,
+        // which otherwise splits rounds and mislabels the date range.
+        day: Qt.formatDate(new Date(e.date), "yyyy-MM-dd"),
+        status: status,
+        homeName: root.teamNameFor(e, "home"),
+        awayName: root.teamNameFor(e, "away"),
+        homeScore: root.scoreFor(e, "home"),
+        awayScore: root.scoreFor(e, "away"),
+        homeLogo: root.teamLogoFor(e, "home"),
+        awayLogo: root.teamLogoFor(e, "away")
+      }
+      if (row.homeName === "—" || row.awayName === "—") continue
+      if (!isNaN(row.kickoff)) rows.push(row)
+    }
+    rows.sort(function(a, b) { return a.kickoff - b.kickoff })
+    return rows
+  }
+
+  function parseMatchWeek(data) {
+    var events = data && Array.isArray(data.events) ? data.events : []
+    var rows = root.matchRowsFromEvents(events)
+    if (rows.length === 0) return null
+    // Group fixtures into fixed-size rounds: half the league's team count
+    // per group (10 for a 20-team league), filled in kickoff order. ESPN
+    // publishes no round numbers for soccer and congested calendars make
+    // date-based round detection ambiguous, so equal chunks are the one
+    // rule that always yields the same match count and never hides a game.
+    var teamTotal = {}
+    for (var t = 0; t < rows.length; t++) {
+      teamTotal[rows[t].homeName] = true
+      teamTotal[rows[t].awayName] = true
+    }
+    var perRound = Math.max(1, Math.ceil(Object.keys(teamTotal).length / 2))
+
+    var clusters = []
+    for (var cStart = 0; cStart < rows.length; cStart += perRound)
+      clusters.push(rows.slice(cStart, cStart + perRound))
+    var today = new Date(); today.setHours(0, 0, 0, 0)
+    var idx = -1
+    for (var c = 0; c < clusters.length && idx === -1; c++) {
+      var first = new Date(clusters[c][0].day); first.setHours(0, 0, 0, 0)
+      var last = new Date(clusters[c][clusters[c].length - 1].day); last.setHours(0, 0, 0, 0)
+      // A cluster is live while today sits anywhere inside it, with one day
+      // of grace after its last match for late-night finishes.
+      last.setDate(last.getDate() + 1)
+      if (today >= first && today <= last) idx = c
+    }
+    if (idx === -1) {
+      for (var f = 0; f < clusters.length && idx === -1; f++) {
+        var start = new Date(clusters[f][0].day); start.setHours(0, 0, 0, 0)
+        if (start > today) idx = f
+      }
+    }
+    if (idx === -1) idx = clusters.length - 1
+
+    var labeled = clusters.map(function(c) {
+      var from = new Date(c[0].day)
+      var to = new Date(c[c.length - 1].day)
+      var label = Qt.formatDate(from, "d MMM")
+      if (from.getTime() !== to.getTime()) label += " – " + Qt.formatDate(to, "d MMM")
+      return { rows: c, label: root.sanitizePlainText(label) }
+    })
+    return { clusters: labeled, index: Math.max(0, idx) }
+  }
+
+  // Crest URL for the followed club: taken from its own fixture entry when
+  // one exists, otherwise from the team picker or direct ESPN CDN asset.
+  function clubLogoUrl() {
+    if (root.leagueMode) return ""
+    var candidates = [root.liveMatch, root.nextMatch, root.previousMatch]
+    var wanted = String(root.resolvedTeamId !== "" ? root.resolvedTeamId : root.teamId)
+    if (wanted !== "") {
+      for (var i = 0; i < candidates.length; i++) {
+        var ev = candidates[i]
+        if (!ev) continue
+        var entries = ev.competitions && ev.competitions[0] && ev.competitions[0].competitors || []
+        for (var j = 0; j < entries.length; j++) {
+          if (String(entries[j].team && entries[j].team.id || "") === wanted) {
+            var l = String(entries[j].team.logo || (entries[j].team.logos && entries[j].team.logos[0] ? entries[j].team.logos[0].href : ""))
+            if (l !== "") return root.sanitizeImageUrl(l)
+          }
+        }
+      }
+      var cleanWanted = root.safeIdentifier(wanted)
+      if (cleanWanted !== "") {
+        return root.sanitizeImageUrl("https://a.espncdn.com/i/teamlogos/soccer/500/" + cleanWanted + ".png")
+      }
+    }
+    if (root.selectedTeam && root.selectedTeam.logo) {
+      return root.sanitizeImageUrl(String(root.selectedTeam.logo))
+    }
+    return ""
+  }
+
+  // League icon URL with built-in CDN mapping fallback
+  function leagueLogoUrl() {
+    if (root.tournamentLogo !== "") {
+      var s = root.sanitizeImageUrl(root.tournamentLogo)
+      if (s !== "") return s
+    }
+    var code = root.safeIdentifier(root.league)
+    var leagueCdnMap = {
+      "esp.1": "15",
+      "eng.1": "23",
+      "ita.1": "19",
+      "ger.1": "10",
+      "fra.1": "17",
+      "uefa.champions": "2",
+      "uefa.europa": "2067",
+      "usa.1": "199",
+      "ned.1": "11",
+      "por.1": "14",
+      "bra.1": "85"
+    }
+    if (code in leagueCdnMap) {
+      return root.sanitizeImageUrl("https://a.espncdn.com/i/leaguelogos/soccer/500/" + leagueCdnMap[code] + ".png")
+    }
+    if (code !== "") {
+      return root.sanitizeImageUrl("https://a.espncdn.com/i/leaguelogos/soccer/500/" + code + ".png")
+    }
+    return ""
+  }
+
+  // Builds the league-follow board from one scoreboard window: all live
+  // matches first, then the latest results, then the nearest upcoming.
+  function parseLeagueBoard(data) {
+    var events = data && Array.isArray(data.events) ? data.events : []
+    var rows = root.matchRowsFromEvents(events)
+    var todayKey = Qt.formatDate(new Date(), "yyyy-MM-dd")
+    var live = []
+    var finished = []
+    var upcoming = []
+    for (var i = 0; i < rows.length; i++) {
+      // Live matches count wherever they sit on the UTC grid; played and
+      // upcoming must belong to the user's local calendar day.
+      if (rows[i].state === "in") { live.push(rows[i]); continue }
+      if (rows[i].day !== todayKey) continue
+      if (rows[i].state === "post") finished.push(rows[i])
+      else upcoming.push(rows[i])
+    }
+    finished.sort(function(a, b) { return b.kickoff - a.kickoff })
+    upcoming.sort(function(a, b) { return a.kickoff - b.kickoff })
+    return {
+      live: live,
+      recent: finished,
+      upcoming: upcoming
+    }
   }
 
   // Determines which side of the live match a team id belongs to.
@@ -718,7 +1621,7 @@ Panel {
       var person = first.athlete || first
       var team = e.team || first.team || {}
       out.push({
-        minute: root.sanitizePlainText(String((e.clock && e.clock.displayValue) || "").replace("'", "")),
+        minute: root.sanitizePlainText(String((e.clock && e.clock.displayValue) || "").replace(/'/g, "")),
         player: root.sanitizePlainText(String(person.displayName || person.shortName || "?")),
         teamName: root.sanitizePlainText(String(team.displayName || team.shortName || "")),
         own: String(e.text || "").indexOf("Own Goal") !== -1,
@@ -771,16 +1674,28 @@ Panel {
   }
 
   // Sends a desktop notification through the freedesktop daemon the shell
-  // runs, which the omarchy notifications service renders as a popup.
-  function notify(title, body) {
+  // runs, which the omarchy notifications service renders as a popup. The
+  // optional glyph (Nerd Font character or emoji) travels in the omarchy-glyph
+  // hint and is drawn in the card's icon slot; other daemons ignore it.
+  function notify(title, body, glyph) {
     if (!title) return
     var cleanTitle = root.sanitizePlainText(String(title))
     var cleanBody = root.sanitizePlainText(String(body || ""))
     if (cleanTitle === "") return
-    notifyRequest.command = ["notify-send", "-a", "futbar", "-i", "dialog-information",
-      cleanTitle, cleanBody]
+    var args = ["notify-send", "-a", "futbar"]
+    var cleanGlyph = root.sanitizePlainText(String(glyph || ""))
+    if (cleanGlyph !== "") args.push("-h", "string:omarchy-glyph:" + cleanGlyph)
+    args.push(cleanTitle, cleanBody)
+    notifyRequest.command = args
     notifyRequest.running = true
+    // Every fired notification is a match event: pulse the bar widget so its
+    // icon can flash instead of staying colored for the whole match.
+    root.activityPulse()
   }
+
+  // Emitted whenever a live-activity notification fires (goal, card, kickoff,
+  // half-time, full-time…). FutBar listens to flash its icon briefly.
+  signal activityPulse()
 
   // Stable identity for a summary event so the same one is never notified
   // twice. ESPN's keyEvents carry an id; when they do not, fall back to
@@ -801,8 +1716,11 @@ Panel {
   }
 
   function activityMarkSeen(event) {
-    var key = root.liveActivityKey(event)
-    if (root.activityEvents.indexOf(key) !== -1) return
+    root.activityMarkKey(root.liveActivityKey(event))
+  }
+
+  function activityMarkKey(key) {
+    if (key === "" || root.activityEvents.indexOf(key) !== -1) return
     root.activityEvents = root.activityEvents.concat([key])
   }
 
@@ -810,14 +1728,72 @@ Panel {
     return root.activityEvents.indexOf(root.liveActivityKey(event)) !== -1
   }
 
-  // Pulls the live match's summary and fires notifications for anything new.
+  // Recounts the score from the goal-type key events themselves, attributing
+  // each goal to a side via its team id/displayName. Returns null when any
+  // goal cannot be attributed, so callers fall back to the header score.
+  function countedScorePair(comp, events) {
+    var entries = comp && Array.isArray(comp.competitors) ? comp.competitors : []
+    if (!comp || entries.length < 2) return null
+    var counts = { home: 0, away: 0 }
+    for (var i = 0; i < events.length; i++) {
+      var e = events[i]
+      if (!root.isGoalEvent(e)) continue
+      var team = e.team || {}
+      var tid = String(team.id || "")
+      var tname = String(team.displayName || team.shortDisplayName || "")
+      var placed = false
+      for (var j = 0; j < entries.length && !placed; j++) {
+        var c = entries[j]
+        var cid = String(c.team && c.team.id || "")
+        var cname = String(c.team && c.team.displayName || "")
+        if ((tid !== "" && tid === cid) || (tname !== "" && tname === cname)) {
+          counts[c.homeAway === "away" ? "away" : "home"]++
+          placed = true
+        }
+      }
+      if (!placed) return null
+    }
+    return counts
+  }
+
+  // Numeric home/away pair from a match-shaped source, or null when absent.
+  function headerScorePair(source) {
+    var h = Number(root.scoreFor(source, "home"))
+    var a = Number(root.scoreFor(source, "away"))
+    return isNaN(h) || isNaN(a) ? null : { home: h, away: a }
+  }
+
+  // Fires held-back goal toasts once the header score agrees with the event
+  // recount (ESPN caught up), or once the patience window runs out so a
+  // stubborn mismatch still reports instead of dropping the goal silently.
+  // The body's score is rebuilt here from the freshest payload.
+  function resolvePendingGoals(scoreSource, agree) {
+    var keys = Object.keys(root.activityPending)
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i]
+      var entry = root.activityPending[key]
+      if (!agree && entry.tries < root.activityPendingMaxTries) {
+        entry.tries++
+        continue
+      }
+      delete root.activityPending[key]
+      root.activityMarkKey(key)
+      var score = root.scoreTextFor(scoreSource)
+      root.notify(entry.title, (entry.minute !== "" ? entry.minute + "' · " : "") + score, entry.glyph)
+    }
+  }
+
+  // Pulls the tracked match's summary and fires notifications for anything new.
   function pollLiveActivity() {
     if (!root.liveActivity) return
-    if (!root.liveMatch) {
+    var target = root.activityTarget()
+    if (!target) {
+      // Nothing to attach to anymore (the fixture vanished between
+      // refreshes, e.g. postponed): tracking has no purpose left.
       root.stopLiveActivity()
       return
     }
-    var id = root.safeIdentifier(String(root.liveMatch.id))
+    var id = root.safeIdentifier(String(target.id))
     if (id === "") return
     if (root.activityMatchId !== id) {
       // A different match went live while activity was on: start tracking it
@@ -825,13 +1801,16 @@ Panel {
       root.activityMatchId = id
       root.activityFlags = { started: false, halftime: false, fulltime: false }
       root.activityInitialized = false
+      root.activityWasHT = false
+      root.activityET = false
       root.activityEvents = []
+      root.activityPending = ({})
     }
     if (activityRequest.running) return
-    var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
+    var slug = root.safeIdentifier(String(target.competitionSlug || root.league))
     if (slug === "") return
-    activityRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
-      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
+    activityRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     activityRequest.running = true
   }
 
@@ -840,31 +1819,71 @@ Panel {
     root.activityMatchId = ""
     root.activityFlags = { started: false, halftime: false, fulltime: false }
     root.activityInitialized = false
+    root.activityWasHT = false
+    root.activityET = false
     root.activityEvents = []
+    root.activityPending = ({})
     activityPollTimer.start()
     root.pollLiveActivity()
   }
 
   function stopLiveActivity() {
     root.liveActivity = false
+    root.activityPending = ({})
     activityPollTimer.stop()
+  }
+
+  // The match Live Activity should track right now: the live match, or an
+  // upcoming fixture inside the follow-lead window before kickoff. Following
+  // before kickoff is what allows "Match Started" to fire at the transition.
+  function activityTarget() {
+    if (root.liveMatch) return root.liveMatch
+    if (!root.nextMatch) return null
+    var ms = new Date(root.nextMatch.date).getTime()
+    if (isNaN(ms)) return null
+    if (ms - new Date().getTime() > root.followLeadMs) return null
+    return root.nextMatch
+  }
+
+  // Shared stderr sink for curl Processes: trim, drop empties, optional
+  // label. Keeps every collector's failure path to one auditable line.
+  function warnStderr(label, raw) {
+    var detail = String(raw || "").trim()
+    if (detail !== "") console.warn("futbar", label === "" ? detail : label + ": " + detail)
   }
 
   // "Barcelona 2–0 Al Ahly" for the current live match.
   function scoreText() {
-    return root.teamNameFor(root.liveMatch, "home") + " " + root.scoreFor(root.liveMatch, "home")
-      + "–" + root.scoreFor(root.liveMatch, "away") + " " + root.teamNameFor(root.liveMatch, "away")
+    return root.scoreTextFor(root.liveMatch)
   }
 
   // "Barcelona 2–0" — the score without the away team name, used for cards.
   function shortScoreText() {
-    return root.teamNameFor(root.liveMatch, "home") + " " + root.scoreFor(root.liveMatch, "home")
-      + "–" + root.scoreFor(root.liveMatch, "away")
+    return root.shortScoreTextFor(root.liveMatch)
+  }
+
+  // Score text built from an arbitrary match-shaped source. Notifications use
+  // the live summary's own competitors, whose scores are fresher than the
+  // scoreboard data (the two refresh on independent timers, so a goal event
+  // can arrive while root.liveMatch still shows the previous score).
+  function scoreTextFor(source) {
+    return root.teamNameFor(source, "home") + " " + root.scoreFor(source, "home")
+      + "–" + root.scoreFor(source, "away") + " " + root.teamNameFor(source, "away")
+  }
+
+  function shortScoreTextFor(source) {
+    return root.teamNameFor(source, "home") + " " + root.scoreFor(source, "home")
+      + "–" + root.scoreFor(source, "away")
   }
 
   // "1st half" / "2nd half" etc. from the summary's status type.
   function periodLabel(typeObj) {
     var desc = String(typeObj && typeObj.description || "")
+    if (desc.indexOf("Extra Time") !== -1) {
+      if (desc.indexOf("Half") !== -1) return "extra time break"
+      if (desc.indexOf("Second") !== -1) return "extra time 2nd half"
+      return "extra time"
+    }
     if (desc.indexOf("First Half") !== -1) return "1st half"
     if (desc.indexOf("Second Half") !== -1) return "2nd half"
     if (desc.indexOf("Half") !== -1) return "half time"
@@ -872,6 +1891,15 @@ Panel {
     if (desc.indexOf("Penalty Shootout") !== -1) return "penalty shootout"
     var detail = String(typeObj && (typeObj.shortDetail || typeObj.detail) || "")
     return root.sanitizePlainText(detail !== "" ? detail : "in progress")
+  }
+
+  // ESPN reports soccer's half-time break under state "in" with a Halftime
+  // status type instead of a dedicated state, so it must be read from the
+  // type. The "hal" state only exists in other sports.
+  function isHalftimeStatus(status) {
+    var type = status && status.type ? status.type : {}
+    if (String(type.name || "") === "STATUS_HALFTIME") return true
+    return String(type.description || "").indexOf("Halftime") !== -1
   }
 
   // Compares a fresh summary against what has already been reported.
@@ -887,27 +1915,56 @@ Panel {
     // replayed.
     if (!root.activityInitialized) {
       root.activityInitialized = true
-      if (state === "hal") {
-        root.activityFlags.started = true
-        root.activityFlags.halftime = true
-      } else if (state === "post") {
+      // Whether extra time already began must be known before the phase
+      // branches below: an ET break looks like a half-time status, but its
+      // second half is announced through the ET key events instead.
+      var existing = Array.isArray(data.keyEvents) ? data.keyEvents : []
+      for (var k = 0; k < existing.length; k++) {
+        root.activityMarkSeen(existing[k])
+        if (!root.activityET && String(existing[k].type && existing[k].type.text || "") === "Start Extra Time")
+          root.activityET = true
+      }
+      if (state === "post") {
         root.activityFlags.started = true
         root.activityFlags.halftime = true
         root.activityFlags.fulltime = true
+      } else if (state === "hal" || root.isHalftimeStatus(status)) {
+        root.activityFlags.started = true
+        root.activityFlags.halftime = true
+        // Adopted the break silently, but play resuming is still worth
+        // announcing as the start of the second half — unless this break is
+        // the extra-time one, whose resumption has its own notification.
+        if (!root.activityET) root.activityWasHT = true
       } else if (state === "in") {
         root.activityFlags.started = true
       }
-      root.activityPrevState = state
-      var existing = Array.isArray(data.keyEvents) ? data.keyEvents : []
-      for (var k = 0; k < existing.length; k++) root.activityMarkSeen(existing[k])
       return
     }
 
-    // The second half began: the match left the half-time period back into
-    // play.
-    if (root.activityPrevState === "hal" && state === "in") {
-      root.notify("Second Half Started", root.scoreText() + " · " + root.periodLabel(status.type))
+    // Regular half-time only applies before extra time; ESPN reports the ET
+    // break through its own key events rather than a distinct status state.
+    var halftime = !root.activityET && (state === "hal" || root.isHalftimeStatus(status))
+
+    // Notification scores come from the summary payload itself: its
+    // competitors carry the score at the moment the events were recorded,
+    // while root.liveMatch refreshes on a separate timer and can lag a goal
+    // behind (a 1–0 goal would otherwise be announced with the old 0–0).
+    var scoreSource = comp && Array.isArray(comp.competitors) && comp.competitors.length > 0
+      ? { competitions: [{ competitors: comp.competitors }] }
+      : root.liveMatch
+
+    if (!root.activityFlags.halftime && halftime) {
+      root.activityFlags.halftime = true
+      root.notify("Half Time", root.scoreTextFor(scoreSource) + " (HT)", "󱎫")
     }
+
+    // The break ended and play resumed: announce the second half. Soccer keeps
+    // both halves and the break under state "in", so this is a Halftime →
+    // non-Halftime move rather than a state transition.
+    if (root.activityWasHT && !halftime && state !== "" && state !== "pre" && state !== "post") {
+      root.notify("Second Half Started", root.scoreTextFor(scoreSource) + " · " + root.periodLabel(status.type), "󰦶")
+    }
+    root.activityWasHT = halftime
 
     // A match is "pre" until moments after kickoff, so reaching any later
     // state without having announced the start is the start.
@@ -915,61 +1972,90 @@ Panel {
       root.activityFlags.started = true
       root.notify("Match Started",
         root.teamNameFor(root.liveMatch, "home") + " vs " + root.teamNameFor(root.liveMatch, "away")
-          + " · " + root.periodLabel(status.type))
-    }
-
-    if (!root.activityFlags.halftime && state === "hal") {
-      root.activityFlags.halftime = true
-      root.notify("Half Time", root.scoreText() + " (HT)")
+          + " · " + root.periodLabel(status.type), "󰦶")
     }
 
     if (!root.activityFlags.fulltime && state === "post") {
       root.activityFlags.fulltime = true
-      root.notify("Full Time", root.scoreText() + " (FT)")
+      var ftHome = Number(root.scoreFor(scoreSource, "home"))
+      var ftAway = Number(root.scoreFor(scoreSource, "away"))
+      // A level scoreline is only a draw when nobody won on penalties:
+      // shootout finishes (STATUS_FINAL_PEN) keep equal scores but a winner.
+      var tied = !isNaN(ftHome) && !isNaN(ftAway) && ftHome === ftAway
+        && String(status.type && status.type.name || "") !== "STATUS_FINAL_PEN"
+      root.notify(tied ? "Match Tied" : "Full Time", root.scoreTextFor(scoreSource) + " (FT)", "󱉾")
       activityPollTimer.stop()
       return
     }
 
     var events = Array.isArray(data.keyEvents) ? data.keyEvents : []
+
+    // ESPN can publish a goal key event before the header score catches up,
+    // which made fresh goals announce the previous scoreline. Recount the
+    // score from the events and hold goal toasts back while the two sources
+    // disagree; every other event type announces immediately. An
+    // unattributable recount (null) means "cannot cross-check" → trust the
+    // header like before.
+    var headerPair = root.headerScorePair(scoreSource)
+    var countedPair = root.countedScorePair(comp, events)
+    var scoresAgree = !headerPair || !countedPair
+      || (headerPair.home === countedPair.home && headerPair.away === countedPair.away)
+    if (Object.keys(root.activityPending).length > 0) root.resolvePendingGoals(scoreSource, scoresAgree)
+
     for (var i = 0; i < events.length; i++) {
       var e = events[i]
       if (root.activityAlreadySeen(e)) continue
       var t = String(e.type && e.type.text || "")
-      var minute = root.sanitizePlainText(String(e.clock && e.clock.displayValue || "").replace("'", ""))
+      var minute = root.sanitizePlainText(String(e.clock && e.clock.displayValue || "").replace(/'/g, ""))
       var players = e.athletesInvolved || e.participants || []
       var team = e.team || (players[0] && players[0].team) || {}
       var teamName = root.sanitizePlainText(String(team.displayName || team.shortName || ""))
-      var score = root.scoreText()
+      var score = root.scoreTextFor(scoreSource)
 
       if (root.isGoalEvent(e)) {
         if (!players.length) { root.activityMarkSeen(e); continue }
         var first = players[0]
         var person = first.athlete || first
         var playerName = root.sanitizePlainText(String(person.displayName || "?"))
-        root.activityMarkSeen(e)
-        if (root.isPenaltyEvent(e)) {
-          root.notify("Penalty — " + teamName, (minute !== "" ? minute + "' · " : "") + score)
-        } else {
-          root.notify("Goal — " + playerName, (minute !== "" ? minute + "' · " : "") + score)
+        var goalTitle = root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName
+        if (!scoresAgree) {
+          // Mid-update payload: park the toast until the score settles.
+          var pkey = root.liveActivityKey(e)
+          if (root.activityPending[pkey] === undefined)
+            root.activityPending[pkey] = { tries: 0, title: goalTitle, minute: minute, glyph: "󰒸" }
+          continue
         }
+        root.activityMarkSeen(e)
+        root.notify(goalTitle, (minute !== "" ? minute + "' · " : "") + score, "󰒸")
       } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1) {
         if (!players.length) { root.activityMarkSeen(e); continue }
         var cardFirst = players[0]
         var cardPerson = cardFirst.athlete || cardFirst
         var cardName = root.sanitizePlainText(String(cardPerson.displayName || "?"))
         var cardKind = t.indexOf("Yellow") !== -1 ? "Yellow Card" : "Red Card"
+        var cardGlyph = t.indexOf("Yellow") !== -1 ? "🟨" : "🟥"
         var parts = []
         if (minute !== "") parts.push(minute + "'")
         if (teamName !== "") parts.push(teamName)
-        parts.push(root.shortScoreText())
+        parts.push(root.shortScoreTextFor(scoreSource))
         root.activityMarkSeen(e)
-        root.notify(cardKind + " — " + cardName, parts.join(" · "))
+        root.notify(cardKind + " — " + cardName, parts.join(" · "), cardGlyph)
+      } else if (t === "Start Extra Time") {
+        // Knockout matches: 2 x 15 minutes after regular time ends level.
+        root.activityMarkSeen(e)
+        root.activityET = true
+        root.notify("Extra Time Starts", (minute !== "" ? minute + "' · " : "") + score, "󰦶")
+      } else if (t === "Halftime Extra Time") {
+        // End of the first extra-time half, before the second begins.
+        root.activityMarkSeen(e)
+        root.notify("Extra Time Half-Time", score + " (ET HT)", "󱎫")
+      } else if (t === "Start 2nd Half Extra Time") {
+        root.activityMarkSeen(e)
+        root.notify("Extra Time Second Half", (minute !== "" ? minute + "' · " : "") + score, "󰦶")
       } else {
         root.activityMarkSeen(e)
       }
     }
-
-    root.activityPrevState = state
   }
 
   // Fetch only once a real team is available. The widget stays idle until the
@@ -977,22 +2063,80 @@ Panel {
   // saved settings / remembered favorite arrive.
   Component.onCompleted: root.ensureStarted()
   onSavedFavoriteChanged: root.ensureStarted()
-  // Leaving the picker without confirming keeps the previous team in place.
-  onOpenedChanged: if (!root.opened) root.editingTeam = false
+  onOpenedChanged: {
+    if (!root.opened) {
+      root.editingTeam = false
+      root.pickerLeagueOnly = false
+    } else {
+      root.refresh()
+      if (root.leagueMode || root.showMatches) {
+        root.loadMatchList(true)
+      }
+      if (root.showStandings) {
+        root.loadStandings(true)
+      }
+      if (root.showStats) {
+        root.loadStats(true)
+      }
+      if (root.showMatchDetail && root.matchDetail && root.matchDetail.id) {
+        root.openMatchDetail(root.matchDetail)
+      }
+    }
+  }
   // A team change lands as a sequence of setting updates (name, league, id),
   // so refresh from each; the guard inside refresh() coalesces them into a
   // single fetch that always targets the newly selected club.
   onTeamNameChanged: root.refresh()
   onTeamIdChanged: root.refresh()
   onResolvedTeamIdChanged: root.refresh()
-  // Refresh the table after the team picker changes the league.
-  onLeagueChanged: { root.refresh(); if (root.opened && root.showStandings) root.loadStandings() }
+  // Refresh data and reset identity when the league changes.
+  onLeagueChanged: {
+    root.tournamentName = root.leagueLabel()
+    root.tournamentLogo = ""
+    root.statsGoals = []
+    root.statsAssists = []
+    root.statsYellow = []
+    root.statsRed = []
+    root.rawYellowLeaders = []
+    root.rawRedLeaders = []
+    root.athleteMap = ({})
+    root.standingsGroups = []
+    root.standingsGroupIndex = 0
+    root.matchClusters = []
+    root.matchClusterIndex = 0
+    root._lastStandingsKey = ""
+    root._lastStatsKey = ""
+    root._lastMatchListKey = ""
+    root.lastStandingsRefresh = 0
+    root.lastStatsRefresh = 0
+    root.lastMatchListRefresh = 0
+    root.refresh()
+    if (root.leagueMode) {
+      if (!matchListRequest.running) root.loadMatchList(true)
+      if (root.showStandings && !standingsRequest.running) root.loadStandings(true)
+      if (root.showStats && !statsRequest.running) root.loadStats(true)
+    } else {
+      if (root.opened && root.showStandings && !standingsRequest.running) root.loadStandings(true)
+      if (root.opened && root.showStats && !statsRequest.running) root.loadStats(true)
+      if (root.opened && root.showMatches) {
+        root.matchWindowOffset = 0
+        root.pendingEdge = ""
+        root.navAnchorDay = ""
+        root.loadMatchList(true)
+      }
+    }
+  }
+
+  // Live Activity polling cadence. Tracking only runs during a live match,
+  // so one fast interval keeps goals/cards/half-time announcements within
+  // seconds of the summary updating them.
+  readonly property int activityPollMs: 10000
 
   // Live Activity polling: check the summary for new events while the user
   // has notifications enabled and a match is in play.
   Timer {
     id: activityPollTimer
-    interval: 30000
+    interval: root.activityPollMs
     repeat: true
     onTriggered: root.pollLiveActivity()
   }
@@ -1015,6 +2159,149 @@ Panel {
     setTeamRequest.running = true
   }
 
+  function _getTacticalCoordinates(player) {
+    var abbr = String(player.positionAbbr || "").toUpperCase().trim()
+    var posName = String(player.position || "").toLowerCase().trim()
+    var fp = typeof player.formationPlace === "number" ? player.formationPlace : parseInt(player.formationPlace, 10)
+    if (isNaN(fp)) fp = 99
+
+    // 1. Explicit tactical abbreviations from ESPN
+    if (abbr === "G") return { x: 0.50, y: 0.90 }
+    if (abbr === "LB") return { x: 0.14, y: 0.74 }
+    if (abbr === "LWB") return { x: 0.14, y: 0.68 }
+    if (abbr === "CD-L") return { x: 0.38, y: 0.74 }
+    if (abbr === "CD") return { x: 0.50, y: 0.74 }
+    if (abbr === "CD-R") return { x: 0.62, y: 0.74 }
+    if (abbr === "RB") return { x: 0.86, y: 0.74 }
+    if (abbr === "RWB") return { x: 0.86, y: 0.68 }
+
+    if (abbr === "DM") return { x: 0.50, y: 0.58 }
+    if (abbr === "DM-L") return { x: 0.37, y: 0.58 }
+    if (abbr === "DM-R") return { x: 0.63, y: 0.58 }
+    if (abbr === "CM-L") return { x: 0.37, y: 0.44 }
+    if (abbr === "CM") return { x: 0.50, y: 0.44 }
+    if (abbr === "CM-R") return { x: 0.63, y: 0.44 }
+    if (abbr === "LM") return { x: 0.14, y: 0.44 }
+    if (abbr === "RM") return { x: 0.86, y: 0.44 }
+
+    if (abbr === "AM-L" || abbr === "LW" || abbr === "LF") return { x: 0.14, y: 0.28 }
+    if (abbr === "AM") return { x: 0.50, y: 0.30 }
+    if (abbr === "AM-R" || abbr === "RW" || abbr === "RF") return { x: 0.86, y: 0.28 }
+
+    if (abbr === "CF-L") return { x: 0.36, y: 0.12 }
+    if (abbr === "CF-R") return { x: 0.64, y: 0.12 }
+    if (abbr === "CF" || abbr === "F" || abbr === "ST") return { x: 0.50, y: 0.12 }
+
+    // 2. Position Name matching
+    if (posName.indexOf("goal") !== -1 || fp === 1) return { x: 0.50, y: 0.90 }
+    if (posName.indexOf("left back") !== -1 || (posName.indexOf("def") !== -1 && fp === 3)) return { x: 0.14, y: 0.74 }
+    if (posName.indexOf("right back") !== -1 || (posName.indexOf("def") !== -1 && fp === 2)) return { x: 0.86, y: 0.74 }
+    if (posName.indexOf("center left def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 4 || fp === 6))) return { x: 0.38, y: 0.74 }
+    if (posName.indexOf("center right def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 5 || fp === 7))) return { x: 0.62, y: 0.74 }
+    if (posName.indexOf("center def") !== -1 || (posName.indexOf("def") !== -1 && fp === 5)) return { x: 0.50, y: 0.74 }
+
+    if (posName.indexOf("defensive mid") !== -1) return { x: 0.50, y: 0.58 }
+    if (posName.indexOf("left mid") !== -1) return { x: 0.14, y: 0.44 }
+    if (posName.indexOf("right mid") !== -1) return { x: 0.86, y: 0.44 }
+    if (posName.indexOf("center left mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 8)) return { x: 0.37, y: 0.44 }
+    if (posName.indexOf("center right mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 7)) return { x: 0.63, y: 0.44 }
+    if (posName.indexOf("center mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 4)) return { x: 0.50, y: 0.44 }
+
+    if (posName.indexOf("left forw") !== -1 || posName.indexOf("left wing") !== -1 || (posName.indexOf("att") !== -1 && fp === 11)) return { x: 0.14, y: 0.28 }
+    if (posName.indexOf("right forw") !== -1 || posName.indexOf("right wing") !== -1 || (posName.indexOf("att") !== -1 && (fp === 7 || fp === 10))) return { x: 0.86, y: 0.28 }
+    if (posName.indexOf("center left forw") !== -1) return { x: 0.36, y: 0.12 }
+    if (posName.indexOf("center right forw") !== -1) return { x: 0.64, y: 0.12 }
+    if (posName.indexOf("forw") !== -1 || posName.indexOf("striker") !== -1 || fp === 9) return { x: 0.50, y: 0.12 }
+    if (posName.indexOf("att") !== -1 || fp === 10) return { x: 0.50, y: 0.30 }
+
+    // 3. formationPlace mapping fallback
+    if (fp === 1) return { x: 0.50, y: 0.90 }
+    if (fp === 3) return { x: 0.14, y: 0.74 }
+    if (fp === 4) return { x: 0.38, y: 0.74 }
+    if (fp === 5) return { x: 0.50, y: 0.74 }
+    if (fp === 6) return { x: 0.62, y: 0.74 }
+    if (fp === 2) return { x: 0.86, y: 0.74 }
+    if (fp === 8) return { x: 0.37, y: 0.44 }
+    if (fp === 7) return { x: 0.63, y: 0.44 }
+    if (fp === 11) return { x: 0.14, y: 0.28 }
+    if (fp === 10) return { x: 0.86, y: 0.28 }
+    if (fp === 9) return { x: 0.50, y: 0.12 }
+
+    return { x: 0.50, y: 0.50 }
+  }
+
+  function layoutPitchPlayers(formationStr, starters) {
+    if (!starters || starters.length === 0) return []
+    var result = []
+    for (var i = 0; i < starters.length; i++) {
+      var pObj = starters[i]
+      var coords = root._getTacticalCoordinates(pObj)
+      var sName = pObj.shortName || ""
+      if (sName === "" && pObj.name) {
+        var parts = pObj.name.trim().split(" ")
+        sName = parts[parts.length - 1]
+      }
+      result.push({
+        name: pObj.name || "",
+        shortName: sName,
+        jersey: pObj.jersey || "",
+        position: pObj.position || "",
+        positionAbbr: pObj.positionAbbr || "",
+        formationPlace: pObj.formationPlace,
+        goals: pObj.goals || 0,
+        assists: pObj.assists || 0,
+        yellowCards: pObj.yellowCards || 0,
+        redCards: pObj.redCards || 0,
+        subbedOut: !!pObj.subbedOut,
+        subbedIn: !!pObj.subbedIn,
+        rating: pObj.rating !== undefined ? pObj.rating : null,
+        jerseyImage: pObj.jerseyImage || pObj.headshot || "",
+        headshot: pObj.headshot || "",
+        x: coords.x,
+        y: coords.y
+      })
+    }
+
+    // Robust multi-pass de-collision repulsion: ensure minimum 0.16 horizontal separation on each tactical line
+    for (var pass = 0; pass < 4; pass++) {
+      for (var a = 0; a < result.length; a++) {
+        for (var b = a + 1; b < result.length; b++) {
+          var dx = Math.abs(result[a].x - result[b].x)
+          var dy = Math.abs(result[a].y - result[b].y)
+          if (dy < 0.08 && dx < 0.16) {
+            var needed = (0.16 - dx) / 2
+            if (result[a].x <= result[b].x) {
+              result[a].x = Math.max(0.10, result[a].x - needed)
+              result[b].x = Math.min(0.90, result[b].x + needed)
+            } else {
+              result[a].x = Math.min(0.90, result[a].x + needed)
+              result[b].x = Math.max(0.10, result[b].x - needed)
+            }
+          }
+        }
+      }
+    }
+    return result
+  }
+
+  function ratingColor(r) {
+    var val = Number(r)
+    if (isNaN(val) || val <= 0) return "#64748b"
+    if (val >= 7.0) return "#16a34a"  // Green (Good / Excellent)
+    if (val >= 6.0) return "#ca8a04"  // Yellow / Amber (Average / Solid)
+    return "#dc2626"                  // Red (Below Average)
+  }
+
+  function repeatGlyph(glyph, count) {
+    var c = parseInt(count, 10)
+    if (isNaN(c) || c <= 0) return ""
+    var arr = []
+    for (var i = 0; i < c; i++) {
+      arr.push(glyph)
+    }
+    return arr.join(" ")
+  }
+
   // Persists the user's club choice through the shell IPC, which writes
   // shell.json and patches the running widget's settings in place. After that
   // needsTeam flips to false and the fixtures take over.
@@ -1031,9 +2318,10 @@ Panel {
     selectedTeam = null
     var leagueCode = root.safeIdentifier(root.selectedLeague)
     if (leagueCode !== "") {
-      teamsRequest.command = ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
-        "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
-      if (!teamsRequest.running) teamsRequest.running = true
+      teamsRequest.running = false
+      teamsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
+      teamsRequest.running = true
     }
   }
 
@@ -1056,6 +2344,199 @@ Panel {
     root._queueSetBarWidget("teamName", teamVal)
     root._queueSetBarWidget("league", leagueVal)
     root._queueSetBarWidget("teamId", teamIdVal)
+    root.resetTeamData()
+    root._fixtureTeamKey = ""
+    root.showStandings = false
+    root.showStats = false
+    root.showMatches = false
+    root.loading = true
+    root.refresh()
+  }
+
+  function isLeagueMatchFollowed(id) {
+    return id !== "" && Array.isArray(root.followedLeagueMatches) && root.followedLeagueMatches.indexOf(id) !== -1
+  }
+
+  // Clicking a live board row toggles its own follow; the list persists.
+  function toggleLeagueMatchFollow(id) {
+    if (id === "") return
+    var list = Array.isArray(root.followedLeagueMatches) ? root.followedLeagueMatches.slice() : []
+    var pos = list.indexOf(id)
+    if (pos !== -1) list.splice(pos, 1)
+    else list.push(id)
+    root.followedLeagueMatches = list
+
+    var payload = {}
+    if (root.savedFavorite && typeof root.savedFavorite === "object") {
+      for (var k in root.savedFavorite) payload[k] = root.savedFavorite[k]
+    }
+    payload.followMatchIds = list
+    if (payload.teamName === undefined || payload.teamName === null) payload.teamName = root.teamName
+    if (payload.league === undefined || payload.league === null || payload.league === "") payload.league = root.league
+    if (payload.teamId === undefined || payload.teamId === null) payload.teamId = (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
+    root.savedFavorite = payload
+    favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
+
+    if (pos === -1) {
+      root.enqueueLeagueSummary(id)
+      root.pollNextLeagueSummary()
+    }
+  }
+
+  // Queues a live fixture for league-wide tracking (dedup safe).
+  function enqueueLeagueSummary(id) {
+    if (id === "") return
+    if (root.leagueSummaryQueue.indexOf(id) !== -1) return
+    if (id === root.leagueCurrentId) return
+    root.leagueSummaryQueue.push(id)
+  }
+
+  function pollNextLeagueSummary() {
+    if (leagueSummaryRequest.running) return
+    if (root.leagueSummaryQueue.length === 0) { root.leagueCurrentId = ""; return }
+    root.leagueCurrentId = root.leagueSummaryQueue[0]
+    var slug = root.safeIdentifier(root.league)
+    if (slug === "") { root.leagueSummaryQueue.shift(); root.pollNextLeagueSummary(); return }
+    leagueSummaryRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
+      + "/summary?event=" + encodeURIComponent(root.leagueCurrentId)]
+    leagueSummaryRequest.running = true
+  }
+
+  // Per-match flag store so each followed fixture runs the exact same
+  // notification policy as club mode: kickoff, goals, penalties, cards,
+  // half-time, second half, extra time phases, and full-time result.
+  property var leagueMatchFlags: ({})
+
+  function leagueFlagsFor(matchId) {
+    if (root.leagueMatchFlags[matchId] === undefined)
+      root.leagueMatchFlags[matchId] = {
+        initialized: false, started: false, halftime: false,
+        fulltime: false, wasHT: false, et: false
+      }
+    return root.leagueMatchFlags[matchId]
+  }
+
+  function handleLeagueSummary(matchId, data) {
+    var comp = data && data.header && data.header.competitions && data.header.competitions[0]
+    if (!comp || !Array.isArray(comp.competitors)) return
+    var status = comp.status || {}
+    var state = String(status.type && status.type.state || "")
+    var flags = root.leagueFlagsFor(matchId)
+
+    var scoreSource = { competitions: [{ competitors: comp.competitors }] }
+
+    if (!flags.initialized) {
+      flags.initialized = true
+      var existing = Array.isArray(data.keyEvents) ? data.keyEvents : []
+      for (var k = 0; k < existing.length; k++) {
+        root.activityMarkKey(matchId + ":" + root.liveActivityKey(existing[k]))
+        if (!flags.et && String(existing[k].type && existing[k].type.text || "") === "Start Extra Time")
+          flags.et = true
+      }
+      if (state === "post") { flags.fulltime = true; flags.started = true }
+      else if (state === "in") { flags.started = true }
+    }
+
+    var halftime = !flags.et && (state === "hal" || root.isHalftimeStatus(status))
+
+    if (!flags.halftime && halftime) {
+      flags.halftime = true
+      root.notify("Half Time", root.scoreTextFor(scoreSource) + " (HT)", "󱎫")
+    }
+    if (halftime) flags.halftime = true
+
+    if (flags.wasHT && !halftime && state !== "" && state !== "pre" && state !== "post") {
+      root.notify("Second Half Started",
+        root.scoreTextFor(scoreSource) + " \u00b7 " + root.periodLabel(status.type), "󰦶")
+    }
+    flags.wasHT = halftime
+
+    if (!flags.started && state !== "" && state !== "pre") {
+      flags.started = true
+      var homeName = root.teamNameFor({ competitions: [{ competitors: comp.competitors }] }, "home")
+      var awayName = root.teamNameFor({ competitions: [{ competitors: comp.competitors }] }, "away")
+      root.notify("Match Started",
+        homeName + " vs " + awayName + " \u00b7 " + root.periodLabel(status.type), "󰦶")
+    }
+
+    if (!flags.fulltime && state === "post") {
+      flags.fulltime = true
+      var ftHome = Number(root.scoreFor(scoreSource, "home"))
+      var ftAway = Number(root.scoreFor(scoreSource, "away"))
+      var tied = !isNaN(ftHome) && !isNaN(ftAway) && ftHome === ftAway
+        && String(status.type && status.type.name || "") !== "STATUS_FINAL_PEN"
+      root.notify(tied ? "Match Tied" : "Full Time",
+        root.scoreTextFor(scoreSource) + " (FT)", "󱉾")
+      delete root.leagueMatchFlags[matchId]
+      return
+    }
+
+    var events = Array.isArray(data.keyEvents) ? data.keyEvents : []
+    for (var i = 0; i < events.length; i++) {
+      var e = events[i]
+      var key = matchId + ":" + root.liveActivityKey(e)
+      if (root.activityEvents.indexOf(key) !== -1) continue
+      var t = String(e.type && e.type.text || "")
+      var minute = root.sanitizePlainText(String(e.clock && e.clock.displayValue || "").replace(/'/g, ""))
+      var players = e.athletesInvolved || e.participants || []
+      var team = e.team || (players[0] && players[0].team) || {}
+      var teamName = root.sanitizePlainText(String(team.displayName || team.shortName || ""))
+      var score = root.scoreTextFor(scoreSource)
+
+      if (root.isGoalEvent(e)) {
+        if (!players.length) { root.activityMarkKey(key); continue }
+        var person = players[0].athlete || players[0]
+        var playerName = root.sanitizePlainText(String(person.displayName || "?"))
+        root.activityMarkKey(key)
+        var goalTitle = root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName
+        root.notify(goalTitle, (minute !== "" ? minute + "' · " : "") + score, "󰒸")
+      } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1) {
+        if (!players.length) { root.activityMarkKey(key); continue }
+        var cardPerson = players[0].athlete || players[0]
+        var cardName = root.sanitizePlainText(String(cardPerson.displayName || "?"))
+        var cardKind = t.indexOf("Yellow") !== -1 ? "Yellow Card" : "Red Card"
+        var cardGlyph = t.indexOf("Yellow") !== -1 ? "\u{1F7E8}" : "\u{1F7E5}"
+        root.activityMarkKey(key)
+        root.notify(cardKind + " — " + cardName,
+          (minute !== "" ? minute + "' · " : "") + root.shortScoreTextFor(scoreSource), cardGlyph)
+      } else if (t === "Start Extra Time") {
+        flags.et = true
+        root.activityMarkKey(key)
+        root.notify("Extra Time Starts", (minute !== "" ? minute + "' · " : "") + score, "󰦶")
+      } else if (t === "Halftime Extra Time") {
+        flags.halftime = true
+        root.activityMarkKey(key)
+        root.notify("Extra Time Half-Time", score + " (ET HT)", "󱎫")
+      } else if (t === "Start 2nd Half Extra Time") {
+        root.activityMarkKey(key)
+        root.notify("Extra Time Second Half", (minute !== "" ? minute + "' · " : "") + score, "󰦶")
+      } else {
+        root.activityMarkKey(key)
+      }
+    }
+  }
+
+  // Saves the league-follow choice: no club, just the competition.
+  function confirmLeague() {
+    var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
+    if (leagueVal === "") return
+    root.editingTeam = false
+    root.saveFavorite("", leagueVal, "", true)
+    root._queueSetBarWidget("league", leagueVal)
+    // Wipe the previous club from widget settings so a reload cannot
+    // resurrect it alongside the league-follow.
+    root._queueSetBarWidget("teamName", "")
+    root._queueSetBarWidget("teamId", "")
+    root.resetTeamData()
+    root._fixtureTeamKey = ""
+    root.showStandings = false
+    root.showStats = false
+    root.showMatches = true
+    root.leagueBrowseAll = false
+    root.matchWindowOffset = 0
+    root.matchListLoading = true
+    root.loadMatchList(true)
   }
 
   // Stores a team id resolved from the /teams list when the team was set
@@ -1161,10 +2642,7 @@ Panel {
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", detail)
-      }
+onStreamFinished: root.warnStderr("", text)
     }
   }
 
@@ -1179,10 +2657,7 @@ Panel {
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", detail)
-      }
+onStreamFinished: root.warnStderr("", text)
     }
   }
 
@@ -1194,10 +2669,7 @@ Panel {
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", detail)
-      }
+onStreamFinished: root.warnStderr("", text)
     }
   }
 
@@ -1209,10 +2681,7 @@ Panel {
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", detail)
-      }
+onStreamFinished: root.warnStderr("", text)
     }
   }
 
@@ -1237,8 +2706,7 @@ Panel {
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", "summary: " + detail)
+        root.warnStderr("summary", text)
       }
     }
   }
@@ -1259,8 +2727,7 @@ Panel {
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", "activity: " + detail)
+        root.warnStderr("activity", text)
       }
     }
   }
@@ -1283,39 +2750,72 @@ Panel {
         try {
           var data = JSON.parse(text)
           var children = data.children || []
-          var entries = []
-          var name = ""
+          var groups = []
           for (var c = 0; c < children.length; c++) {
-            var standing = children[c].standings || {}
-            entries = standing.entries || []
-            name = String(children[c].name || "")
-            if (entries.length) break
+            var child = children[c]
+            var standing = child.standings || {}
+            var rawEntries = standing.entries || []
+            var groupName = String(child.name || "")
+            var groupAbbrev = String(child.abbreviation || child.shortName || groupName)
+            if (rawEntries.length === 0) continue
+
+            var parsedEntries = rawEntries.map(function(entry, index) {
+              var team = entry.team || {}
+              var stats = {}
+              var list = entry.stats || []
+              for (var s = 0; s < list.length; s++) {
+                var item = list[s]
+                if (!item) continue
+                var key = root.safeIdentifier(String(item.name || ""))
+                if (key !== "") stats[key] = item.displayValue !== undefined && item.displayValue !== null ? root.sanitizePlainText(String(item.displayValue)) : "0"
+              }
+              var rankVal = stats.rank
+              if (rankVal === undefined || rankVal === "") {
+                var noteRank = entry.note && entry.note.rank
+                rankVal = noteRank !== undefined && noteRank !== null ? String(noteRank) : String(index + 1)
+              }
+              return {
+                rank: root.sanitizePlainText(String(rankVal)),
+                teamName: root.sanitizePlainText(String(team.displayName || team.name || "—")),
+                teamId: root.safeIdentifier(String(team.id || "")),
+                logo: root.sanitizeImageUrl(team.logos && team.logos[0] ? String(team.logos[0].href || "") : ""),
+                note: entry.note || null,
+                stats: stats
+              }
+            })
+
+            parsedEntries.sort(function(a, b) {
+              var rA = Number(a.rank) || 999
+              var rB = Number(b.rank) || 999
+              if (rA !== rB) return rA - rB
+              var pA = Number(a.stats && a.stats.points) || 0
+              var pB = Number(b.stats && b.stats.points) || 0
+              return pB - pA
+            })
+
+            groups.push({
+              name: root.sanitizePlainText(groupName),
+              shortName: root.sanitizePlainText(groupAbbrev),
+              entries: parsedEntries
+            })
           }
-          root.standingsGroupName = root.sanitizePlainText(name)
-          root.standings = entries.map(function(entry, index) {
-            var team = entry.team || {}
-            var stats = {}
-            var list = entry.stats || []
-            for (var s = 0; s < list.length; s++) {
-              var item = list[s]
-              if (!item) continue
-              var key = root.safeIdentifier(String(item.name || ""))
-              if (key !== "") stats[key] = item.displayValue !== undefined && item.displayValue !== null ? root.sanitizePlainText(String(item.displayValue)) : "0"
+          root.standingsGroups = groups
+          var targetGrp = 0
+          if (!root.leagueMode && root.teamName !== "") {
+            for (var gi = 0; gi < groups.length; gi++) {
+              var gEntries = groups[gi].entries || []
+              for (var ej = 0; ej < gEntries.length; ej++) {
+                if (gEntries[ej].teamName.toLowerCase().indexOf(root.teamName.toLowerCase()) !== -1 ||
+                    (root.teamId !== "" && gEntries[ej].teamId === root.teamId)) {
+                  targetGrp = gi
+                  break
+                }
+              }
             }
-            var rankVal = stats.rank
-            if (rankVal === undefined || rankVal === "") {
-              var noteRank = entry.note && entry.note.rank
-              rankVal = noteRank !== undefined && noteRank !== null ? String(noteRank) : String(index + 1)
-            }
-            return {
-              rank: root.sanitizePlainText(String(rankVal)),
-              teamName: root.sanitizePlainText(String(team.displayName || team.name || "—")),
-              teamId: root.safeIdentifier(String(team.id || "")),
-              logo: root.sanitizeImageUrl(team.logos && team.logos[0] ? String(team.logos[0].href || "") : ""),
-              note: entry.note || null,
-              stats: stats
-            }
-          })
+          }
+          root.standingsGroupIndex = Math.min(targetGrp, Math.max(0, groups.length - 1))
+          root._lastStandingsKey = root.safeIdentifier(root.league) + "|" + String(root.standingsSeasonOffset)
+          root.lastStandingsRefresh = Date.now()
         } catch (error) {
           root.standingsError = "Could not parse standings"
         }
@@ -1335,10 +2835,833 @@ Panel {
   }
 
   Process {
+    id: matchDetailRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          root.matchDetailLoading = false
+          return
+        }
+        try {
+          var data = JSON.parse(text)
+          var hdr = data.header || {}
+          var comp = (hdr.competitions && hdr.competitions[0]) || {}
+          var competitors = comp.competitors || []
+          var homeComp = null
+          var awayComp = null
+          for (var ci = 0; ci < competitors.length; ci++) {
+            if (competitors[ci].homeAway === "home") homeComp = competitors[ci]
+            else if (competitors[ci].homeAway === "away") awayComp = competitors[ci]
+          }
+          if (!homeComp && competitors.length > 0) homeComp = competitors[0]
+          if (!awayComp && competitors.length > 1) awayComp = competitors[1]
+
+          var homeTeam = (homeComp && homeComp.team) || {}
+          var awayTeam = (awayComp && awayComp.team) || {}
+
+          var rawEvents = Array.isArray(data.keyEvents) ? data.keyEvents : []
+          var parsedEvents = []
+          for (var ei = 0; ei < rawEvents.length; ei++) {
+            var ev = rawEvents[ei]
+            if (!ev) continue
+            var typeObj = ev.type || {}
+            var kType = String(typeObj.text || "")
+            var clockObj = ev.clock || {}
+            var clk = String(clockObj.displayValue || "")
+            var rawTxt = String(ev.text || "").trim()
+            if (rawTxt === "" || rawTxt === "None") continue
+
+            var lowerType = kType.toLowerCase()
+            var isGoal = lowerType.indexOf("goal") !== -1 || lowerType.indexOf("penalty - scored") !== -1 || ev.scoringPlay === true
+            var isCard = lowerType.indexOf("yellow card") !== -1 || lowerType.indexOf("red card") !== -1
+            var isSub = lowerType.indexOf("substitution") !== -1
+            var isPenalty = lowerType.indexOf("penalty") !== -1
+            var isVar = lowerType.indexOf("var") !== -1
+
+            if (!isGoal && !isCard && !isSub && !isPenalty && !isVar) {
+              continue
+            }
+
+            var glyph = "•"
+            var cardColor = ""
+            var eventDetail = rawTxt
+            var kParts = Array.isArray(ev.participants) ? ev.participants : []
+
+            if (isGoal) {
+              glyph = ""
+              if (kParts.length >= 2 && kParts[1].athlete) {
+                var astName = String(kParts[1].athlete.displayName || kParts[1].athlete.shortName || "")
+                if (astName !== "") {
+                  eventDetail = eventDetail + " (Assist: " + astName + ")"
+                }
+              }
+            } else if (lowerType.indexOf("yellow card") !== -1) {
+              cardColor = "#eab308"
+            } else if (lowerType.indexOf("red card") !== -1) {
+              cardColor = "#ef4444"
+            } else if (isSub) {
+              glyph = ""
+              if (kParts.length >= 2) {
+                var sIn = kParts[0] ? String((kParts[0].athlete && (kParts[0].athlete.displayName || kParts[0].athlete.shortName)) || kParts[0].displayName || "") : ""
+                var sOut = kParts[1] ? String((kParts[1].athlete && (kParts[1].athlete.displayName || kParts[1].athlete.shortName)) || kParts[1].displayName || "") : ""
+                if (sIn !== "" && sOut !== "") {
+                  eventDetail = sIn + " (in) ⇄ " + sOut + " (out)"
+                }
+              }
+            } else if (isPenalty) {
+              glyph = "󰡬"
+            } else if (isVar) {
+              glyph = "󰀪"
+            }
+
+            parsedEvents.push({
+              type: root.sanitizePlainText(kType),
+              glyph: root.sanitizePlainText(glyph),
+              minute: root.sanitizePlainText(clk),
+              text: root.sanitizePlainText(eventDetail),
+              isGoal: isGoal,
+              isCard: isCard,
+              isSub: isSub,
+              cardColor: cardColor
+            })
+          }
+
+          var parsedStats = []
+          var boxTeams = (data.boxscore && Array.isArray(data.boxscore.teams)) ? data.boxscore.teams : []
+          if (boxTeams.length >= 2) {
+            var hBox = boxTeams[0]
+            var aBox = boxTeams[1]
+            if (homeTeam.id && hBox.team && String(hBox.team.id) !== String(homeTeam.id)) {
+              hBox = boxTeams[1]
+              aBox = boxTeams[0]
+            }
+
+            var hStatsList = Array.isArray(hBox.statistics) ? hBox.statistics : []
+            var aStatsList = Array.isArray(aBox.statistics) ? aBox.statistics : []
+            var hMap = {}
+            var aMap = {}
+            for (var si = 0; si < hStatsList.length; si++) {
+              if (hStatsList[si] && hStatsList[si].name) hMap[hStatsList[si].name] = hStatsList[si].displayValue
+            }
+            for (var sj = 0; sj < aStatsList.length; sj++) {
+              if (aStatsList[sj] && aStatsList[sj].name) aMap[aStatsList[sj].name] = aStatsList[sj].displayValue
+            }
+
+            var statDefs = [
+              { name: "possessionPct", label: "Possession", suffix: "%" },
+              { name: "totalShots", altName: "shots", label: "Total Shots", suffix: "" },
+              { name: "shotsOnTarget", label: "Shots on Target", suffix: "" },
+              { name: "accuratePasses", label: "Accurate Passes", suffix: "" },
+              { name: "totalPasses", label: "Total Passes", suffix: "" },
+              { name: "passPct", label: "Pass Accuracy", suffix: "%" },
+              { name: "wonCorners", altName: "cornerKicks", label: "Corner Kicks", suffix: "" },
+              { name: "effectiveTackles", altName: "totalTackles", label: "Tackles Won", suffix: "" },
+              { name: "tacklePct", label: "Tackles Won %", suffix: "%" },
+              { name: "interceptions", label: "Interceptions", suffix: "" },
+              { name: "effectiveClearance", altName: "totalClearance", label: "Clearances", suffix: "" },
+              { name: "foulsCommitted", label: "Fouls", suffix: "" },
+              { name: "yellowCards", label: "Yellow Cards", suffix: "" },
+              { name: "redCards", label: "Red Cards", suffix: "" },
+              { name: "offsides", label: "Offsides", suffix: "" },
+              { name: "saves", label: "Goalkeeper Saves", suffix: "" }
+            ]
+
+            for (var sd = 0; sd < statDefs.length; sd++) {
+              var def = statDefs[sd]
+              var hV = hMap[def.name] !== undefined ? hMap[def.name] : (def.altName ? hMap[def.altName] : undefined)
+              var aV = aMap[def.name] !== undefined ? aMap[def.name] : (def.altName ? aMap[def.altName] : undefined)
+              if (hV !== undefined || aV !== undefined) {
+                var hNum = parseFloat(hV) || 0
+                var aNum = parseFloat(aV) || 0
+                var total = hNum + aNum
+                var hRatio = total > 0 ? (hNum / total) : 0.5
+                parsedStats.push({
+                  name: def.name,
+                  label: def.label,
+                  homeValue: root.sanitizePlainText(String(hV !== undefined ? hV : "0") + def.suffix),
+                  awayValue: root.sanitizePlainText(String(aV !== undefined ? aV : "0") + def.suffix),
+                  homeRatio: hRatio
+                })
+              }
+            }
+          }
+
+          var parsedLeaders = []
+          if (Array.isArray(data.leaders)) {
+            for (var lIdx = 0; lIdx < data.leaders.length; lIdx++) {
+              var leadTeam = data.leaders[lIdx]
+              if (!leadTeam) continue
+              var lTeamId = leadTeam.team ? String(leadTeam.team.id || "") : ""
+              var isHomeLeader = (homeTeam.id && lTeamId === String(homeTeam.id)) || (lIdx === 0)
+              var catList = Array.isArray(leadTeam.leaders) ? leadTeam.leaders : []
+              var teamCats = []
+              for (var cIdx = 0; cIdx < catList.length; cIdx++) {
+                var cat = catList[cIdx]
+                if (!cat) continue
+                var catName = String(cat.displayName || cat.name || "")
+                var leadAthletes = Array.isArray(cat.leaders) ? cat.leaders : []
+                if (leadAthletes.length > 0 && leadAthletes[0].athlete) {
+                  var pLead = leadAthletes[0]
+                  teamCats.push({
+                    category: root.sanitizePlainText(catName),
+                    player: root.sanitizePlainText(String(pLead.athlete.displayName || pLead.athlete.shortName || "")),
+                    value: root.sanitizePlainText(String(pLead.displayValue || pLead.value || ""))
+                  })
+                }
+              }
+              if (teamCats.length > 0) {
+                parsedLeaders.push({
+                  isHome: isHomeLeader,
+                  teamName: root.sanitizePlainText(String(leadTeam.team && (leadTeam.team.displayName || leadTeam.team.name) || (isHomeLeader ? "Home" : "Away"))),
+                  categories: teamCats
+                })
+              }
+            }
+          }
+
+          var parsedCommentary = []
+          if (Array.isArray(data.commentary) && data.commentary.length > 0) {
+            for (var ci = data.commentary.length - 1; ci >= 0; ci--) {
+              var cItem = data.commentary[ci]
+              if (!cItem || !cItem.text) continue
+              var cTime = (cItem.time && cItem.time.displayValue) ? String(cItem.time.displayValue).trim() : ""
+              if (cTime !== "" && !cTime.endsWith("'") && !isNaN(Number(cTime))) cTime += "'"
+              parsedCommentary.push({
+                time: root.sanitizePlainText(cTime),
+                text: root.sanitizePlainText(String(cItem.text || "")),
+                sequence: cItem.sequence || ci
+              })
+              if (parsedCommentary.length >= 60) break
+            }
+          }
+
+          var seriesNote = ""
+          if (comp.series && comp.series.summary) {
+            seriesNote = root.sanitizePlainText(String(comp.series.summary))
+          } else if (comp.series && comp.series.title) {
+            seriesNote = root.sanitizePlainText(String(comp.series.title))
+          }
+          var shootoutNote = ""
+          if (comp.shootout) {
+            var sH = comp.shootout.homeScore !== undefined ? String(comp.shootout.homeScore) : ""
+            var sA = comp.shootout.awayScore !== undefined ? String(comp.shootout.awayScore) : ""
+            if (sH !== "" && sA !== "") {
+              shootoutNote = sH + "–" + sA + " Pens"
+            }
+          }
+
+          var venueObj = comp.venue || (data.gameInfo && data.gameInfo.venue) || {}
+          var vName = String(venueObj.fullName || "")
+          var vCity = (venueObj.address && venueObj.address.city) ? String(venueObj.address.city) : ""
+          var venueStr = vName + (vCity !== "" ? (", " + vCity) : "")
+
+          var attVal = comp.attendance || (data.gameInfo && data.gameInfo.attendance) || ""
+          var attStr = attVal ? String(attVal).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""
+
+          var officialsList = (data.gameInfo && Array.isArray(data.gameInfo.officials)) ? data.gameInfo.officials : []
+          var offNames = []
+          for (var oi = 0; oi < officialsList.length; oi++) {
+            if (officialsList[oi] && officialsList[oi].displayName) offNames.push(officialsList[oi].displayName)
+          }
+          var officialsStr = offNames.join(", ")
+
+          var parsedH2H = []
+          if (Array.isArray(data.seasonseries) && data.seasonseries.length > 0) {
+            var ssEvents = Array.isArray(data.seasonseries[0].events) ? data.seasonseries[0].events : []
+            for (var h2i = 0; h2i < ssEvents.length; h2i++) {
+              var sEv = ssEvents[h2i]
+              if (!sEv) continue
+              var sComps = Array.isArray(sEv.competitors) ? sEv.competitors : []
+              var sH = null
+              var sA = null
+              for (var sc = 0; sc < sComps.length; sc++) {
+                if (sComps[sc].homeAway === "home") sH = sComps[sc]
+                else if (sComps[sc].homeAway === "away") sA = sComps[sc]
+              }
+              if (!sH && sComps.length > 0) sH = sComps[0]
+              if (!sA && sComps.length > 1) sA = sComps[1]
+
+              var sHTeam = (sH && sH.team) || {}
+              var sATeam = (sA && sA.team) || {}
+              var sHName = String(sHTeam.shortDisplayName || sHTeam.displayName || "Home")
+              var sAName = String(sATeam.shortDisplayName || sATeam.displayName || "Away")
+              var sHScore = String(sH && sH.score !== undefined ? sH.score : "-")
+              var sAScore = String(sA && sA.score !== undefined ? sA.score : "-")
+              var sCompName = String(sEv.competitionName || "")
+              var sDateStr = ""
+              if (sEv.date) {
+                sDateStr = Qt.formatDate(new Date(sEv.date), "d MMM yyyy")
+              }
+              parsedH2H.push({
+                home: root.sanitizePlainText(sHName),
+                away: root.sanitizePlainText(sAName),
+                homeScore: root.sanitizePlainText(sHScore),
+                awayScore: root.sanitizePlainText(sAScore),
+                competition: root.sanitizePlainText(sCompName),
+                dateFormatted: root.sanitizePlainText(sDateStr)
+              })
+            }
+          }
+
+          var parsedHomeForm = []
+          var parsedAwayForm = []
+          if (Array.isArray(data.lastFiveGames)) {
+            for (var lfi = 0; lfi < data.lastFiveGames.length; lfi++) {
+              var lfgItem = data.lastFiveGames[lfi]
+              if (!lfgItem) continue
+              var lfgTeamId = lfgItem.team ? String(lfgItem.team.id || "") : ""
+              var isHomeLfg = (homeTeam.id && lfgTeamId === String(homeTeam.id)) || (lfi === 0)
+              var targetFormList = isHomeLfg ? parsedHomeForm : parsedAwayForm
+
+              var lfgEvs = Array.isArray(lfgItem.events) ? lfgItem.events : []
+              for (var ge = 0; ge < lfgEvs.length; ge++) {
+                var gObj = lfgEvs[ge]
+                if (!gObj) continue
+                var oppObj = gObj.opponent || {}
+                var oppName = String(oppObj.shortDisplayName || oppObj.displayName || "Opponent")
+                var resChar = String(gObj.gameResult || "-").toUpperCase()
+                var gScore = String(gObj.score || "")
+                var gDateStr = gObj.gameDate ? Qt.formatDate(new Date(gObj.gameDate), "d MMM") : ""
+
+                targetFormList.push({
+                  opponent: root.sanitizePlainText(oppName),
+                  result: root.sanitizePlainText(resChar),
+                  score: root.sanitizePlainText(gScore),
+                  dateFormatted: root.sanitizePlainText(gDateStr)
+                })
+              }
+            }
+          }
+
+          var parsedOdds = null
+          if (Array.isArray(data.pickcenter) && data.pickcenter.length > 0) {
+            var pc = data.pickcenter[0]
+            if (pc) {
+              var provName = (pc.provider && pc.provider.name) ? String(pc.provider.name) : "Match Odds"
+              var dLine = pc.details ? String(pc.details) : ""
+              var ou = (pc.overUnder !== undefined && pc.overUnder !== null) ? String(pc.overUnder) : ""
+              var sp = (pc.spread !== undefined && pc.spread !== null) ? String(pc.spread) : ""
+              var hML = (pc.homeTeamOdds && pc.homeTeamOdds.moneyLine !== undefined) ? String(pc.homeTeamOdds.moneyLine) : ""
+              var aML = (pc.awayTeamOdds && pc.awayTeamOdds.moneyLine !== undefined) ? String(pc.awayTeamOdds.moneyLine) : ""
+              var dML = (pc.drawOdds && pc.drawOdds.moneyLine !== undefined) ? String(pc.drawOdds.moneyLine) : ""
+
+              parsedOdds = {
+                provider: root.sanitizePlainText(provName),
+                details: root.sanitizePlainText(dLine),
+                overUnder: root.sanitizePlainText(ou),
+                spread: root.sanitizePlainText(sp),
+                homeML: root.sanitizePlainText(hML),
+                awayML: root.sanitizePlainText(aML),
+                drawML: root.sanitizePlainText(dML)
+              }
+            }
+          }
+
+          var statusDesc = (comp.status && comp.status.type && comp.status.type.description) ? String(comp.status.type.description) : "Full Time"
+
+          function formatGroupedScorers(items) {
+            var grouped = {}
+            var order = []
+            for (var i = 0; i < items.length; i++) {
+              var it = items[i]
+              if (!it || !it.name) continue
+              var nameKey = it.name
+              var clkPart = String(it.clock || "").trim()
+              while (clkPart.endsWith("''")) clkPart = clkPart.substring(0, clkPart.length - 1)
+              if (clkPart !== "" && !clkPart.endsWith("'") && !isNaN(Number(clkPart))) clkPart += "'"
+              if (it.ownGoal) clkPart += (clkPart !== "" ? " " : "") + "(OG)"
+              else if (it.penaltyKick) clkPart += (clkPart !== "" ? " " : "") + "(P)"
+              if (!grouped[nameKey]) {
+                grouped[nameKey] = []
+                order.push(nameKey)
+              }
+              if (clkPart !== "") grouped[nameKey].push(clkPart)
+            }
+            var res = []
+            for (var j = 0; j < order.length; j++) {
+              var n = order[j]
+              var clkList = grouped[n].join(", ")
+              var line = (n + " " + clkList).trim()
+              if (line !== "") res.push(root.sanitizePlainText(line))
+            }
+            return res
+          }
+
+          var rawHomeScorers = []
+          var rawAwayScorers = []
+          var detailsList = Array.isArray(comp.details) ? comp.details : []
+          if (detailsList.length > 0) {
+            for (var di = 0; di < detailsList.length; di++) {
+              var dItem = detailsList[di]
+              if (dItem && dItem.scoringPlay) {
+                var dTeamId = dItem.team ? String(dItem.team.id || "") : ""
+                var dClk = dItem.clock ? String(dItem.clock.displayValue || "") : ""
+                var dParts = Array.isArray(dItem.participants) ? dItem.participants : []
+                var dAth = (dParts.length > 0 && dParts[0].athlete) ? dParts[0].athlete : {}
+                var dName = String(dAth.shortName || dAth.displayName || "")
+                if (dName !== "") {
+                  var scorerObj = {
+                    name: dName,
+                    clock: dClk,
+                    ownGoal: !!dItem.ownGoal,
+                    penaltyKick: !!dItem.penaltyKick
+                  }
+                  if (homeTeam.id && dTeamId === String(homeTeam.id)) {
+                    rawHomeScorers.push(scorerObj)
+                  } else if (awayTeam.id && dTeamId === String(awayTeam.id)) {
+                    rawAwayScorers.push(scorerObj)
+                  }
+                }
+              }
+            }
+          } else {
+            for (var ki = 0; ki < rawEvents.length; ki++) {
+              var kEv = rawEvents[ki]
+              if (!kEv) continue
+              var kTypeStr = (kEv.type && kEv.type.text) ? String(kEv.type.text).toLowerCase() : ""
+              if (kTypeStr.indexOf("goal") !== -1 || kTypeStr.indexOf("penalty - scored") !== -1) {
+                var kTeamId = kEv.team ? String(kEv.team.id || "") : ""
+                var kClk = kEv.clock ? String(kEv.clock.displayValue || "") : ""
+                var kParts = Array.isArray(kEv.participants) ? kEv.participants : []
+                var kAth = (kParts.length > 0 && kParts[0].athlete) ? kParts[0].athlete : {}
+                var kName = String(kAth.shortName || kAth.displayName || "")
+                if (kName !== "") {
+                  var scorerObj2 = {
+                    name: kName,
+                    clock: kClk,
+                    ownGoal: kTypeStr.indexOf("own goal") !== -1,
+                    penaltyKick: kTypeStr.indexOf("penalty") !== -1
+                  }
+                  if (homeTeam.id && kTeamId === String(homeTeam.id)) {
+                    rawHomeScorers.push(scorerObj2)
+                  } else if (awayTeam.id && kTeamId === String(awayTeam.id)) {
+                    rawAwayScorers.push(scorerObj2)
+                  }
+                }
+              }
+            }
+          }
+
+          var homeScorers = formatGroupedScorers(rawHomeScorers)
+          var awayScorers = formatGroupedScorers(rawAwayScorers)
+
+          var matchDateStr = ""
+          if (comp.date) {
+            var dObj = new Date(comp.date)
+            var dDay = Qt.formatDate(dObj, "ddd d MMM")
+            var dTime = Qt.formatTime(dObj, "HH:mm")
+            matchDateStr = dDay + (dTime !== "" ? (" · " + dTime) : "")
+          } else if (root.matchDetail && root.matchDetail.dateFormatted) {
+            matchDateStr = root.matchDetail.dateFormatted
+          }
+
+          var compState = (comp.status && comp.status.type && comp.status.type.state) ? String(comp.status.type.state) : ""
+          var isActuallyLive = compState === "in"
+          var isActuallyStarted = isActuallyLive || compState === "post" || (parsedEvents.length > 0) || (parsedStats.length > 0)
+          if (!isActuallyStarted && root.matchDetail) {
+            isActuallyStarted = !!root.matchDetail.started
+            if (!isActuallyLive) isActuallyLive = !!root.matchDetail.isLive
+          }
+
+          var statusDesc = (comp.status && comp.status.type && comp.status.type.description) ? String(comp.status.type.description) : "Full Time"
+          if (isActuallyLive) {
+            var rawClk = ""
+            if (comp.status && comp.status.displayClock) {
+              rawClk = String(comp.status.displayClock).trim()
+            } else if (comp.status && comp.status.type && comp.status.type.shortDetail) {
+              rawClk = String(comp.status.type.shortDetail).trim()
+            } else if (comp.status && comp.status.type && comp.status.type.detail) {
+              rawClk = String(comp.status.type.detail).trim()
+            }
+            if (rawClk !== "") {
+              while (rawClk.endsWith("''")) {
+                rawClk = rawClk.substring(0, rawClk.length - 1)
+              }
+              if (!rawClk.endsWith("'") && !isNaN(Number(rawClk))) {
+                rawClk = rawClk + "'"
+              }
+              statusDesc = rawClk
+            }
+          }
+
+          var parsedLineups = {
+            available: false,
+            homeFormation: "",
+            awayFormation: "",
+            homeStarters: [],
+            homeSubs: [],
+            awayStarters: [],
+            awaySubs: []
+          }
+
+          if (Array.isArray(data.rosters) && data.rosters.length > 0) {
+            for (var rIdx = 0; rIdx < data.rosters.length; rIdx++) {
+              var rTeam = data.rosters[rIdx]
+              if (!rTeam) continue
+              var rTeamId = rTeam.team ? String(rTeam.team.id || "") : ""
+              var isHomeRoster = false
+              if (rTeam.homeAway === "home") {
+                isHomeRoster = true
+              } else if (rTeam.homeAway === "away") {
+                isHomeRoster = false
+              } else if (homeTeam.id && String(rTeamId) === String(homeTeam.id)) {
+                isHomeRoster = true
+              } else if (awayTeam.id && String(rTeamId) === String(awayTeam.id)) {
+                isHomeRoster = false
+              } else {
+                isHomeRoster = (rIdx === 0)
+              }
+              var rFormation = root.sanitizePlainText(String(rTeam.formation || ""))
+              var rPlayers = Array.isArray(rTeam.roster) ? rTeam.roster : []
+              var rStarters = []
+              var rSubs = []
+
+              for (var pIdx = 0; pIdx < rPlayers.length; pIdx++) {
+                var pObj = rPlayers[pIdx]
+                if (!pObj) continue
+                var ath = pObj.athlete || {}
+                var pName = root.sanitizePlainText(String(ath.displayName || ath.fullName || ath.shortName || ""))
+                var pShort = root.sanitizePlainText(String(ath.shortName || ath.displayName || ath.fullName || ""))
+                var pNum = root.sanitizePlainText(String(pObj.jersey || ath.jersey || ""))
+                var posObj = pObj.position || ath.position || {}
+                var pPos = root.sanitizePlainText(String(posObj.displayName || posObj.name || ""))
+                if (pName === "") continue
+                var pStats = {}
+                if (Array.isArray(pObj.stats)) {
+                  for (var si = 0; si < pObj.stats.length; si++) {
+                    var st = pObj.stats[si]
+                    if (st && st.name) {
+                      pStats[st.name] = Number(st.value !== undefined ? st.value : (st.displayValue || 0)) || 0
+                    }
+                  }
+                }
+
+                var goalsCount = Math.round(pStats.totalGoals || 0)
+                var assistsCount = Math.round(pStats.goalAssists || 0)
+                var yellowCardsCount = Math.round(pStats.yellowCards || 0)
+                var redCardsCount = Math.round(pStats.redCards || 0)
+                var isSubbedOut = false
+                if (pObj.subbedOut === true || (pObj.subbedOut && pObj.subbedOut.didSub === true)) {
+                  isSubbedOut = true
+                }
+                var isSubbedIn = false
+                if (pObj.subbedIn === true || (pObj.subbedIn && pObj.subbedIn.didSub === true)) {
+                  isSubbedIn = true
+                }
+
+                var playerRating = null
+                if (isActuallyStarted && (pObj.starter === true || isSubbedIn || (pStats.appearances && pStats.appearances > 0))) {
+                  var rawRating = pObj.rating !== undefined ? Number(pObj.rating) : (ath.rating !== undefined ? Number(ath.rating) : null)
+                  if (rawRating !== null && !isNaN(rawRating) && rawRating > 0) {
+                    playerRating = Math.max(4.0, Math.min(10.0, rawRating))
+                  } else {
+                    var baseR = 6.0
+                    var gBonus = goalsCount * 1.2
+                    var aBonus = assistsCount * 0.7
+                    var saveBonus = (pStats.saves || 0) * 0.3
+                    var shotBonus = (pStats.shotsOnTarget || 0) * 0.2
+                    var faBonus = (pStats.foulsSuffered || 0) * 0.1
+                    var yPenalty = yellowCardsCount * 0.5
+                    var rPenalty = redCardsCount * 1.5
+                    var fcPenalty = (pStats.foulsCommitted || 0) * 0.1
+                    var calcR = baseR + gBonus + aBonus + saveBonus + shotBonus + faBonus - yPenalty - rPenalty - fcPenalty
+                    playerRating = Math.max(4.0, Math.min(10.0, Math.round(calcR * 10) / 10))
+                  }
+                }
+
+                var jerseyImgUrl = ""
+                if (Array.isArray(ath.jerseyImages) && ath.jerseyImages.length > 0 && ath.jerseyImages[0].href) {
+                  jerseyImgUrl = String(ath.jerseyImages[0].href)
+                } else if (ath.headshot && ath.headshot.href) {
+                  jerseyImgUrl = String(ath.headshot.href)
+                }
+
+                var eventDetails = []
+                if (Array.isArray(pObj.plays)) {
+                  for (var pli = 0; pli < pObj.plays.length; pli++) {
+                    var pl = pObj.plays[pli]
+                    if (!pl) continue
+                    var clk = pl.clock && pl.clock.displayValue ? String(pl.clock.displayValue).trim() : ""
+                    if (pl.didScore) {
+                      var tag = pl.penaltyKick ? " (P)" : (pl.ownGoal ? " (og)" : "")
+                      eventDetails.push("" + (clk !== "" ? (" " + clk) : "") + tag)
+                    }
+                    if (pl.didAssist) {
+                      eventDetails.push("󱗇" + (clk !== "" ? (" " + clk) : ""))
+                    }
+                    if (pl.redCard) {
+                      eventDetails.push("󰡬" + (clk !== "" ? (" " + clk) : ""))
+                    } else if (pl.yellowCard) {
+                      eventDetails.push("󰀪" + (clk !== "" ? (" " + clk) : ""))
+                    }
+                    if (pl.substitution) {
+                      if (isSubbedIn) {
+                        eventDetails.push("▲" + (clk !== "" ? (" " + clk) : ""))
+                      } else if (isSubbedOut) {
+                        eventDetails.push("▼" + (clk !== "" ? (" " + clk) : ""))
+                      }
+                    }
+                  }
+                }
+                if (eventDetails.length === 0) {
+                  if (goalsCount > 0) {
+                    for (var g = 0; g < goalsCount; g++) eventDetails.push("")
+                  }
+                  if (assistsCount > 0) {
+                    for (var a = 0; a < assistsCount; a++) eventDetails.push("󱗇")
+                  }
+                  if (redCardsCount > 0) eventDetails.push("󰡬")
+                  else if (yellowCardsCount > 0) eventDetails.push("󰀪")
+                  if (isSubbedOut) eventDetails.push("▼")
+                  else if (isSubbedIn) eventDetails.push("▲")
+                }
+
+                var pItem = {
+                  name: pName,
+                  shortName: pShort,
+                  jersey: pNum,
+                  position: pPos,
+                  positionAbbr: root.sanitizePlainText(String(posObj.abbreviation || "")),
+                  formationPlace: pObj.formationPlace !== undefined ? parseInt(pObj.formationPlace, 10) : 99,
+                  starter: pObj.starter === true,
+                  goals: goalsCount,
+                  assists: assistsCount,
+                  yellowCards: yellowCardsCount,
+                  redCards: redCardsCount,
+                  subbedOut: isSubbedOut,
+                  subbedIn: isSubbedIn,
+                  rating: playerRating,
+                  eventsText: root.sanitizePlainText(eventDetails.join(" · ")),
+                  jerseyImage: root.sanitizeImageUrl(jerseyImgUrl),
+                  headshot: root.sanitizeImageUrl(jerseyImgUrl)
+                }
+                if (pObj.starter === true) {
+                  rStarters.push(pItem)
+                } else {
+                  rSubs.push(pItem)
+                }
+              }
+
+              if (rStarters.length > 0 || rSubs.length > 0) {
+                parsedLineups.available = true
+              }
+
+              if (isHomeRoster) {
+                parsedLineups.homeFormation = rFormation
+                parsedLineups.homeStarters = rStarters
+                parsedLineups.homeSubs = rSubs
+              } else {
+                parsedLineups.awayFormation = rFormation
+                parsedLineups.awayStarters = rStarters
+                parsedLineups.awaySubs = rSubs
+              }
+            }
+          }
+
+          var allJerseyUrls = []
+          var allPlayersList = [].concat(
+            parsedLineups.homeStarters || [],
+            parsedLineups.awayStarters || [],
+            parsedLineups.homeSubs || [],
+            parsedLineups.awaySubs || []
+          )
+          for (var jui = 0; jui < allPlayersList.length; jui++) {
+            var jUrl = allPlayersList[jui].jerseyImage || allPlayersList[jui].headshot || ""
+            if (jUrl !== "" && allJerseyUrls.indexOf(jUrl) === -1) {
+              allJerseyUrls.push(jUrl)
+            }
+          }
+          root.matchDetailJerseyUrls = allJerseyUrls
+
+          root.matchDetail = {
+            id: String(data.id || (root.matchDetail && root.matchDetail.id) || ""),
+            started: isActuallyStarted,
+            isLive: isActuallyLive,
+            competitionSlug: (root.matchDetail && root.matchDetail.competitionSlug) || root.league,
+            competitionName: root.sanitizePlainText((hdr.league && (hdr.league.name || hdr.league.description)) || (root.matchDetail && root.matchDetail.competitionName) || ""),
+            competitionLogo: root.sanitizeImageUrl((hdr.league && hdr.league.logos && hdr.league.logos[0] ? hdr.league.logos[0].href : "") || (root.matchDetail && root.matchDetail.competitionLogo) || ""),
+            status: root.sanitizePlainText(statusDesc),
+            seriesNote: root.sanitizePlainText(seriesNote),
+            shootoutNote: root.sanitizePlainText(shootoutNote),
+            home: {
+              name: root.sanitizePlainText(String(homeTeam.displayName || homeTeam.name || (root.matchDetail && root.matchDetail.home && root.matchDetail.home.name) || "Home")),
+              logo: root.sanitizeImageUrl((homeTeam.logos && homeTeam.logos[0] ? String(homeTeam.logos[0].href || "") : "") || String(homeTeam.logo || "") || (homeTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(homeTeam.id)) + ".png") : "") || (root.matchDetail && root.matchDetail.home && root.matchDetail.home.logo) || ""),
+              score: isActuallyStarted ? root.sanitizePlainText(String(homeComp && homeComp.score !== undefined ? homeComp.score : "0")) : ""
+            },
+            away: {
+              name: root.sanitizePlainText(String(awayTeam.displayName || awayTeam.name || (root.matchDetail && root.matchDetail.away && root.matchDetail.away.name) || "Away")),
+              logo: root.sanitizeImageUrl((awayTeam.logos && awayTeam.logos[0] ? String(awayTeam.logos[0].href || "") : "") || String(awayTeam.logo || "") || (awayTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(awayTeam.id)) + ".png") : "") || (root.matchDetail && root.matchDetail.away && root.matchDetail.away.logo) || ""),
+              score: isActuallyStarted ? root.sanitizePlainText(String(awayComp && awayComp.score !== undefined ? awayComp.score : "0")) : ""
+            },
+            homeScorers: homeScorers,
+            awayScorers: awayScorers,
+            events: parsedEvents,
+            stats: parsedStats,
+            leaders: parsedLeaders,
+            commentary: parsedCommentary,
+            lineups: parsedLineups,
+            h2h: parsedH2H,
+            homeForm: parsedHomeForm,
+            awayForm: parsedAwayForm,
+            odds: parsedOdds,
+            info: {
+              venue: root.sanitizePlainText(venueStr),
+              attendance: root.sanitizePlainText(attStr),
+              officials: root.sanitizePlainText(officialsStr)
+            }
+          }
+
+          if (!isActuallyStarted && root.matchDetailTab === "stats") {
+            root.matchDetailTab = "info"
+          }
+        } catch (e) {
+          console.warn("futbar", "matchDetail parse error: " + e)
+          root.matchDetailError = "Could not parse match details"
+        }
+        root.matchDetailLoading = false
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.warnStderr("matchDetail", text)
+        root.matchDetailLoading = false
+      }
+    }
+  }
+
+  // Fallback timer ensuring athlete jersey preloading begins even if crest status signals are skipped
+  Timer {
+    id: matchDetailCrestsFallbackTimer
+    interval: 250
+    running: root.showMatchDetail && !root.matchDetailCrestsLoaded
+    repeat: false
+    onTriggered: {
+      root.matchDetailCrestsLoaded = true
+    }
+  }
+
+  Process {
+    id: statsRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          if (typeof text === "string" && text.length > 2097152)
+            console.warn("futbar", "stats exceeded byte limit")
+          root.statsError = "Could not load stats"
+          root.statsLoading = false
+          return
+        }
+        try {
+          var data = JSON.parse(text)
+          var res = root.parseStats(data)
+          root.statsGoals = res.goals
+          root.statsAssists = res.assists
+          var lg = data.league || {}
+          if (String(lg.name || "") !== "") root.tournamentName = root.sanitizePlainText(String(lg.name))
+          if (lg.logos && lg.logos[0]) {
+            var lgo = root.sanitizeImageUrl(String(lg.logos[0].href || ""))
+            if (lgo !== "") root.tournamentLogo = lgo
+          }
+          if (res.goals.length === 0 && res.assists.length === 0 && root.statsYellow.length === 0 && root.statsRed.length === 0) {
+            root.statsError = "No statistics available for this season"
+          }
+
+          var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
+          var seasonYear = root.statsSeasonOffset > 0 ? String(targetYear) : (data.season && data.season.year ? String(data.season.year) : String(targetYear))
+          var leagueCode = root.safeIdentifier(root.league)
+          if (leagueCode !== "") {
+            cardLeadersRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+              "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(leagueCode)
+              + "/seasons/" + encodeURIComponent(seasonYear) + "/types/1/leaders"]
+            cardLeadersRequest.running = true
+          }
+          root._lastStatsKey = root.safeIdentifier(root.league) + "|" + String(root.statsSeasonOffset)
+          root.lastStatsRefresh = Date.now()
+        } catch (error) {
+          console.warn("futbar", "could not read stats: " + error)
+          root.statsError = "Could not parse stats"
+        }
+        root.statsLoading = false
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var detail = String(text || "").trim()
+        if (detail !== "") {
+          root.statsError = "Could not load stats"
+          root.statsLoading = false
+        }
+      }
+    }
+  }
+
+  Process {
+    id: cardLeadersRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          if (typeof text === "string" && text.length > 2097152)
+            console.warn("futbar", "card leaders exceeded byte limit")
+          root.statsLoading = false
+          return
+        }
+        try {
+          var data = JSON.parse(text)
+          root.parseCoreLeaders(data)
+        } catch (e) {
+          console.warn("futbar", "could not parse card leaders: " + e)
+        }
+        root.statsLoading = false
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.statsLoading = false
+      }
+    }
+  }
+
+  Process {
+    id: athletesRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          if (typeof text === "string" && text.length > 2097152)
+            console.warn("futbar", "athletes stream exceeded byte limit")
+          return
+        }
+        root.parseAthletesStream(text)
+      }
+    }
+  }
+
+  Process {
+    id: athleteStatsRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          if (typeof text === "string" && text.length > 2097152)
+            console.warn("futbar", "athlete stats stream exceeded byte limit")
+          return
+        }
+        root.parseAthleteStatsStream(text)
+      }
+    }
+  }
+
+  Process {
     id: teamsRequest
     // Fetched per league when the user picks one in the first-run picker.
-    command: ["curl", "-fsSL", "--max-time", "10", "--max-filesize", "2097152",
-      "https://site.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(root.safeIdentifier(root.selectedLeague)) + "/teams"]
+    command: ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(root.safeIdentifier(root.selectedLeague)) + "/teams"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -1375,8 +3698,193 @@ Panel {
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var detail = String(text || "").trim()
-        if (detail !== "") console.warn("futbar", "team list: " + detail)
+        root.warnStderr("team list", text)
+      }
+    }
+  }
+
+  Process {
+    id: matchListRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 5242880) {
+          if (typeof text === "string" && text.length > 5242880)
+            console.warn("futbar", "league scoreboard exceeded byte limit")
+          root.matchListLoading = false
+          return
+        }
+        try {
+          var data = JSON.parse(text)
+          var lg = data.leagues && data.leagues[0] ? data.leagues[0] : (data.league || {})
+          if (String(lg.name || "") !== "")
+            root.tournamentName = root.sanitizePlainText(String(lg.name))
+          if (lg.logos && lg.logos[0]) {
+            var lgo = root.sanitizeImageUrl(String(lg.logos[0].href || ""))
+            if (lgo !== "") root.tournamentLogo = lgo
+          }
+          if (root.leagueMode && !root.leagueBrowseAll) {
+            var board = root.parseLeagueBoard(data)
+            root.leagueLive = root.mergeRows(root.leagueLive, board.live)
+            root.leagueRecent = root.mergeRows(root.leagueRecent, board.recent)
+            root.leagueUpcoming = root.mergeRows(root.leagueUpcoming, board.upcoming)
+            var liveCount = board.live.length
+            root.leagueBoardSummary = liveCount > 0 ? liveCount + " live" : "no live matches"
+            // Feed followed live fixtures to the tracker; prune follows
+            // whose match is no longer in play.
+            if (root.followedLeagueMatches.length > 0) {
+              for (var fi = root.followedLeagueMatches.length - 1; fi >= 0; fi--) {
+                var stillLive = false
+                for (var lj = 0; lj < board.live.length; lj++)
+                  if (board.live[lj].id === root.followedLeagueMatches[fi]) { stillLive = true; break }
+                if (!stillLive && board.live.length >= 0) {
+                  var wasQueued = root.leagueSummaryQueue.indexOf(root.followedLeagueMatches[fi])
+                  if (wasQueued !== -1) root.leagueSummaryQueue.splice(wasQueued, 1)
+                  root.followedLeagueMatches.splice(fi, 1)
+                }
+              }
+              for (var li = 0; li < board.live.length; li++)
+                root.enqueueLeagueSummary(board.live[li].id)
+              root.pollNextLeagueSummary()
+            }
+            root.matchListLoading = false
+            return
+          }
+          var week = root.parseMatchWeek(data)
+          if (!week) {
+            // Paged past every fixture (or a quiet stretch): an empty round
+            // list is a normal state, not a fetch failure. Navigation stays
+            // available so the user can head back toward real fixtures.
+            root.matchClusters = []
+            root.matchClusterIndex = 0
+            root.pendingEdge = ""
+            root.navAnchorDay = ""
+            root.matchListLoading = false
+            return
+          }
+          root.matchClusters = root.mergeMatchClusters(root.matchClusters, week.clusters)
+          // A navigation-driven window extension lands on the newly opened
+          // edge round; otherwise auto-refresh must never yank the view back
+          // to the live round — keep showing whichever matchweek is on
+          // screen (matched by its stable date-range label). Only when that
+          // round has fallen out of the scoreboard window does the view snap
+          // to the detected current one.
+          var landed = false
+          if (root.pendingEdge === "next") {
+            if (root.navAnchorDay !== "") {
+              for (var n = 0; n < week.clusters.length && !landed; n++) {
+                if (week.clusters[n].rows[0].day > root.navAnchorDay) {
+                  root.matchClusterIndex = n
+                  landed = true
+                }
+              }
+            }
+            // Coming from an empty stretch, the nearest fixtures are the
+            // first rounds of the shifted window.
+            if (!landed) root.matchClusterIndex = 0
+          } else if (root.pendingEdge === "prev") {
+            if (root.navAnchorDay !== "") {
+              for (var p = week.clusters.length - 1; p >= 0 && !landed; p--) {
+                var lastRow = week.clusters[p].rows[week.clusters[p].rows.length - 1]
+                if (lastRow.day < root.navAnchorDay) {
+                  root.matchClusterIndex = p
+                  landed = true
+                }
+              }
+            }
+            if (!landed) root.matchClusterIndex = week.clusters.length - 1
+          } else {
+            var keep = -1
+            for (var k = 0; k < week.clusters.length && keep === -1; k++) {
+              if (week.clusters[k].label === root.matchWeekLabel) keep = k
+            }
+            root.matchClusterIndex = keep !== -1 ? keep : week.index
+          }
+          root.pendingEdge = ""
+          root.navAnchorDay = ""
+          root._lastMatchListKey = root.safeIdentifier(root.league) + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
+          root.lastMatchListRefresh = Date.now()
+        } catch (error) {
+          console.warn("futbar", "could not read league scoreboard: " + error)
+          root.matchListError = "Could not load matches"
+        }
+        root.matchListLoading = false
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.warnStderr("league scoreboard", text)
+    }
+  }
+
+  // Drains the live-fixture summary queue one match at a time.
+  Process {
+    id: leagueSummaryRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var handledId = root.leagueCurrentId
+        root.leagueCurrentId = ""
+        if (typeof text === "string" && text.length > 0 && text.length <= 2097152) {
+          try { root.handleLeagueSummary(handledId, JSON.parse(text)) }
+          catch (error) { console.warn("futbar", "league summary: " + error) }
+        } else if (typeof text === "string" && text.length > 2097152) {
+          console.warn("futbar", "league summary exceeded byte limit")
+        }
+        if (root.leagueSummaryQueue.length > 0 && root.leagueSummaryQueue[0] === handledId)
+          root.leagueSummaryQueue.shift()
+        else {
+          var pos = root.leagueSummaryQueue.indexOf(handledId)
+          if (pos !== -1) root.leagueSummaryQueue.splice(pos, 1)
+        }
+        Qt.callLater(root.pollNextLeagueSummary)
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.warnStderr("league summary", text)
+    }
+  }
+
+  // Background heartbeat for league-wide tracking: keeps the board and the
+  // summary queue current even when the popup is closed.
+  Timer {
+    interval: 60000
+    running: root.leagueMode && root.followedLeagueMatches.length > 0
+    repeat: true
+    onTriggered: {
+      // Drop fixtures that are no longer live from the queue.
+      for (var i = root.leagueSummaryQueue.length - 1; i >= 0; i--) {
+        var tracked = false
+        for (var j = 0; j < root.leagueLive.length; j++)
+          if (root.leagueLive[j].id === root.leagueSummaryQueue[i]) { tracked = true; break }
+        if (!tracked) root.leagueSummaryQueue.splice(i, 1)
+      }
+      root.loadMatchList(true)
+    }
+  }
+
+  // Keeps matches and live scores fresh while the panel is open.
+  Timer {
+    id: panelOpenRefreshTimer
+    interval: 15000
+    running: root.opened && !root.needsTeam
+    repeat: true
+    onTriggered: {
+      root.refresh()
+      if (root.showMatches || root.leagueMode) {
+        root.loadMatchList(true)
+      }
+      if (root.showMatchDetail && root.matchDetail && root.matchDetail.id && (root.matchDetail.isLive || !root.matchDetail.started)) {
+        if (!matchDetailRequest.running) {
+          var slug = root.safeIdentifier(String(root.matchDetail.competitionSlug || root.league || "eng.1"))
+          var mid = root.safeIdentifier(String(root.matchDetail.id))
+          if (slug !== "" && mid !== "") {
+            matchDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+              "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(mid)]
+            matchDetailRequest.running = true
+          }
+        }
       }
     }
   }
@@ -1390,8 +3898,7 @@ Panel {
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var error = String(text || "").trim()
-        if (error !== "") console.warn("futbar", "team select failed: " + error)
+root.warnStderr("team select failed", text)
         root._runNextSetWidget()
       }
     }
@@ -1419,14 +3926,24 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
-      Column {
-        id: content
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        spacing: Style.space(14)
+      ScrollView {
+        id: panelScrollArea
+        anchors.fill: parent
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: content.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        Binding {
+          target: panelScrollArea.contentItem
+          property: "interactive"
+          value: content.implicitHeight > panelScrollArea.height
+        }
 
-      Column {
+        Column {
+          id: content
+          width: panelScrollArea.width
+          spacing: Style.space(14)
+
+        Column {
         visible: root.needsTeam || root.editingTeam
         width: parent.width
         spacing: Style.space(14)
@@ -1450,19 +3967,51 @@ Panel {
           onChanged: function(value) { root.selectLeague(value) }
         }
 
+        Button {
+          id: leagueFollowToggle
+          width: parent.width
+          anchors.horizontalCenter: parent.horizontalCenter
+          iconText: root.pickerLeagueOnly ? "󰴆" : "󰒭"
+          text: root.pickerLeagueOnly ? "Following whole league" : "Follow whole league instead"
+          tooltipText: "Track every match in the selected league instead of one club"
+          fontFamily: root.contentFontFamily
+          foreground: root.contentForeground
+          accent: root.contentForeground
+          fontSize: Style.font.caption
+          iconSize: Style.font.caption
+          horizontalPadding: Style.space(10)
+          verticalPadding: Style.space(4)
+          selected: root.pickerLeagueOnly
+          enabled: root.selectedLeague !== ""
+          onClicked: root.pickerLeagueOnly = !root.pickerLeagueOnly
+        }
+
         Dropdown {
           id: teamDropdown
           width: parent.width
-          label: root.teamsLoading ? "Loading clubs…" : "Club"
+          visible: !root.pickerLeagueOnly
+          label: root.teamsLoading ? "Fetching clubs…" : "Club"
           fontFamily: root.contentFontFamily
           options: root.teams
           value: root.selectedTeam ? String(root.selectedTeam.value) : ""
-          enabled: root.selectedLeague !== ""
+          enabled: root.selectedLeague !== "" && !root.teamsLoading
           onChanged: function(value) { root.selectTeam(value) }
         }
 
+        Text {
+          textFormat: Text.PlainText
+          visible: root.teamsLoading && !root.pickerLeagueOnly
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          opacity: 0.4 + 0.6 * root._pulse
+          text: "Fetching " + root.selectedLeagueName + " clubs…"
+          color: Qt.darker(root.contentForeground, 1.5)
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+        }
+
         Row {
-          visible: root.selectedTeam
+          visible: root.selectedTeam && !root.pickerLeagueOnly
           width: parent.width
           height: Style.space(48)
           spacing: Style.space(12)
@@ -1472,8 +4021,9 @@ Panel {
             height: width
             source: root.selectedTeam ? root.selectedTeam.logo : ""
             fillMode: Image.PreserveAspectFit
-            sourceSize.width: 40
-            sourceSize.height: 40
+            sourceSize.width: 128
+            sourceSize.height: 128
+            mipmap: true
             smooth: true
             anchors.verticalCenter: parent.verticalCenter
             visible: source !== ""
@@ -1501,13 +4051,13 @@ Panel {
         }
 
         Button {
-          visible: root.selectedTeam
+          visible: root.selectedTeam || root.pickerLeagueOnly
           width: parent.width
           text: "Confirm"
           fontFamily: root.contentFontFamily
           foreground: root.contentForeground
           accent: root.contentForeground
-          onClicked: root.confirmTeam()
+          onClicked: root.pickerLeagueOnly ? root.confirmLeague() : root.confirmTeam()
         }
       }
 
@@ -1522,30 +4072,104 @@ Panel {
 
         Image {
           id: tournamentLogoImage
+          anchors.verticalCenter: parent.verticalCenter
           width: Style.space(36)
           height: width
-          source: root.tournamentLogo
+          // League identity while browsing matchweeks, stats, table, or in league-follow;
+          // club identity otherwise.
+          source: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+            ? (root.leagueLogoUrl() !== "" ? root.leagueLogoUrl() : root.clubLogoUrl())
+            : (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl())
           fillMode: Image.PreserveAspectFit
-          sourceSize.width: 36
-          sourceSize.height: 36
+          asynchronous: true
+          cache: true
+          mipmap: true
           smooth: true
           visible: source !== ""
         }
 
-        Text {
-          textFormat: Text.PlainText
+        Column {
           anchors.verticalCenter: parent.verticalCenter
           width: parent.width - (tournamentLogoImage.visible ? tournamentLogoImage.width + parent.spacing : 0)
             - (standingsButton.visible ? standingsButton.width + parent.spacing : 0)
+            - (statsButton.visible ? statsButton.width + parent.spacing : 0)
+            - (matchesButton.visible ? matchesButton.width + parent.spacing : 0)
             - (changeTeamButton.visible ? changeTeamButton.width + parent.spacing : 0)
-          text: root.tournamentName || root.leagueLabel()
-          color: root.contentForeground
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.body
-          font.bold: true
-          elide: Text.ElideRight
+          spacing: Style.space(2)
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+              ? (root.tournamentName || root.leagueLabel())
+              : (root.teamName || root.tournamentName || root.leagueLabel())
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+              ? (root.leagueMode ? "" : root.teamName)
+              : (root.tournamentName || root.leagueLabel())
+            color: Qt.darker(root.contentForeground, 1.25)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
+            visible: text !== ""
+          }
         }
 
+        Button {
+          id: matchesButton
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(32)
+          height: Style.space(32)
+          iconText: "󰕲"
+          tooltipText: "Fixtures"
+          fontFamily: root.contentFontFamily
+          foreground: root.contentForeground
+          accent: root.contentForeground
+          iconSize: Style.font.body
+          horizontalPadding: 0
+          verticalPadding: 0
+          selected: root.leagueMode ? (!root.showStandings && !root.showStats && root.leagueBrowseAll) : (root.showMatches && !root.showStandings && !root.showStats)
+          onClicked: {
+            root.showMatchDetail = false
+            if (root.leagueMode) {
+              if (root.showStandings || root.showStats) {
+                root.showStandings = false
+                root.showStats = false
+                root.leagueBrowseAll = true
+              } else {
+                root.leagueBrowseAll = !root.leagueBrowseAll
+              }
+              root.matchWindowOffset = 0
+              if (!matchListRequest.running) root.loadMatchList()
+              return
+            }
+            if (root.showStandings || root.showStats) {
+              root.showStandings = false
+              root.showStats = false
+              root.showMatches = true
+              root.loadMatchList()
+              return
+            }
+            root.showMatches = !root.showMatches
+            if (root.showMatches) {
+              root.loadMatchList()
+            }
+          }
+        }
         Button {
           id: standingsButton
           anchors.verticalCenter: parent.verticalCenter
@@ -1561,8 +4185,49 @@ Panel {
           verticalPadding: 0
           selected: root.showStandings
           onClicked: {
+            root.showMatchDetail = false
             root.showStandings = !root.showStandings
-            if (root.showStandings) root.loadStandings()
+            if (root.showStandings) {
+              root.showMatches = false
+              root.showStats = false
+              root.loadStandings()
+            } else if (root.leagueMode) {
+              // League-follow always lands back on the match board.
+              root.showMatches = true
+              root.leagueBrowseAll = false
+              root.matchWindowOffset = 0
+              if (!matchListRequest.running) root.loadMatchList()
+            }
+          }
+        }
+        Button {
+          id: statsButton
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(32)
+          height: Style.space(32)
+          iconText: "󰄪"
+          tooltipText: "Stats"
+          fontFamily: root.contentFontFamily
+          foreground: root.contentForeground
+          accent: root.contentForeground
+          iconSize: Style.font.body
+          horizontalPadding: 0
+          verticalPadding: 0
+          selected: root.showStats
+          onClicked: {
+            root.showMatchDetail = false
+            root.showStats = !root.showStats
+            if (root.showStats) {
+              root.showMatches = false
+              root.showStandings = false
+              root.loadStats()
+            } else if (root.leagueMode) {
+              // League-follow always lands back on the match board.
+              root.showMatches = true
+              root.leagueBrowseAll = false
+              root.matchWindowOffset = 0
+              if (!matchListRequest.running) root.loadMatchList()
+            }
           }
         }
 
@@ -1590,41 +4255,2180 @@ Panel {
         opacity: 0.15
       }
 
+      // Match Details View: In-depth information for finished matches
       Column {
+        id: matchDetailView
         width: parent.width
         spacing: Style.space(12)
-        visible: root.showStandings
+        visible: root.showMatchDetail
 
+        // Back button & header
+        Row {
+          width: parent.width
+          spacing: Style.space(8)
+
+          Button {
+            width: Style.space(26)
+            height: Style.space(26)
+            iconText: ""
+            tooltipText: "Back to matches"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            onClicked: root.showMatchDetail = false
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.matchDetail ? (root.matchDetail.competitionName || "Match Details") : "Match Details"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            elide: Text.ElideRight
+            width: parent.width - Style.space(26 + 8)
+          }
+        }
+
+        // Scoreboard Hero Card
+        Item {
+          id: heroCard
+          width: parent.width
+          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + Style.space(24))
+
+          Rectangle {
+            anchors.fill: parent
+            radius: Style.space(8)
+            color: root.contentForeground
+            opacity: 0.05
+          }
+
+          Text {
+            id: dateTextHeader
+            textFormat: Text.PlainText
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: Style.space(8)
+            text: root.matchDetail ? (root.matchDetail.dateFormatted || "") : ""
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.NoWrap
+            visible: text !== ""
+          }
+
+          // Center Score & Status
+          Column {
+            id: scoreCenterCol
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: (dateTextHeader.visible && dateTextHeader.text !== "") ? dateTextHeader.bottom : parent.top
+            anchors.topMargin: (dateTextHeader.visible && dateTextHeader.text !== "") ? Style.space(6) : Style.space(10)
+            width: Style.space(90)
+            spacing: Style.space(4)
+
+            // Upper area: Score centered between the crests (height: Style.space(50))
+            Item {
+              width: parent.width
+              height: Style.space(50)
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.centerIn: parent
+                text: (root.matchDetail && root.matchDetail.started && root.matchDetail.home && root.matchDetail.away)
+                  ? (root.matchDetail.home.score + " – " + root.matchDetail.away.score) : "vs"
+                color: (root.matchDetail && !root.matchDetail.started) ? Qt.darker(root.contentForeground, 1.5) : root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: (root.matchDetail && !root.matchDetail.started) ? Style.font.body : Style.font.title
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+              }
+            }
+
+            // Lower area: Full Time / Status text below the score, aligned with club names
+            Column {
+              width: parent.width
+              spacing: Style.space(2)
+
+              Text {
+                id: statusText
+                textFormat: Text.PlainText
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.matchDetail ? (root.matchDetail.status || (root.matchDetail.started ? "Full Time" : "Scheduled")) : "Full Time"
+                color: (root.matchDetail && root.matchDetail.isLive) ? "#4ade80" : Qt.darker(root.contentForeground, 1.4)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+              }
+
+              Text {
+                id: seriesText
+                textFormat: Text.PlainText
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.matchDetail ? (root.matchDetail.shootoutNote !== "" ? root.matchDetail.shootoutNote : (root.matchDetail.seriesNote || "")) : ""
+                color: Qt.darker(root.contentForeground, 1.6)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption - 2
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                visible: text !== ""
+              }
+            }
+          }
+
+          // Home Team (left side)
+          Column {
+            id: homeSideCol
+            anchors.left: parent.left
+            anchors.right: scoreCenterCol.left
+            anchors.top: scoreCenterCol.top
+            anchors.leftMargin: Style.space(10)
+            anchors.rightMargin: Style.space(6)
+            spacing: Style.space(4)
+
+            Image {
+              id: homeDetailCrestImg
+              anchors.horizontalCenter: parent.horizontalCenter
+              width: Style.space(50)
+              height: width
+              source: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.logo : ""
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              visible: source !== ""
+              onStatusChanged: {
+                if (status === Image.Ready || status === Image.Error) {
+                  if (!root.matchDetailCrestsLoaded && (!awayDetailCrestImg.visible || awayDetailCrestImg.status === Image.Ready || awayDetailCrestImg.status === Image.Error)) {
+                    root.matchDetailCrestsLoaded = true
+                  }
+                }
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
+
+            Repeater {
+              model: (root.matchDetail && root.matchDetail.homeScorers) ? root.matchDetail.homeScorers : []
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                text: modelData
+                color: Qt.darker(root.contentForeground, 1.4)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                horizontalAlignment: Text.AlignLeft
+                wrapMode: Text.NoWrap
+              }
+            }
+          }
+
+          // Away Team (right side)
+          Column {
+            id: awaySideCol
+            anchors.left: scoreCenterCol.right
+            anchors.right: parent.right
+            anchors.top: scoreCenterCol.top
+            anchors.leftMargin: Style.space(6)
+            anchors.rightMargin: Style.space(10)
+            spacing: Style.space(4)
+
+            Image {
+              id: awayDetailCrestImg
+              anchors.horizontalCenter: parent.horizontalCenter
+              width: Style.space(50)
+              height: width
+              source: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.logo : ""
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              visible: source !== ""
+              onStatusChanged: {
+                if (status === Image.Ready || status === Image.Error) {
+                  if (!root.matchDetailCrestsLoaded && (!homeDetailCrestImg.visible || homeDetailCrestImg.status === Image.Ready || homeDetailCrestImg.status === Image.Error)) {
+                    root.matchDetailCrestsLoaded = true
+                  }
+                }
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
+
+            Repeater {
+              model: (root.matchDetail && root.matchDetail.awayScorers) ? root.matchDetail.awayScorers : []
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                text: modelData
+                color: Qt.darker(root.contentForeground, 1.4)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                horizontalAlignment: Text.AlignRight
+                wrapMode: Text.NoWrap
+              }
+            }
+          }
+        }
+
+        // Section Tabs
+        Row {
+          width: parent.width
+          spacing: Style.space(8)
+          visible: !!root.matchDetail
+
+          Button {
+            height: Style.space(24)
+            text: "Stats"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            visible: !!(root.matchDetail && root.matchDetail.started)
+            selected: root.matchDetailTab === "stats"
+            onClicked: root.matchDetailTab = "stats"
+          }
+
+          Button {
+            height: Style.space(24)
+            text: "Timeline"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            visible: !!(root.matchDetail && root.matchDetail.started && !root.matchDetail.isLive)
+            selected: root.matchDetailTab === "events"
+            onClicked: root.matchDetailTab = "events"
+          }
+
+          Button {
+            height: Style.space(24)
+            text: "Commentary"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            visible: !!(root.matchDetail && root.matchDetail.isLive && root.matchDetail.commentary && root.matchDetail.commentary.length > 0)
+            selected: root.matchDetailTab === "commentary"
+            onClicked: root.matchDetailTab = "commentary"
+          }
+
+          Button {
+            height: Style.space(24)
+            text: "Lineups"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            visible: !!root.matchDetail
+            selected: root.matchDetailTab === "lineups"
+            onClicked: root.matchDetailTab = "lineups"
+          }
+
+          Button {
+            height: Style.space(24)
+            text: "H2H & Form"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            visible: !!(root.matchDetail && ((root.matchDetail.h2h && root.matchDetail.h2h.length > 0) || (root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0) || (root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)))
+            selected: root.matchDetailTab === "h2h"
+            onClicked: root.matchDetailTab = "h2h"
+          }
+
+          Button {
+            height: Style.space(24)
+            text: "Info"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            selected: root.matchDetailTab === "info"
+            onClicked: root.matchDetailTab = "info"
+          }
+        }
+
+        // Loading & Error states
         Text {
           textFormat: Text.PlainText
           width: parent.width
-          text: root.standingsLoading ? "Loading standings…"
-            : (root.standingsError !== "" ? "Could not load standings"
-            : (root.standingsGroupName !== "" ? root.standingsGroupName : root.leagueLabel()))
-          color: root.contentForeground
+          opacity: root.matchDetailLoading ? 0.4 + 0.6 * root._pulse : 1.0
+          text: root.matchDetailLoading ? "Fetching match details…" : (root.matchDetailError !== "" ? root.matchDetailError : "")
+          color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
-          font.pixelSize: Style.font.body
-          font.bold: true
+          font.pixelSize: Style.font.caption
+          visible: text !== ""
+        }
+
+        // Stats Tab
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
+          visible: root.matchDetail && root.matchDetail.started && root.matchDetailTab === "stats" && !root.matchDetailLoading
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "No boxscore stats recorded for this match"
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            visible: !root.matchDetail || !root.matchDetail.stats || root.matchDetail.stats.length === 0
+          }
+
+          Repeater {
+            model: root.matchDetail ? (root.matchDetail.stats || []) : []
+
+            delegate: Column {
+              id: statRowItem
+              required property var modelData
+              width: parent ? parent.width : 0
+              spacing: Style.space(2)
+
+              Row {
+                width: parent.width
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: Style.space(50)
+                  text: statRowItem.modelData.homeValue
+                  color: statRowItem.modelData.homeRatio > 0.5 ? root.statsHomeColor : (statRowItem.modelData.homeRatio < 0.5 ? Qt.darker(root.contentForeground, 1.4) : root.contentForeground)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: statRowItem.modelData.homeRatio > 0.5
+                  horizontalAlignment: Text.AlignLeft
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width - Style.space(100)
+                  text: statRowItem.modelData.label
+                  color: Qt.darker(root.contentForeground, 1.4)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: Style.space(50)
+                  text: statRowItem.modelData.awayValue
+                  color: statRowItem.modelData.homeRatio < 0.5 ? root.statsAwayColor : (statRowItem.modelData.homeRatio > 0.5 ? Qt.darker(root.contentForeground, 1.4) : root.contentForeground)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: statRowItem.modelData.homeRatio < 0.5
+                  horizontalAlignment: Text.AlignRight
+                }
+              }
+
+              // Ultra-thin high-contrast comparative visual line (1.5px)
+              Item {
+                width: parent.width
+                height: 1.5
+
+                // Background track
+                Rectangle {
+                  anchors.fill: parent
+                  radius: 0.75
+                  color: root.contentForeground
+                  opacity: 0.1
+                }
+
+                // Home Bar (Left, Sky Cyan)
+                Rectangle {
+                  anchors.left: parent.left
+                  anchors.top: parent.top
+                  anchors.bottom: parent.bottom
+                  width: Math.max(0, (parent.width - 2) * statRowItem.modelData.homeRatio)
+                  radius: 0.75
+                  color: root.statsHomeColor
+                  visible: width > 0
+                }
+
+                // Away Bar (Right, Coral Rose)
+                Rectangle {
+                  anchors.right: parent.right
+                  anchors.top: parent.top
+                  anchors.bottom: parent.bottom
+                  width: Math.max(0, (parent.width - 2) * (1.0 - statRowItem.modelData.homeRatio))
+                  radius: 0.75
+                  color: root.statsAwayColor
+                  visible: width > 0
+                }
+              }
+            }
+          }
+
+          // Match Leaders Section
+          Rectangle {
+            width: parent.width
+            height: leadersCol.implicitHeight + Style.space(20)
+            radius: Style.space(8)
+            color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+            border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+            border.width: 1
+            visible: !!(root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders.length > 0)
+
+            Column {
+              id: leadersCol
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(8)
+
+              Text {
+                textFormat: Text.PlainText
+                text: "MATCH LEADERS"
+                color: Qt.darker(root.contentForeground, 1.6)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption - 1
+                font.letterSpacing: 1
+                font.bold: true
+              }
+
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+
+                // Home Leaders
+                Column {
+                  width: (parent.width - parent.spacing) / 2
+                  spacing: Style.space(6)
+                  visible: !!(root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders.length > 0)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    width: parent.width
+                    text: root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders[0] ? root.matchDetail.leaders[0].teamName : "Home"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    elide: Text.ElideRight
+                  }
+
+                  Repeater {
+                    model: (root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders[0]) ? root.matchDetail.leaders[0].categories : []
+                    delegate: Column {
+                      id: hLeadRow
+                      required property var modelData
+                      width: parent ? parent.width : 0
+                      spacing: Style.space(1)
+
+                      Text {
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: hLeadRow.modelData.category
+                        color: Qt.darker(root.contentForeground, 1.6)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        elide: Text.ElideRight
+                      }
+
+                      Row {
+                        width: parent.width
+                        spacing: Style.space(4)
+
+                        Text {
+                          textFormat: Text.PlainText
+                          width: Math.max(0, parent.width - hLeadVal.implicitWidth - parent.spacing)
+                          text: hLeadRow.modelData.player
+                          color: Qt.darker(root.contentForeground, 1.15)
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption - 1
+                          font.bold: true
+                          elide: Text.ElideRight
+                        }
+
+                        Text {
+                          id: hLeadVal
+                          textFormat: Text.PlainText
+                          text: hLeadRow.modelData.value
+                          color: root.statsHomeColor
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption - 1
+                          font.bold: true
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // Away Leaders
+                Column {
+                  width: (parent.width - parent.spacing) / 2
+                  spacing: Style.space(6)
+                  visible: !!(root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders.length > 1)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    width: parent.width
+                    text: root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders[1] ? root.matchDetail.leaders[1].teamName : "Away"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    elide: Text.ElideRight
+                  }
+
+                  Repeater {
+                    model: (root.matchDetail && root.matchDetail.leaders && root.matchDetail.leaders[1]) ? root.matchDetail.leaders[1].categories : []
+                    delegate: Column {
+                      id: aLeadRow
+                      required property var modelData
+                      width: parent ? parent.width : 0
+                      spacing: Style.space(1)
+
+                      Text {
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: aLeadRow.modelData.category
+                        color: Qt.darker(root.contentForeground, 1.6)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        elide: Text.ElideRight
+                      }
+
+                      Row {
+                        width: parent.width
+                        spacing: Style.space(4)
+
+                        Text {
+                          textFormat: Text.PlainText
+                          width: Math.max(0, parent.width - aLeadVal.implicitWidth - parent.spacing)
+                          text: aLeadRow.modelData.player
+                          color: Qt.darker(root.contentForeground, 1.15)
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption - 1
+                          font.bold: true
+                          elide: Text.ElideRight
+                        }
+
+                        Text {
+                          id: aLeadVal
+                          textFormat: Text.PlainText
+                          text: aLeadRow.modelData.value
+                          color: root.statsAwayColor
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption - 1
+                          font.bold: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Timeline Tab
+        Column {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.matchDetail && root.matchDetail.started && !root.matchDetail.isLive && root.matchDetailTab === "events" && !root.matchDetailLoading
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "No key events available for this match"
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            visible: !root.matchDetail || !root.matchDetail.events || root.matchDetail.events.length === 0
+          }
+
+          Flickable {
+            id: timelineFlickable
+            width: parent.width
+            height: Math.min(timelineCol.implicitHeight, Style.space(250))
+            contentHeight: timelineCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            visible: root.matchDetail && root.matchDetail.events && root.matchDetail.events.length > 0
+
+            Column {
+              id: timelineCol
+              width: parent.width
+              spacing: Style.space(4)
+
+              Repeater {
+                model: root.matchDetail ? (root.matchDetail.events || []) : []
+
+                delegate: Item {
+                  id: eventRow
+                  required property var modelData
+                  width: parent ? parent.width : 0
+                  height: Math.max(Style.space(28), eventTextCol.implicitHeight + Style.space(6))
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(4)
+                    color: root.contentForeground
+                    opacity: eventRow.modelData.isGoal ? 0.06 : 0.02
+                  }
+
+                  Row {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(4)
+                    spacing: Style.space(8)
+
+                    // Minute Pill Box
+                    Rectangle {
+                      width: Style.space(34)
+                      height: Style.space(18)
+                      radius: Style.space(3)
+                      color: eventRow.modelData.minute !== ""
+                        ? (eventRow.modelData.isGoal
+                            ? Qt.rgba(root.favoriteTeamAccent.r, root.favoriteTeamAccent.g, root.favoriteTeamAccent.b, 0.18)
+                            : Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08))
+                        : "transparent"
+                      anchors.verticalCenter: parent.verticalCenter
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: eventRow.modelData.minute !== "" ? eventRow.modelData.minute : "—"
+                        color: eventRow.modelData.isGoal ? root.favoriteTeamAccent : root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.NoWrap
+                      }
+                    }
+
+                    // Icon / Badge
+                    Item {
+                      width: Style.space(18)
+                      height: parent.height
+
+                      Rectangle {
+                        anchors.centerIn: parent
+                        width: Style.space(9)
+                        height: Style.space(13)
+                        radius: Style.space(2)
+                        color: eventRow.modelData.cardColor || "transparent"
+                        border.color: eventRow.modelData.cardColor ? (eventRow.modelData.cardColor === "#eab308" ? "#fde047" : "#fca5a5") : "transparent"
+                        border.width: 1
+                        visible: eventRow.modelData.isCard
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: eventRow.modelData.glyph
+                        color: eventRow.modelData.isGoal ? root.favoriteTeamAccent : root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                        visible: !eventRow.modelData.isCard
+                      }
+                    }
+
+                    // Description
+                    Column {
+                      id: eventTextCol
+                      width: parent.width - Style.space(34 + 18 + 16)
+                      anchors.verticalCenter: parent.verticalCenter
+
+                      Text {
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: eventRow.modelData.text
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        wrapMode: Text.WordWrap
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Commentary Tab
+        Column {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.matchDetail && root.matchDetail.isLive && root.matchDetailTab === "commentary" && !root.matchDetailLoading
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "No live commentary available for this match"
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            visible: !root.matchDetail || !root.matchDetail.commentary || root.matchDetail.commentary.length === 0
+          }
+
+          Flickable {
+            id: commFlickable
+            width: parent.width
+            height: Math.min(commCol.implicitHeight, Style.space(320))
+            contentHeight: commCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            visible: root.matchDetail && root.matchDetail.commentary && root.matchDetail.commentary.length > 0
+
+            Column {
+              id: commCol
+              width: parent.width
+              spacing: Style.space(4)
+
+              Repeater {
+                model: root.matchDetail ? (root.matchDetail.commentary || []) : []
+
+                delegate: Rectangle {
+                  id: commItem
+                  required property var modelData
+                  width: parent ? parent.width : 0
+                  height: commTextCol.implicitHeight + Style.space(12)
+                  radius: Style.space(6)
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+
+                  Row {
+                    id: commTextCol
+                    anchors.fill: parent
+                    anchors.margins: Style.space(6)
+                    spacing: Style.space(8)
+
+                    Rectangle {
+                      width: Style.space(34)
+                      height: Style.space(18)
+                      radius: Style.space(3)
+                      color: commItem.modelData.time !== "" ? Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08) : "transparent"
+                      anchors.top: parent.top
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: commItem.modelData.time
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                        visible: text !== ""
+                      }
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      width: parent.width - Style.space(42)
+                      anchors.top: parent.top
+                      text: commItem.modelData.text
+                      color: Qt.darker(root.contentForeground, 1.2)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption - 1
+                      wrapMode: Text.WordWrap
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Lineups Tab
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
+          visible: root.matchDetail && root.matchDetailTab === "lineups" && !root.matchDetailLoading
+
+          // Team Selector Bar (Home Team vs Away Team)
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Button {
+              width: (parent.width - parent.spacing) / 2
+              height: Style.space(28)
+              text: {
+                var name = root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : "Home"
+                var form = root.matchDetail && root.matchDetail.lineups && root.matchDetail.lineups.homeFormation ? (" (" + root.matchDetail.lineups.homeFormation + ")") : ""
+                return name + form
+              }
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.statsHomeColor
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(6)
+              verticalPadding: 0
+              selected: root.matchDetailLineupTeam === "home"
+              onClicked: root.matchDetailLineupTeam = "home"
+            }
+
+            Button {
+              width: (parent.width - parent.spacing) / 2
+              height: Style.space(28)
+              text: {
+                var name = root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : "Away"
+                var form = root.matchDetail && root.matchDetail.lineups && root.matchDetail.lineups.awayFormation ? (" (" + root.matchDetail.lineups.awayFormation + ")") : ""
+                return name + form
+              }
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.statsAwayColor
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(6)
+              verticalPadding: 0
+              selected: root.matchDetailLineupTeam === "away"
+              onClicked: root.matchDetailLineupTeam = "away"
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "Lineups not yet announced for this match"
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+            visible: !!(!root.matchDetail || !root.matchDetail.lineups || !root.matchDetail.lineups.available)
+          }
+
+          Flickable {
+            id: lineupFlickable
+            width: parent.width
+            height: Math.min(lineupCol.implicitHeight, Style.space(370))
+            contentHeight: lineupCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            visible: !!(root.matchDetail && root.matchDetail.lineups && root.matchDetail.lineups.available)
+
+            Column {
+              id: lineupCol
+              width: parent.width
+              spacing: Style.space(8)
+
+              // Tactical Pitch View
+              Rectangle {
+                id: pitchField
+                width: parent.width
+                height: Style.space(360)
+                radius: Style.space(8)
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.025)
+                clip: true
+                border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                border.width: 1
+
+                // Subtle transparent zone stripes
+                Column {
+                  anchors.fill: parent
+                  Repeater {
+                    model: 5
+                    Rectangle {
+                      width: pitchField.width
+                      height: pitchField.height / 5
+                      color: index % 2 === 0 ? "transparent" : Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.015)
+                    }
+                  }
+                }
+
+                // Halfway line through the middle
+                Rectangle {
+                  width: parent.width
+                  height: 1
+                  anchors.verticalCenter: parent.verticalCenter
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                }
+
+                // Center circle
+                Rectangle {
+                  width: Style.space(76)
+                  height: width
+                  radius: width / 2
+                  anchors.centerIn: parent
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Center spot
+                Rectangle {
+                  width: 4
+                  height: 4
+                  radius: 2
+                  anchors.centerIn: parent
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.22)
+                }
+
+                // Corner arcs
+                Rectangle {
+                  width: Style.space(18)
+                  height: width
+                  radius: width
+                  anchors.top: parent.top
+                  anchors.left: parent.left
+                  anchors.topMargin: -width / 2
+                  anchors.leftMargin: -width / 2
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                  border.width: 1
+                }
+                Rectangle {
+                  width: Style.space(18)
+                  height: width
+                  radius: width
+                  anchors.top: parent.top
+                  anchors.right: parent.right
+                  anchors.topMargin: -width / 2
+                  anchors.rightMargin: -width / 2
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                  border.width: 1
+                }
+                Rectangle {
+                  width: Style.space(18)
+                  height: width
+                  radius: width
+                  anchors.bottom: parent.bottom
+                  anchors.left: parent.left
+                  anchors.bottomMargin: -width / 2
+                  anchors.leftMargin: -width / 2
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                  border.width: 1
+                }
+                Rectangle {
+                  width: Style.space(18)
+                  height: width
+                  radius: width
+                  anchors.bottom: parent.bottom
+                  anchors.right: parent.right
+                  anchors.bottomMargin: -width / 2
+                  anchors.rightMargin: -width / 2
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                  border.width: 1
+                }
+
+                // Bottom penalty box
+                Rectangle {
+                  width: Style.space(160)
+                  height: Style.space(55)
+                  anchors.bottom: parent.bottom
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Bottom goal area
+                Rectangle {
+                  width: Style.space(76)
+                  height: Style.space(20)
+                  anchors.bottom: parent.bottom
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Bottom penalty arc
+                Rectangle {
+                  width: Style.space(48)
+                  height: width
+                  radius: width / 2
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  anchors.bottom: parent.bottom
+                  anchors.bottomMargin: Style.space(35)
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Top penalty box
+                Rectangle {
+                  width: Style.space(160)
+                  height: Style.space(55)
+                  anchors.top: parent.top
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Top goal area
+                Rectangle {
+                  width: Style.space(76)
+                  height: Style.space(20)
+                  anchors.top: parent.top
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Top penalty arc
+                Rectangle {
+                  width: Style.space(48)
+                  height: width
+                  radius: width / 2
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  anchors.top: parent.top
+                  anchors.topMargin: Style.space(35)
+                  color: "transparent"
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.14)
+                  border.width: 1
+                }
+
+                // Circular Player Nodes
+                Repeater {
+                  model: (root.matchDetail && root.matchDetail.lineups) ? root.layoutPitchPlayers(
+                    root.matchDetailLineupTeam === "home" ? root.matchDetail.lineups.homeFormation : root.matchDetail.lineups.awayFormation,
+                    root.matchDetailLineupTeam === "home" ? root.matchDetail.lineups.homeStarters : root.matchDetail.lineups.awayStarters
+                  ) : []
+
+                  delegate: Item {
+                    id: pitchPlayerItem
+                    required property var modelData
+                    width: Style.space(62)
+                    height: Style.space(46)
+                    x: (pitchField.width * pitchPlayerItem.modelData.x) - (width / 2)
+                    y: (pitchField.height * pitchPlayerItem.modelData.y) - (jerseyContainer.height / 2)
+
+                    // Main full-resolution athlete jersey image
+                    Item {
+                      id: jerseyContainer
+                      width: Style.space(34)
+                      height: Style.space(34)
+                      anchors.horizontalCenter: parent.horizontalCenter
+
+                      Image {
+                        id: playerJerseyImg
+                        anchors.fill: parent
+                        source: pitchPlayerItem.modelData.jerseyImage !== "" ? pitchPlayerItem.modelData.jerseyImage : ""
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: true
+                        sourceSize.width: Style.space(68)
+                        sourceSize.height: Style.space(68)
+                        mipmap: true
+                        smooth: true
+                        visible: status === Image.Ready
+                      }
+
+                      // Fallback: when jersey image is not loaded or missing
+                      Rectangle {
+                        anchors.centerIn: parent
+                        width: Style.space(22)
+                        height: Style.space(22)
+                        radius: Style.space(4)
+                        color: root.matchDetailLineupTeam === "home" ? root.statsHomeColor : root.statsAwayColor
+                        border.color: Qt.lighter(root.matchDetailLineupTeam === "home" ? root.statsHomeColor : root.statsAwayColor, 1.4)
+                        border.width: 1
+                        visible: playerJerseyImg.status !== Image.Ready
+
+                        Text {
+                          textFormat: Text.PlainText
+                          anchors.centerIn: parent
+                          text: pitchPlayerItem.modelData.jersey !== "" ? pitchPlayerItem.modelData.jersey : "—"
+                          color: "#ffffff"
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption
+                          font.bold: true
+                        }
+                      }
+                    }
+
+                    // 1. Goals (Top-Right of Jersey - Overlapping Badges, White Icon)
+                    Row {
+                      id: goalOverlapRow
+                      anchors.bottom: jerseyContainer.top
+                      anchors.right: jerseyContainer.right
+                      anchors.bottomMargin: -Style.space(2)
+                      anchors.rightMargin: -Style.space(2)
+                      spacing: -Style.space(5)
+                      z: 10
+                      visible: !!(pitchPlayerItem.modelData.goals && pitchPlayerItem.modelData.goals > 0)
+
+                      Repeater {
+                        model: Math.min(5, pitchPlayerItem.modelData.goals || 0)
+                        Rectangle {
+                          width: Style.space(13)
+                          height: Style.space(13)
+                          radius: width / 2
+                          color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
+                          border.color: Qt.rgba(1, 1, 1, 0.3)
+                          border.width: 0.7
+                          z: 10 - index
+
+                          Text {
+                            textFormat: Text.PlainText
+                            anchors.centerIn: parent
+                            text: ""
+                            color: "#ffffff"
+                            font.family: "Symbols Nerd Font, " + root.contentFontFamily
+                            font.pixelSize: Style.font.caption - 3
+                            font.bold: true
+                          }
+                        }
+                      }
+                    }
+
+                    // 2. Assists (Top-Left of Jersey - Overlapping Boot Badges, White Icon)
+                    Row {
+                      id: assistOverlapRow
+                      anchors.bottom: jerseyContainer.top
+                      anchors.left: jerseyContainer.left
+                      anchors.bottomMargin: -Style.space(2)
+                      anchors.leftMargin: -Style.space(2)
+                      spacing: -Style.space(5)
+                      z: 10
+                      visible: !!(pitchPlayerItem.modelData.assists && pitchPlayerItem.modelData.assists > 0)
+
+                      Repeater {
+                        model: Math.min(5, pitchPlayerItem.modelData.assists || 0)
+                        Rectangle {
+                          width: Style.space(13)
+                          height: Style.space(13)
+                          radius: width / 2
+                          color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
+                          border.color: Qt.rgba(1, 1, 1, 0.3)
+                          border.width: 0.7
+                          z: 10 - index
+
+                          Text {
+                            textFormat: Text.PlainText
+                            anchors.centerIn: parent
+                            text: "󱗇"
+                            rotation: 45
+                            transformOrigin: Item.Center
+                            color: "#ffffff"
+                            font.family: "Symbols Nerd Font, " + root.contentFontFamily
+                            font.pixelSize: Style.font.caption - 3
+                            font.bold: true
+                          }
+                        }
+                      }
+                    }
+
+                    // 3. Substitute Out Badge (Right Side - White ▼)
+                    Rectangle {
+                      id: subBadge
+                      width: Style.space(13)
+                      height: Style.space(13)
+                      radius: width / 2
+                      anchors.verticalCenter: jerseyContainer.verticalCenter
+                      anchors.left: jerseyContainer.right
+                      anchors.leftMargin: -Style.space(2)
+                      color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
+                      border.color: Qt.rgba(1, 1, 1, 0.3)
+                      border.width: 0.7
+                      z: 10
+                      visible: !!pitchPlayerItem.modelData.subbedOut
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: "▼"
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                      }
+                    }
+
+                    // 4. Card Badge (Left Side - Yellow / Red Card)
+                    Rectangle {
+                      id: cardBadge
+                      width: Style.space(6)
+                      height: Style.space(9)
+                      radius: 1
+                      anchors.verticalCenter: jerseyContainer.verticalCenter
+                      anchors.right: jerseyContainer.left
+                      anchors.rightMargin: -Style.space(2)
+                      color: (pitchPlayerItem.modelData.redCards && pitchPlayerItem.modelData.redCards > 0) ? "#ef4444" : "#eab308"
+                      border.color: "#ffffff"
+                      border.width: 0.8
+                      z: 10
+                      visible: !!((pitchPlayerItem.modelData.redCards && pitchPlayerItem.modelData.redCards > 0) || (pitchPlayerItem.modelData.yellowCards && pitchPlayerItem.modelData.yellowCards > 0))
+                    }
+
+                    // 5. Rating Badge (Centre Bottom)
+                    Rectangle {
+                      id: ratingBadge
+                      height: Style.space(12)
+                      width: ratingText.implicitWidth + Style.space(6)
+                      radius: Style.space(3)
+                      anchors.top: jerseyContainer.bottom
+                      anchors.topMargin: -Style.space(4)
+                      anchors.horizontalCenter: jerseyContainer.horizontalCenter
+                      color: root.ratingColor(pitchPlayerItem.modelData.rating)
+                      border.color: "#ffffff"
+                      border.width: 0.8
+                      z: 10
+                      visible: !!(pitchPlayerItem.modelData.rating !== null && pitchPlayerItem.modelData.rating !== undefined)
+
+                      Text {
+                        id: ratingText
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: pitchPlayerItem.modelData.rating ? Number(pitchPlayerItem.modelData.rating).toFixed(1) : ""
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 3
+                        font.bold: true
+                      }
+                    }
+
+                    // Sleek dark pill for player name
+                    Rectangle {
+                      anchors.top: ratingBadge.visible ? ratingBadge.bottom : jerseyContainer.bottom
+                      anchors.topMargin: 2
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      width: Math.min(parent.width, Math.max(Style.space(32), pitchNameText.implicitWidth + Style.space(8)))
+                      height: Style.space(13)
+                      radius: Style.space(3)
+                      color: Qt.rgba(0, 0, 0, 0.75)
+                      border.color: Qt.rgba(1, 1, 1, 0.15)
+                      border.width: 0.5
+                      clip: true
+
+                      Text {
+                        id: pitchNameText
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        width: parent.width - Style.space(6)
+                        text: pitchPlayerItem.modelData.shortName !== "" ? pitchPlayerItem.modelData.shortName : pitchPlayerItem.modelData.name
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Starting XI Section List
+              Text {
+                textFormat: Text.PlainText
+                text: "STARTING XI (" + (root.matchDetail && root.matchDetail.lineups ? (root.matchDetailLineupTeam === "home" ? (root.matchDetail.lineups.homeStarters || []).length : (root.matchDetail.lineups.awayStarters || []).length) : 0) + ")"
+                color: Qt.darker(root.contentForeground, 1.5)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.letterSpacing: 1
+                font.bold: true
+              }
+
+              Repeater {
+                model: root.matchDetail && root.matchDetail.lineups ? (root.matchDetailLineupTeam === "home" ? root.matchDetail.lineups.homeStarters : root.matchDetail.lineups.awayStarters) : []
+
+                delegate: Item {
+                  id: starterRow
+                  required property var modelData
+                  width: parent ? parent.width : 0
+                  height: Style.space(26)
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(4)
+                    color: root.contentForeground
+                    opacity: 0.02
+                  }
+
+                  Row {
+                    id: starterRowContent
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(6)
+                    anchors.rightMargin: Style.space(6)
+                    spacing: Style.space(6)
+
+                    // Player Jersey Image
+                    Item {
+                      id: starterJerseyBox
+                      width: Style.space(24)
+                      height: Style.space(24)
+                      anchors.verticalCenter: parent.verticalCenter
+
+                      Image {
+                        id: starterJerseyImg
+                        anchors.fill: parent
+                        source: starterRow.modelData.jerseyImage !== "" ? starterRow.modelData.jerseyImage : ""
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: true
+                        sourceSize.width: Style.space(48)
+                        sourceSize.height: Style.space(48)
+                        mipmap: true
+                        smooth: true
+                        visible: status === Image.Ready
+                      }
+
+                      Rectangle {
+                        anchors.centerIn: parent
+                        width: Style.space(20)
+                        height: Style.space(20)
+                        radius: Style.space(3)
+                        color: root.contentForeground
+                        opacity: 0.08
+                        visible: starterJerseyImg.status !== Image.Ready
+
+                        Text {
+                          textFormat: Text.PlainText
+                          anchors.centerIn: parent
+                          text: starterRow.modelData.jersey !== "" ? starterRow.modelData.jersey : "—"
+                          color: root.contentForeground
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption - 1
+                          font.bold: true
+                        }
+                      }
+                    }
+
+                    // Rating Pill (if available)
+                    Rectangle {
+                      width: starterRatingTxt.implicitWidth + Style.space(6)
+                      height: Style.space(16)
+                      anchors.verticalCenter: parent.verticalCenter
+                      radius: Style.space(3)
+                      color: root.ratingColor(starterRow.modelData.rating)
+                      visible: !!(starterRow.modelData.rating !== null && starterRow.modelData.rating !== undefined)
+
+                      Text {
+                        id: starterRatingTxt
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: starterRow.modelData.rating ? Number(starterRow.modelData.rating).toFixed(1) : ""
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                      }
+                    }
+
+                    // Player Name
+                    Text {
+                      textFormat: Text.PlainText
+                      width: Math.max(0, parent.width - starterJerseyBox.width - (starterRow.modelData.rating ? (starterRatingTxt.implicitWidth + Style.space(12)) : 0) - starterPosText.implicitWidth - parent.spacing * 3)
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: starterRow.modelData.name
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+
+                    // Position
+                    Text {
+                      id: starterPosText
+                      textFormat: Text.PlainText
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: starterRow.modelData.position
+                      color: Qt.darker(root.contentForeground, 1.4)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      horizontalAlignment: Text.AlignRight
+                    }
+                  }
+                }
+              }
+
+              // Substitutes Section
+              Item { width: 1; height: Style.space(4) }
+
+              Text {
+                textFormat: Text.PlainText
+                text: "SUBSTITUTES (" + (root.matchDetail && root.matchDetail.lineups ? (root.matchDetailLineupTeam === "home" ? (root.matchDetail.lineups.homeSubs || []).length : (root.matchDetail.lineups.awaySubs || []).length) : 0) + ")"
+                color: Qt.darker(root.contentForeground, 1.5)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.letterSpacing: 1
+                font.bold: true
+                visible: !!(root.matchDetail && root.matchDetail.lineups && ((root.matchDetailLineupTeam === "home" ? (root.matchDetail.lineups.homeSubs || []).length : (root.matchDetail.lineups.awaySubs || []).length) > 0))
+              }
+
+              Repeater {
+                model: root.matchDetail && root.matchDetail.lineups ? (root.matchDetailLineupTeam === "home" ? root.matchDetail.lineups.homeSubs : root.matchDetail.lineups.awaySubs) : []
+
+                delegate: Item {
+                  id: subRow
+                  required property var modelData
+                  width: parent ? parent.width : 0
+                  height: Style.space(26)
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(4)
+                    color: root.contentForeground
+                    opacity: 0.02
+                  }
+
+                  Row {
+                    id: subRowContent
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(6)
+                    anchors.rightMargin: Style.space(6)
+                    spacing: Style.space(6)
+
+                    // Player Jersey Image
+                    Item {
+                      id: subJerseyBox
+                      width: Style.space(24)
+                      height: Style.space(24)
+                      anchors.verticalCenter: parent.verticalCenter
+
+                      Image {
+                        id: subJerseyImg
+                        anchors.fill: parent
+                        source: subRow.modelData.jerseyImage !== "" ? subRow.modelData.jerseyImage : ""
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: true
+                        sourceSize.width: Style.space(48)
+                        sourceSize.height: Style.space(48)
+                        mipmap: true
+                        smooth: true
+                        visible: status === Image.Ready
+                      }
+
+                      Rectangle {
+                        anchors.centerIn: parent
+                        width: Style.space(20)
+                        height: Style.space(20)
+                        radius: Style.space(3)
+                        color: root.contentForeground
+                        opacity: 0.08
+                        visible: subJerseyImg.status !== Image.Ready
+
+                        Text {
+                          textFormat: Text.PlainText
+                          anchors.centerIn: parent
+                          text: subRow.modelData.jersey !== "" ? subRow.modelData.jersey : "—"
+                          color: root.contentForeground
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption - 1
+                        }
+                      }
+                    }
+
+                    // Rating Pill (if available)
+                    Rectangle {
+                      width: subRatingTxt.implicitWidth + Style.space(6)
+                      height: Style.space(16)
+                      anchors.verticalCenter: parent.verticalCenter
+                      radius: Style.space(3)
+                      color: root.ratingColor(subRow.modelData.rating)
+                      visible: !!(subRow.modelData.rating !== null && subRow.modelData.rating !== undefined)
+
+                      Text {
+                        id: subRatingTxt
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: subRow.modelData.rating ? Number(subRow.modelData.rating).toFixed(1) : ""
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                      }
+                    }
+
+                    // Player Name
+                    Text {
+                      textFormat: Text.PlainText
+                      width: Math.max(0, parent.width - subJerseyBox.width - (subRow.modelData.rating ? (subRatingTxt.implicitWidth + Style.space(12)) : 0) - subPosText.implicitWidth - subEventIcons.implicitWidth - parent.spacing * 4)
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: subRow.modelData.name
+                      color: Qt.darker(root.contentForeground, 1.2)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      elide: Text.ElideRight
+                    }
+
+                    // Event Icons (Goals, Assists, Cards, Subs - ESPN Format)
+                    Text {
+                      id: subEventIcons
+                      textFormat: Text.PlainText
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: subRow.modelData.eventsText || ""
+                      color: root.contentForeground
+                      font.family: "Symbols Nerd Font, " + root.contentFontFamily
+                      font.pixelSize: Style.font.caption - 2
+                      visible: text !== ""
+                    }
+
+                    // Position
+                    Text {
+                      id: subPosText
+                      textFormat: Text.PlainText
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: subRow.modelData.position
+                      color: Qt.darker(root.contentForeground, 1.5)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      horizontalAlignment: Text.AlignRight
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // H2H & Form Tab
+        Column {
+          width: parent.width
+          spacing: Style.space(12)
+          visible: root.matchDetail && root.matchDetailTab === "h2h" && !root.matchDetailLoading
+
+          // 1. RECENT FORM CARD
+          Rectangle {
+            width: parent.width
+            height: formCardCol.implicitHeight + Style.space(20)
+            radius: Style.space(8)
+            color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+            border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+            border.width: 1
+            visible: !!(root.matchDetail && ((root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0) || (root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)))
+
+            Column {
+              id: formCardCol
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(10)
+
+              Text {
+                textFormat: Text.PlainText
+                text: "FORM GUIDE (LAST 5 MATCHES)"
+                color: Qt.darker(root.contentForeground, 1.6)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption - 1
+                font.letterSpacing: 1
+                font.bold: true
+              }
+
+              // Home Form Row
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+                visible: !!(root.matchDetail && root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0)
+
+                Image {
+                  width: Style.space(22)
+                  height: width
+                  source: (root.matchDetail && root.matchDetail.home) ? root.matchDetail.home.logo : ""
+                  fillMode: Image.PreserveAspectFit
+                  sourceSize.width: 64
+                  sourceSize.height: 64
+                  mipmap: true
+                  smooth: true
+                  anchors.verticalCenter: parent.verticalCenter
+                  visible: source !== ""
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width - (parent.spacing * 2) - Style.space(22) - Style.space(120)
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : "Home"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                  elide: Text.ElideRight
+                }
+
+                Row {
+                  spacing: Style.space(4)
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Repeater {
+                    model: root.matchDetail ? (root.matchDetail.homeForm || []) : []
+                    delegate: Rectangle {
+                      id: hFormPill
+                      required property var modelData
+                      width: Style.space(20)
+                      height: Style.space(20)
+                      radius: Style.space(4)
+                      color: modelData.result === "W" ? "#16a34a" : (modelData.result === "D" ? "#475569" : "#dc2626")
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: hFormPill.modelData.result
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Divider
+              Rectangle {
+                width: parent.width
+                height: Style.spacing.hairline
+                color: root.contentForeground
+                opacity: 0.1
+                visible: !!(root.matchDetail && root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0 && root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)
+              }
+
+              // Away Form Row
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+                visible: !!(root.matchDetail && root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)
+
+                Image {
+                  width: Style.space(22)
+                  height: width
+                  source: (root.matchDetail && root.matchDetail.away) ? root.matchDetail.away.logo : ""
+                  fillMode: Image.PreserveAspectFit
+                  sourceSize.width: 64
+                  sourceSize.height: 64
+                  mipmap: true
+                  smooth: true
+                  anchors.verticalCenter: parent.verticalCenter
+                  visible: source !== ""
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width - (parent.spacing * 2) - Style.space(22) - Style.space(120)
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : "Away"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                  elide: Text.ElideRight
+                }
+
+                Row {
+                  spacing: Style.space(4)
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Repeater {
+                    model: root.matchDetail ? (root.matchDetail.awayForm || []) : []
+                    delegate: Rectangle {
+                      id: aFormPill
+                      required property var modelData
+                      width: Style.space(20)
+                      height: Style.space(20)
+                      radius: Style.space(4)
+                      color: modelData.result === "W" ? "#16a34a" : (modelData.result === "D" ? "#475569" : "#dc2626")
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.centerIn: parent
+                        text: aFormPill.modelData.result
+                        color: "#ffffff"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // 2. HEAD-TO-HEAD HISTORY CARD
+          Rectangle {
+            width: parent.width
+            height: h2hCardCol.implicitHeight + Style.space(20)
+            radius: Style.space(8)
+            color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+            border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+            border.width: 1
+            visible: !!(root.matchDetail && root.matchDetail.h2h && root.matchDetail.h2h.length > 0)
+
+            Column {
+              id: h2hCardCol
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(10)
+
+              Item {
+                width: parent.width
+                height: Math.max(h2hTitleTxt.implicitHeight, h2hSumTxt.implicitHeight)
+
+                Text {
+                  id: h2hTitleTxt
+                  textFormat: Text.PlainText
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: "HEAD-TO-HEAD"
+                  color: Qt.darker(root.contentForeground, 1.6)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption - 1
+                  font.letterSpacing: 1
+                  font.bold: true
+                }
+
+                Text {
+                  id: h2hSumTxt
+                  textFormat: Text.PlainText
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.matchDetail ? root.h2hSummary(root.matchDetail.h2h, root.matchDetail.home ? root.matchDetail.home.name : "", root.matchDetail.away ? root.matchDetail.away.name : "") : ""
+                  color: Qt.darker(root.contentForeground, 1.4)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption - 1
+                  font.bold: true
+                  visible: text !== ""
+                }
+              }
+
+              // List of H2H Matches
+              Column {
+                width: parent.width
+                spacing: Style.space(6)
+
+                Repeater {
+                  model: root.matchDetail ? (root.matchDetail.h2h || []) : []
+                  delegate: Column {
+                    id: h2hRow
+                    required property var modelData
+                    width: parent ? parent.width : 0
+                    spacing: Style.space(3)
+
+                    // Match Header (Date & Competition)
+                    Text {
+                      textFormat: Text.PlainText
+                      width: parent.width
+                      horizontalAlignment: Text.AlignHCenter
+                      text: (h2hRow.modelData.competition !== "" ? (h2hRow.modelData.competition + " · ") : "") + h2hRow.modelData.dateFormatted
+                      color: Qt.darker(root.contentForeground, 1.8)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption - 2
+                      elide: Text.ElideRight
+                    }
+
+                    // Match Score Line
+                    Row {
+                      width: parent.width
+                      spacing: Style.space(8)
+
+                      Text {
+                        textFormat: Text.PlainText
+                        width: (parent.width - parent.spacing * 2 - Style.space(56)) / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignRight
+                        text: h2hRow.modelData.home
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                        elide: Text.ElideRight
+                      }
+
+                      Rectangle {
+                        width: Style.space(56)
+                        height: Style.space(20)
+                        radius: Style.space(4)
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.06)
+
+                        Text {
+                          textFormat: Text.PlainText
+                          anchors.centerIn: parent
+                          text: h2hRow.modelData.homeScore + " – " + h2hRow.modelData.awayScore
+                          color: root.contentForeground
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.caption
+                          font.bold: true
+                        }
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        width: (parent.width - parent.spacing * 2 - Style.space(56)) / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignLeft
+                        text: h2hRow.modelData.away
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                        elide: Text.ElideRight
+                      }
+                    }
+
+                    Rectangle {
+                      width: parent.width
+                      height: Style.spacing.hairline
+                      color: root.contentForeground
+                      opacity: 0.08
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Info Tab (stadium, referee, broadcast, odds, editorial recap)
+        Column {
+          width: parent.width
+          spacing: Style.space(10)
+          visible: (root.matchDetailTab === "info") && !root.matchDetailLoading
+
+          // Venue
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+            visible: root.matchDetail && root.matchDetail.info && root.matchDetail.info.venue !== ""
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(70)
+              text: "Stadium"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width - Style.space(78)
+              text: root.matchDetail && root.matchDetail.info ? root.matchDetail.info.venue : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+          }
+
+          // Attendance
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+            visible: root.matchDetail && root.matchDetail.info && root.matchDetail.info.attendance !== ""
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(70)
+              text: "Attendance"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width - Style.space(78)
+              text: root.matchDetail && root.matchDetail.info ? root.matchDetail.info.attendance : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          // Officials
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+            visible: root.matchDetail && root.matchDetail.info && root.matchDetail.info.officials !== ""
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(70)
+              text: "Referee"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width - Style.space(78)
+              text: root.matchDetail && root.matchDetail.info ? root.matchDetail.info.officials : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+          }
+
+          // Match Betting Odds (upcoming/live only, hidden once match is finished)
+          Column {
+            width: parent.width
+            spacing: Style.space(6)
+            visible: !!(root.matchDetail && root.matchDetail.odds && (!root.matchDetail.started || root.matchDetail.isLive))
+
+            Text {
+              textFormat: Text.PlainText
+              text: "MATCH ODDS (" + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.provider : "ODDS") + ")"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1
+              font.bold: true
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Rectangle {
+                width: (parent.width - Style.space(16)) / 3
+                height: Style.space(42)
+                radius: Style.space(6)
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+
+                Column {
+                  anchors.centerIn: parent
+                  spacing: Style.space(2)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Spread"
+                    color: Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption - 2
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: (root.matchDetail && root.matchDetail.odds && root.matchDetail.odds.spread !== "") ? root.matchDetail.odds.spread : "—"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                }
+              }
+
+              Rectangle {
+                width: (parent.width - Style.space(16)) / 3
+                height: Style.space(42)
+                radius: Style.space(6)
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+
+                Column {
+                  anchors.centerIn: parent
+                  spacing: Style.space(2)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Over/Under"
+                    color: Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption - 2
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: (root.matchDetail && root.matchDetail.odds && root.matchDetail.odds.overUnder !== "") ? root.matchDetail.odds.overUnder : "—"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                }
+              }
+
+              Rectangle {
+                width: (parent.width - Style.space(16)) / 3
+                height: Style.space(42)
+                radius: Style.space(6)
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+
+                Column {
+                  anchors.centerIn: parent
+                  spacing: Style.space(2)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Line"
+                    color: Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption - 2
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: (root.matchDetail && root.matchDetail.odds && root.matchDetail.odds.details !== "") ? root.matchDetail.odds.details : "—"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(12)
+        visible: root.showStandings && !root.showMatchDetail
+
+        Row {
+          width: parent.width
+          spacing: Style.space(8)
+
+          Button {
+            id: prevSeasonButton
+            width: Style.space(22)
+            height: Style.space(22)
+            iconText: ""
+            tooltipText: "Older season"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            onClicked: {
+              root.standingsSeasonOffset++
+              root.loadStandings()
+            }
+          }
+
+          Button {
+            id: seasonChip
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(52)
+            height: Style.space(22)
+            text: root.seasonChipLabel(root.standingsSeasonOffset)
+            tooltipText: "Standings season"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            onClicked: {
+              root.standingsSeasonOffset = 0
+              root.loadStandings()
+            }
+          }
+
+          Button {
+            id: nextSeasonButton
+            width: Style.space(22)
+            height: Style.space(22)
+            iconText: ""
+            tooltipText: "Newer season"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            enabled: root.standingsSeasonOffset > 0
+            opacity: enabled ? 1 : 0.35
+            onClicked: {
+              root.standingsSeasonOffset--
+              root.loadStandings()
+            }
+          }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.standingsGroups.length > 1
+
+          Repeater {
+            model: root.standingsGroups
+
+            Button {
+              height: Style.space(24)
+              text: modelData.name || modelData.shortName
+              tooltipText: modelData.name
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(10)
+              verticalPadding: 0
+              selected: root.standingsGroupIndex === index
+              onClicked: root.standingsGroupIndex = index
+            }
+          }
         }
 
         Text {
           textFormat: Text.PlainText
           width: parent.width
-          text: root.standingsError
+          opacity: root.standingsLoading ? 0.4 + 0.6 * root._pulse : 1.0
+          text: root.standingsLoading ? "Fetching standings…"
+            : (root.standingsError !== "" ? root.standingsError
+            : (root.standings.length === 0 ? "No standings available" : ""))
           color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
           wrapMode: Text.WordWrap
-          visible: root.standingsError !== ""
+          visible: text !== ""
         }
 
         Flickable {
+          id: standingsTable
           width: parent.width
-          height: Math.min(headerRow.implicitHeight + root.standings.length * standingsRowHeight, Style.space(520))
+          // Full table, no internal scrolling: every position visible.
+          height: headerRow.implicitHeight + root.standings.length * standingsRowHeight
           clip: true
-          interactive: contentHeight > height
+          interactive: false
           contentHeight: headerRow.implicitHeight + root.standings.length * standingsRowHeight
-          visible: !root.standingsLoading && root.standingsError === "" && root.standings.length > 0
+          visible: root.standings.length > 0
 
           Column {
             width: parent.width
@@ -1720,7 +6524,9 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     source: rowRect.entry.logo
                     fillMode: Image.PreserveAspectFit
-                    sourceSize.width: 16; sourceSize.height: 16
+                    asynchronous: true
+                    cache: true
+                    mipmap: true
                     smooth: true
                     visible: rowRect.entry.logo !== ""
                   }
@@ -1758,7 +6564,7 @@ Panel {
         Flow {
           width: parent.width
           spacing: Style.space(14)
-          visible: !root.standingsLoading && root.standingsError === "" && root.standings.length > 0 && root.standingsLegend.length > 0
+          visible: root.standings.length > 0 && root.standingsLegend.length > 0
           Repeater {
             model: root.standingsLegend
             Row {
@@ -1780,22 +6586,662 @@ Panel {
             }
           }
         }
+      }
+
+      // League Matches: what matters for the selected league — everything
+      // live, the next few upcoming fixtures, and the last few results.
+      Component {
+        id: matchRowDelegate
+
+          Item {
+            id: matchRow
+            required property var modelData
+            width: parent ? parent.width : 0
+
+            readonly property int rowVPadding: Style.space(8)
+            readonly property int rowHPadding: Style.space(10)
+
+            // League rows grow to fit the Follow button above the teams,
+            // PLUS symmetric top and bottom padding.
+            height: matchColumn.implicitHeight + rowVPadding * 2
+
+            readonly property bool rowFollowable: root.leagueMode && !root.leagueBrowseAll && modelData.id !== ""
+              && (modelData.state === "in"
+                  || (modelData.state === "pre"
+                      && modelData.kickoff - Date.now() <= root.followLeadMs))
+            readonly property bool rowFollowed: root.leagueMode && !root.leagueBrowseAll
+              && root.isLeagueMatchFollowed(modelData.id)
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Style.space(6)
+              color: root.contentForeground
+              opacity: matchRow.modelData.state === "in" ? 0.07 : (rowMouseArea.containsMouse ? 0.06 : 0.03)
+            }
+
+            MouseArea {
+              id: rowMouseArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.openMatchDetail(matchRow.modelData)
+              onDoubleClicked: root.openMatchDetail(matchRow.modelData)
+            }
+
+            Column {
+              id: matchColumn
+              anchors.fill: parent
+              anchors.topMargin: matchRow.rowVPadding
+              anchors.bottomMargin: matchRow.rowVPadding
+              anchors.leftMargin: matchRow.rowHPadding
+              anchors.rightMargin: matchRow.rowHPadding
+              spacing: Style.space(4)
+
+            Button {
+              z: 2
+              visible: matchRow.rowFollowable
+              anchors.horizontalCenter: parent.horizontalCenter
+              iconText: matchRow.rowFollowed ? "󰴅" : "󰡬"
+              text: matchRow.rowFollowed ? "Following" : "Follow"
+              tooltipText: matchRow.rowFollowed ? "Stop notifications for this match" : "Notify on goals, cards, half-time and full-time"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              iconSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: Style.space(2)
+              selected: matchRow.rowFollowed
+              onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Image {
+                anchors.verticalCenter: parent.verticalCenter
+                width: root.matchLogoSize
+                height: root.matchLogoSize
+                source: matchRow.modelData.homeLogo
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: 128
+                sourceSize.height: 128
+                mipmap: true
+                asynchronous: true
+                smooth: true
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchRow.modelData.homeName
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.body
+                font.bold: matchRow.modelData.state === "in"
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignRight
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                width: root.matchScoreWidth
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchRow.modelData.state === "pre"
+                  ? matchRow.modelData.timeText
+                  : matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.body
+                font.bold: matchRow.modelData.state !== "post"
+                horizontalAlignment: Text.AlignHCenter
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchRow.modelData.awayName
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.body
+                font.bold: matchRow.modelData.state === "in"
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignLeft
+              }
+
+              Image {
+                anchors.verticalCenter: parent.verticalCenter
+                width: root.matchLogoSize
+                height: root.matchLogoSize
+                source: matchRow.modelData.awayLogo
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: 128
+                sourceSize.height: 128
+                mipmap: true
+                asynchronous: true
+                smooth: true
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: matchRow.modelData.state === "pre"
+                ? matchRow.modelData.dateText : matchRow.modelData.status
+              color: matchRow.modelData.state === "in"
+                ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: matchRow.modelData.state === "in"
+              horizontalAlignment: Text.AlignHCenter
+              visible: text !== ""
+              elide: Text.ElideRight
+            }
+          }
+        }
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(12)
+        visible: root.showStats && !root.showMatchDetail
+
+        Row {
+          width: parent.width
+          spacing: Style.space(8)
+
+          Button {
+            id: prevStatsSeasonButton
+            width: Style.space(22)
+            height: Style.space(22)
+            iconText: ""
+            tooltipText: "Older season"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            onClicked: {
+              root.statsSeasonOffset++
+              root.loadStats()
+            }
+          }
+
+          Button {
+            id: statsSeasonChip
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(52)
+            height: Style.space(22)
+            text: root.seasonChipLabel(root.statsSeasonOffset)
+            tooltipText: "Stats season"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            onClicked: {
+              root.statsSeasonOffset = 0
+              root.loadStats()
+            }
+          }
+
+          Button {
+            id: nextStatsSeasonButton
+            width: Style.space(22)
+            height: Style.space(22)
+            iconText: ""
+            tooltipText: "Newer season"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            enabled: root.statsSeasonOffset > 0
+            opacity: enabled ? 1 : 0.35
+            onClicked: {
+              root.statsSeasonOffset--
+              root.loadStats()
+            }
+          }
+        }
+
+        Flow {
+          width: parent.width
+          spacing: Style.space(6)
+
+          Button {
+            id: goalsTabButton
+            height: Style.space(22)
+            text: "Goals"
+            tooltipText: "Top goal scorers"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            selected: root.statsCategory === "goals"
+            onClicked: root.statsCategory = "goals"
+          }
+
+          Button {
+            id: assistsTabButton
+            height: Style.space(22)
+            text: "Assists"
+            tooltipText: "Top assists leaders"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            selected: root.statsCategory === "assists"
+            onClicked: root.statsCategory = "assists"
+          }
+
+          Button {
+            id: yellowTabButton
+            height: Style.space(22)
+            text: "Yellow Cards"
+            tooltipText: "Yellow cards leaders"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            selected: root.statsCategory === "yellow"
+            onClicked: root.statsCategory = "yellow"
+          }
+
+          Button {
+            id: redTabButton
+            height: Style.space(22)
+            text: "Red Cards"
+            tooltipText: "Red cards leaders"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            selected: root.statsCategory === "red"
+            onClicked: root.statsCategory = "red"
+          }
+        }
 
         Text {
           textFormat: Text.PlainText
           width: parent.width
-          text: "Standings refresh when opened."
-          color: Qt.darker(root.contentForeground, 1.8)
+          opacity: root.statsLoading ? 0.4 + 0.6 * root._pulse : 1.0
+          text: root.statsLoading ? "Fetching statistics…"
+            : (root.statsError !== "" ? root.statsError
+            : ((root.statsCategory === "goals" ? root.statsGoals.length : (root.statsCategory === "assists" ? root.statsAssists.length : (root.statsCategory === "yellow" ? root.statsYellow.length : root.statsRed.length))) === 0 ? "No stats available" : ""))
+          color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
-          visible: !root.standingsLoading && root.standingsError === "" && root.standings.length > 0
+          wrapMode: Text.WordWrap
+          visible: text !== ""
+        }
+
+        Column {
+          width: parent.width
+          spacing: 0
+          visible: (root.statsCategory === "goals" ? root.statsGoals.length : (root.statsCategory === "assists" ? root.statsAssists.length : (root.statsCategory === "yellow" ? root.statsYellow.length : root.statsRed.length))) > 0
+
+          Row {
+            width: parent.width
+            height: Style.space(26)
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(20)
+              height: parent.height
+              text: "#"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              horizontalAlignment: Text.AlignRight
+              verticalAlignment: Text.AlignVCenter
+            }
+            Item { width: Style.space(8); height: 1 }
+            Item { width: Style.space(20); height: 1 }
+            Item { width: Style.space(6); height: 1 }
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width - Style.space(20 + 8 + 20 + 6 + (root.showStatsMatchesColumn ? 48 : 0) + 48)
+              height: parent.height
+              text: "Player"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+              textFormat: Text.PlainText
+              width: root.showStatsMatchesColumn ? Style.space(48) : 0
+              height: parent.height
+              text: "Matches"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
+              verticalAlignment: Text.AlignVCenter
+              visible: root.showStatsMatchesColumn
+            }
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(48)
+              height: parent.height
+              text: root.statsCategory === "goals" ? "Goals" : (root.statsCategory === "assists" ? "Assists" : (root.statsCategory === "yellow" ? "Yellow" : "Red"))
+              color: root.statsCategory === "yellow" ? "#eab308" : (root.statsCategory === "red" ? "#ef4444" : root.favoriteTeamAccent)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
+              verticalAlignment: Text.AlignVCenter
+            }
+          }
+
+          Repeater {
+            model: (root.statsCategory === "goals" ? root.statsGoals : (root.statsCategory === "assists" ? root.statsAssists : (root.statsCategory === "yellow" ? root.statsYellow : root.statsRed))).slice(0, 15)
+
+            delegate: Item {
+              id: statRow
+              required property var modelData
+              width: parent ? parent.width : 0
+              height: Style.space(32)
+
+              Rectangle {
+                anchors.fill: parent
+                color: root.contentForeground
+                opacity: statRow.modelData.rank % 2 === 1 ? 0.03 : 0.0
+                radius: Style.space(4)
+              }
+
+              Row {
+                anchors.fill: parent
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: Style.space(20)
+                  height: parent.height
+                  text: statRow.modelData.rank
+                  color: statRow.modelData.rank <= 3 ? root.favoriteTeamAccent : Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: statRow.modelData.rank <= 3
+                  horizontalAlignment: Text.AlignRight
+                  verticalAlignment: Text.AlignVCenter
+                }
+
+                Item { width: Style.space(8); height: 1 }
+
+                Image {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(20)
+                  height: Style.space(20)
+                  source: statRow.modelData.teamLogo
+                  fillMode: Image.PreserveAspectFit
+                  sourceSize.width: 64
+                  sourceSize.height: 64
+                  mipmap: true
+                  asynchronous: true
+                  smooth: true
+                  visible: source !== ""
+                }
+
+                Item { width: Style.space(6); height: 1 }
+
+                Column {
+                  width: parent.width - Style.space(20 + 8 + 20 + 6 + (root.showStatsMatchesColumn ? 48 : 0) + 48)
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: 0
+
+                  Text {
+                    textFormat: Text.PlainText
+                    width: parent.width
+                    text: statRow.modelData.name
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    elide: Text.ElideRight
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    width: parent.width
+                    text: statRow.modelData.teamName
+                    color: Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                    visible: text !== ""
+                  }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: root.showStatsMatchesColumn ? Style.space(48) : 0
+                  height: parent.height
+                  text: statRow.modelData.appearances !== "" ? statRow.modelData.appearances : "—"
+                  color: Qt.darker(root.contentForeground, 1.4)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  horizontalAlignment: Text.AlignHCenter
+                  verticalAlignment: Text.AlignVCenter
+                  visible: root.showStatsMatchesColumn
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: Style.space(48)
+                  height: parent.height
+                  text: statRow.modelData.value
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                  horizontalAlignment: Text.AlignHCenter
+                  verticalAlignment: Text.AlignVCenter
+                }
+              }
+            }
+          }
+        }
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(12)
+        visible: (root.leagueMode ? (!root.showStandings && !root.showStats && !root.showMatchDetail) : (root.showMatches && !root.showStandings && !root.showStats && !root.showMatchDetail))
+
+        // League name on the left; on the right, chevrons page between the
+        // detected fixture rounds around the date-range label.
+        Item {
+          width: parent.width
+          height: Math.max(matchTitleText.implicitHeight, matchWeekNav.implicitHeight)
+
+          Text {
+            id: matchTitleText
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - (matchWeekNav.visible ? matchWeekNav.width + parent.spacing : 0)
+              - (liveBadge.visible ? liveBadge.width + parent.spacing : 0)
+            opacity: root.matchListLoading ? 0.4 + 0.6 * root._pulse : 1.0
+            text: root.matchListError !== "" ? "Could not load matches"
+              : (root.leagueMode
+                ? (root.leagueBrowseAll
+                  ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
+                  : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0
+                    ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No matches today")))
+                : (root.matchWeekRows.length > 0 ? root.leagueLabel()
+                : (root.matchListLoading ? "Fetching matches…" : "No matches this week")))
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            elide: Text.ElideRight
+          }
+
+
+          Text {
+            id: liveBadge
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            // Sits between the title and the season/round controls.
+            anchors.right: matchWeekNav.visible ? matchWeekNav.left : parent.right
+            anchors.rightMargin: matchWeekNav.visible ? parent.spacing : 0
+            text: root.leagueLive.length + " live"
+            color: "#4ade80"
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            visible: root.leagueLive.length > 0
+          }
+
+          Row {
+            id: matchWeekNav
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(6)
+            visible: !root.leagueMode || root.leagueBrowseAll
+
+            Button {
+              id: prevWeekButton
+              width: Style.space(22)
+              height: Style.space(22)
+              iconText: ""
+              tooltipText: "Previous matchweek"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              iconSize: Style.font.caption
+              horizontalPadding: 0
+              verticalPadding: 0
+              onClicked: {
+                if (matchListRequest.running || root.pendingEdge !== "") return
+                if (root.matchClusterIndex > 0) { root.matchClusterIndex--; return }
+                // Empty view has no boundary row: let the landing logic use
+                // the far edge of whatever the shifted window returns.
+                root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[0].day : ""
+                root.matchWindowOffset -= 21
+                root.pendingEdge = "prev"
+                root.loadMatchList()
+              }
+            }
+
+            Text {
+              id: matchWeekLabelText
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.matchWeekLabel
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 1
+            }
+
+            Button {
+              id: nextWeekButton
+              width: Style.space(22)
+              height: Style.space(22)
+              iconText: ""
+
+              tooltipText: "Next matchweek"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              iconSize: Style.font.caption
+              horizontalPadding: 0
+              verticalPadding: 0
+              onClicked: {
+                if (matchListRequest.running || root.pendingEdge !== "") return
+                if (root.matchClusterIndex < root.matchClusters.length - 1) { root.matchClusterIndex++; return }
+                root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
+                root.matchWindowOffset += 21
+                root.pendingEdge = "next"
+                root.loadMatchList()
+              }
+            }
+          }
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width
+          text: root.matchListError
+          color: Qt.darker(root.contentForeground, 1.5)
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+          visible: root.matchListError !== ""
+        }
+
+        Column {
+          width: parent.width
+          spacing: 0
+          // Rows stay visible (dimmed) while a refresh runs so the popup
+          // never shrinks mid-fetch.
+          visible: (!root.leagueMode || root.leagueBrowseAll)
+            && root.matchWeekRows.length > 0
+
+          Repeater {
+            model: root.matchWeekRows
+            delegate: matchRowDelegate
+          }
+        }
+
+        // League-follow board: live now, then recent results, then what's
+        // coming up — all from the same window fetch.
+        Repeater {
+          model: [
+            { label: "Live", rows: root.leagueLive },
+            { label: "Played Today", rows: root.leagueRecent },
+            { label: "Later Today", rows: root.leagueUpcoming }
+          ]
+
+          delegate: Column {
+            required property var modelData
+            readonly property bool listIdle: !root.matchListLoading && root.matchListError === ""
+            width: parent ? parent.width : 0
+            spacing: Style.space(4)
+            visible: root.leagueMode && !root.leagueBrowseAll && listIdle && modelData.rows.length > 0
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: modelData.label
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Repeater {
+              model: modelData.rows
+              delegate: matchRowDelegate
+            }
+          }
         }
       }
 
       Item {
         width: parent.width
         height: Style.space(20)
-        visible: root.liveMatch && !root.showStandings
+        visible: root.liveMatch && !root.customViewActive
 
         Text {
           textFormat: Text.PlainText
@@ -1823,20 +7269,35 @@ Panel {
 
       Item {
         width: parent.width
-        height: liveColumn.implicitHeight
-        visible: root.liveMatch
+        height: liveColumn.implicitHeight + Style.space(8)
+        // The dedicated live card is redundant inside the League Matches / Stats
+        // views and below the standings table.
+        visible: root.liveMatch && !root.customViewActive
+
+        MouseArea {
+          id: liveCardArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.liveMatch) root.openMatchDetail(root.liveMatch)
+          onDoubleClicked: if (root.liveMatch) root.openMatchDetail(root.liveMatch)
+        }
 
         Column {
           id: liveColumn
           width: Style.space(348)
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(4)
+          anchors.centerIn: parent
+          spacing: Style.space(6)
+          topPadding: Style.space(8)
+          bottomPadding: Style.space(8)
 
           Button {
+            id: liveFollowBtn
+            z: 2
             anchors.horizontalCenter: parent.horizontalCenter
-            iconText: root.liveActivity ? "󰂢" : "󰂣"
-            text: "Live Activity"
-            tooltipText: root.liveActivity ? "Stop match notifications" : "Notify on goals, cards, half-time and full-time"
+            iconText: root.liveActivity ? "󰴅" : "󰡬"
+            text: root.liveActivity ? "Following" : "Follow"
+            tooltipText: root.liveActivity ? "Stop match notifications" : "Notify on goals, cards, half-time, full-time and extra time"
             fontFamily: root.contentFontFamily
             foreground: root.contentForeground
             accent: root.contentForeground
@@ -1849,30 +7310,49 @@ Panel {
           }
 
           Row {
+            id: liveTeamsScoreRow
             anchors.horizontalCenter: parent.horizontalCenter
             width: parent.width
             spacing: Style.space(8)
 
-            Image { width: Style.space(44); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; sourceSize.width: 44; sourceSize.height: 44; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-            Text { textFormat: Text.PlainText; width: Style.space(76); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
-            Text {
-              textFormat: Text.PlainText
+            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignRight; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+            Column {
               width: Style.space(86)
               anchors.verticalCenter: parent.verticalCenter
-              horizontalAlignment: Text.AlignHCenter
-              text: root.scoreFor(root.liveMatch, "home") + " – " + root.scoreFor(root.liveMatch, "away")
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.title
-              font.bold: true
+              spacing: Style.space(1)
+
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: root.scoreFor(root.liveMatch, "home") + " – " + root.scoreFor(root.liveMatch, "away")
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.title
+                font.bold: true
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: root.statusFor(root.liveMatch)
+                color: "#4ade80"
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                visible: text !== ""
+              }
             }
-            Text { textFormat: Text.PlainText; width: Style.space(76); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
-            Image { width: Style.space(44); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; sourceSize.width: 44; sourceSize.height: 44; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignLeft; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
           }
 
           Item {
             width: 1
-            height: Style.space(10)
+            height: Style.space(6)
+            visible: root.liveHasDetails()
           }
 
           Row {
@@ -1904,9 +7384,10 @@ Panel {
           }
 
           Row {
+            id: liveCompRow
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image { id: competitionLogo; width: Style.space(14); height: width; source: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; sourceSize.width: 14; sourceSize.height: 14; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: source !== "" }
+            Image { id: competitionLogo; width: Style.space(14); height: width; source: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: source !== "" }
             Text {
               textFormat: Text.PlainText
               text: root.competitionNameFor(root.liveMatch)
@@ -1915,6 +7396,13 @@ Panel {
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
             }
+          }
+
+          // Bottom spacer to equalize distance from center to top and bottom
+          Item {
+            width: 1
+            height: Math.max(0, liveFollowBtn.implicitHeight - liveCompRow.implicitHeight)
+            visible: !root.liveHasDetails()
           }
         }
       }
@@ -1926,13 +7414,13 @@ Panel {
         opacity: 0.15
         // Only separate the live card from the next card; without a live match
         // the header's own hairline is the single separator at the top.
-        visible: root.liveMatch && !root.showStandings
+        visible: root.liveMatch && !root.customViewActive
       }
 
       Item {
         width: parent.width
         height: Style.space(20)
-        visible: !root.showStandings
+        visible: !root.customViewActive
 
         Text {
           textFormat: Text.PlainText
@@ -1958,36 +7446,124 @@ Panel {
       }
 
       Item {
+        id: nextMatchCard
         width: parent.width
-        height: Style.space(86)
-        visible: !root.showStandings
+        height: nextMatchCol.implicitHeight + Style.space(16)
+        visible: !root.customViewActive
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Style.space(6)
+          color: root.contentForeground
+          opacity: nextCardArea.containsMouse ? 0.06 : 0.03
+        }
+
+        MouseArea {
+          id: nextCardArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.nextMatch) root.openMatchDetail(root.nextMatch)
+          onDoubleClicked: if (root.nextMatch) root.openMatchDetail(root.nextMatch)
+        }
 
         Column {
-          anchors.horizontalCenter: parent.horizontalCenter
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(2)
+          id: nextMatchCol
+          anchors.fill: parent
+          anchors.topMargin: Style.space(8)
+          anchors.bottomMargin: Style.space(8)
+          anchors.leftMargin: Style.space(10)
+          anchors.rightMargin: Style.space(10)
+          spacing: Style.space(6)
 
           Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Style.space(320)
+            width: parent.width
             spacing: Style.space(8)
 
-            Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.nextMatch, "home"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.nextMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignHCenter; text: "vs"; color: Qt.darker(root.contentForeground, 1.5); font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.nextMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
-            Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.nextMatch, "away"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-          }
+            Image {
+              width: Style.space(36)
+              height: width
+              source: root.teamLogoFor(root.nextMatch, "home")
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              anchors.verticalCenter: parent.verticalCenter
+              visible: source !== ""
+            }
 
-          Item {
-            width: 1
-            height: Style.space(10)
+            Text {
+              textFormat: Text.PlainText
+              width: (parent.width - parent.spacing * 4 - Style.space(36) * 2 - Style.space(36)) / 2
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.teamNameFor(root.nextMatch, "home")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+              horizontalAlignment: Text.AlignRight
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(36)
+              anchors.verticalCenter: parent.verticalCenter
+              horizontalAlignment: Text.AlignHCenter
+              text: "vs"
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: (parent.width - parent.spacing * 4 - Style.space(36) * 2 - Style.space(36)) / 2
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.teamNameFor(root.nextMatch, "away")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+              horizontalAlignment: Text.AlignLeft
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
+
+            Image {
+              width: Style.space(36)
+              height: width
+              source: root.teamLogoFor(root.nextMatch, "away")
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              anchors.verticalCenter: parent.verticalCenter
+              visible: source !== ""
+            }
           }
 
           Row {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image { width: Style.space(18); height: width; source: root.competitionLogoFor(root.nextMatch); fillMode: Image.PreserveAspectFit; sourceSize.width: 18; sourceSize.height: 18; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+            Image {
+              width: Style.space(18)
+              height: width
+              source: root.competitionLogoFor(root.nextMatch)
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              anchors.verticalCenter: parent.verticalCenter
+              visible: source !== ""
+            }
             Text {
               textFormat: Text.PlainText
               text: root.competitionNameFor(root.nextMatch)
@@ -2004,12 +7580,13 @@ Panel {
         height: Style.spacing.hairline
         color: root.contentForeground
         opacity: 0.15
+        visible: !root.customViewActive
       }
 
       Item {
         width: parent.width
         height: Style.space(20)
-        visible: !root.showStandings
+        visible: !root.customViewActive
 
         Text {
           textFormat: Text.PlainText
@@ -2022,46 +7599,125 @@ Panel {
           font.letterSpacing: 1
           font.bold: true
         }
-
-        Image {
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(20)
-          height: width
-          source: root.competitionLogoFor(root.previousMatch)
-          fillMode: Image.PreserveAspectFit
-          sourceSize.width: 20
-          sourceSize.height: 20
-          smooth: true
-          visible: source !== ""
-        }
       }
 
       Item {
+        id: prevMatchCard
         width: parent.width
-        height: Style.space(86)
-        visible: !root.showStandings
+        height: prevMatchCol.implicitHeight + Style.space(16)
+        visible: !root.customViewActive
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Style.space(6)
+          color: root.contentForeground
+          opacity: prevCardArea.containsMouse ? 0.06 : 0.03
+        }
+
+        MouseArea {
+          id: prevCardArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.previousMatch) root.openMatchDetail(root.previousMatch)
+          onDoubleClicked: if (root.previousMatch) root.openMatchDetail(root.previousMatch)
+        }
 
         Column {
-          anchors.horizontalCenter: parent.horizontalCenter
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(2)
+          id: prevMatchCol
+          anchors.fill: parent
+          anchors.topMargin: Style.space(8)
+          anchors.bottomMargin: Style.space(8)
+          anchors.leftMargin: Style.space(10)
+          anchors.rightMargin: Style.space(10)
+          spacing: Style.space(6)
 
           Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Style.space(320)
+            width: parent.width
             spacing: Style.space(8)
-            Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.previousMatch, "home"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.previousMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignHCenter; text: root.scoreFor(root.previousMatch, "home") + " – " + root.scoreFor(root.previousMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; horizontalAlignment: Text.AlignLeft; text: root.teamNameFor(root.previousMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
-            Image { width: Style.space(36); height: width; source: root.teamLogoFor(root.previousMatch, "away"); fillMode: Image.PreserveAspectFit; sourceSize.width: 36; sourceSize.height: 36; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+
+            Image {
+              width: Style.space(36)
+              height: width
+              source: root.teamLogoFor(root.previousMatch, "home")
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              anchors.verticalCenter: parent.verticalCenter
+              visible: source !== ""
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: (parent.width - parent.spacing * 4 - Style.space(36) * 2 - Style.space(60)) / 2
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.teamNameFor(root.previousMatch, "home")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              horizontalAlignment: Text.AlignRight
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(60)
+              anchors.verticalCenter: parent.verticalCenter
+              horizontalAlignment: Text.AlignHCenter
+              text: root.scoreFor(root.previousMatch, "home") + " – " + root.scoreFor(root.previousMatch, "away")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: (parent.width - parent.spacing * 4 - Style.space(36) * 2 - Style.space(60)) / 2
+              anchors.verticalCenter: parent.verticalCenter
+              horizontalAlignment: Text.AlignLeft
+              text: root.teamNameFor(root.previousMatch, "away")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
+
+            Image {
+              width: Style.space(36)
+              height: width
+              source: root.teamLogoFor(root.previousMatch, "away")
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              anchors.verticalCenter: parent.verticalCenter
+              visible: source !== ""
+            }
           }
 
           Row {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image { width: Style.space(18); height: width; source: root.competitionLogoFor(root.previousMatch); fillMode: Image.PreserveAspectFit; sourceSize.width: 18; sourceSize.height: 18; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+            Image {
+              width: Style.space(18)
+              height: width
+              source: root.competitionLogoFor(root.previousMatch)
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: true
+              mipmap: true
+              smooth: true
+              anchors.verticalCenter: parent.verticalCenter
+              visible: source !== ""
+            }
             Text {
               textFormat: Text.PlainText
               text: root.competitionNameFor(root.previousMatch)
@@ -2075,15 +7731,16 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        visible: !root.showStandings && (root.loading || root.requestError !== "" || (!root.nextMatch && !root.previousMatch))
+        visible: !root.customViewActive && (root.loading || root.requestError !== "" || (!root.nextMatch && !root.previousMatch))
         opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
-        text: root.loading ? "Loading fixtures…" : (root.requestError !== "" ? root.requestError : "No fixtures found for " + root.teamName)
+        text: root.loading ? "Fetching " + (root.teamName || "fixtures") + "…" : (root.requestError !== "" ? root.requestError : "No fixtures found for " + root.teamName)
         color: Qt.darker(root.contentForeground, 1.5)
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.caption
       }
     }
   }
+}
 }
 }
 }

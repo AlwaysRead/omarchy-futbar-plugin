@@ -2,17 +2,19 @@
   "schemaVersion": 1,
   "id": "devbook.futbar",
   "name": "FutBar",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "devbook",
   "license": "MIT",
-  "description": "Live football scores for a chosen team.",
-  "kinds": ["bar-widget"],
+  "description": "Live match center and football tracker with tactical lineups, real-time scores, league tables, and live event alerts.",
+  "kinds": [
+    "bar-widget"
+  ],
   "entryPoints": {
     "barWidget": "FutBar.qml"
   },
   "barWidget": {
     "displayName": "FutBar",
-    "description": "Shows the live score, match clock, and recent goal scorers for a chosen team.",
+    "description": "Compact top-bar football widget with real-time match tracking, tactical pitch lineups, live commentary, standings, and desktop event alerts.",
     "category": "Sports",
     "allowMultiple": false,
     "defaultSection": "right",

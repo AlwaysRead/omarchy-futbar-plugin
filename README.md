@@ -1,11 +1,10 @@
-# FutBar — Omarchy Football Score Widget
+# FutBar — Football Widget for Omarchy
 
-[![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)](https://omarchyplugins.com)
+![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version: 2.0.0](https://img.shields.io/badge/Version-2.0.0-green.svg)](manifest.json)
 
-**FutBar** is a third-party bar widget for the [Omarchy](https://omarchy.dev) desktop environment that tracks your favorite football (soccer) club. It displays live scores, match clocks, goal scorers, upcoming fixtures, past results, and live league standings directly in your top bar.
-
-Data is fetched from ESPN's public sports API without requiring an API key.
+**FutBar** is a live football companion and match center engineered for Omarchy. Track live fixtures, tactical pitch formations with athlete kits, minute-by-minute match timelines, head-to-head records, league standings, player leaderboards, and real-time desktop event notifications seamlessly from your top bar. Powered directly by ESPN's public endpoints with zero API costs, no authentication keys, and no account setup required.
 
 ![FutBar Preview](assets/Live%20Match%20Preview.png)
 
@@ -13,77 +12,76 @@ Data is fetched from ESPN's public sports API without requiring an API key.
 
 ## Screenshots
 
-| Live Match Card | League Standings |
+| Live Match Card | Tactical Pitch & Lineups |
 | :---: | :---: |
-| <img src="assets/Live%20Match%20Preview.png" width="400" alt="Live Match Preview"> | <img src="assets/Standings.png" width="400" alt="League Standings"> |
+| <img src="assets/Live%20Match%20Preview.png" width="400" alt="Live Match Preview"> | <img src="assets/Standings.png" width="400" alt="Tactical Pitch and Lineups"> |
 
-| Upcoming Fixtures (Void Dark) | Upcoming Fixtures (Void Light) |
+| Upcoming Fixtures (Dark) | Upcoming Fixtures (Light) |
 | :---: | :---: |
 | <img src="assets/Fetch%20Fixture%20Dark.png" width="400" alt="Upcoming Fixtures Dark"> | <img src="assets/Fetch%20Fixture%20Light.png" width="400" alt="Upcoming Fixtures Light"> |
-
-| Live Activity Desktop Notification |
-| :---: |
-| <img src="assets/Live%20Notifications.png" width="550" alt="Live Activity Desktop Notification"> |
 
 ---
 
 ## Features
 
-- **Compact Bar Widget**:
-  - Displays a clean soccer icon that pulses gracefully while fetching data.
-  - Middle-click to instantly refresh scores.
-- **Rich Hover Tooltip**:
-  - Hovering the icon shows the current match score, match clock, and a running event summary (goals, red cards, key events).
-- **Interactive Fixture Panel**:
-  - Click the bar icon to open a sleek popup card with full match details.
-  - Displays team badges, competition logos, kickoff times, previous match results, and upcoming fixtures.
-- **Live Standings Table**:
-  - Toggle between fixtures and live league standings.
-  - Highlights your favorite team with your Omarchy theme accent color.
-  - Dynamic qualification zones (Champions League, Europa League, Conference League, relegation) indicated with color bars derived directly from live ESPN notes.
-- **Built-in Team & League Picker**:
-  - Select your favorite league and club using dropdowns directly inside the panel.
-  - Persists your selection automatically so reloads never flash default teams.
-- **Desktop Live Activity Notifications**:
-  - Receive desktop notifications (`notify-send`) for kickoff, goals, red cards, half-time, and full-time events during live matches.
+- **Top Bar Integration**: Minimalist soccer icon with live match state indicators, pulse animations during updates, and rich tooltip summaries on hover.
+- **Comprehensive Match Center**: Live match scorecard, match status (pre-match, live, half-time, extra-time, penalties, full-time), goal scorers, and series notes.
+- **Tactical Pitch & Lineups**: Full tactical pitch view featuring starting XI formations, athlete jersey kit numbers/graphics, substitutes, and live player ratings.
+- **Match Timeline & Events**: Visual minute-by-minute timeline tracking goals, penalties, yellow/red cards, substitutions, and half-time/full-time milestones.
+- **Head-to-Head & Team Form**: Detailed past encounter history, win/draw/loss counts, and recent form guide.
+- **Live Text Commentary**: Reverse-chronological commentary feed with highlighted key match moments.
+- **League Standings & Round Fixtures**: Comprehensive league tables with qualification and relegation zone highlights, plus matchweek round browsing.
+- **Player Leaderboards**: Top scorers, assist leaders, and disciplinary card rankings.
+- **Live Activity Match Tracking**: Toggle match following to receive instant desktop notifications (`notify-send`) on goals, cards, and period changes.
+- **Seamless Club & League Switching**: In-panel search and dropdown picker to switch followed teams or browse across global competitions.
 
 ---
 
-## Installation
+## Installation & Setup
 
-Install directly via the `omarchy` CLI:
-
+### Install Plugin
 ```bash
 omarchy plugin add https://github.com/AlwaysRead/omarchy-futbar-plugin.git --enable
 ```
 
-## Usage
-
-- **Toggle Panel**: Click the soccer icon in the bar to open or close the fixture & standings panel.
-- **Live Tooltip**: Hover the icon to see current score, match clock, and recent scorers.
-- **Quick Refresh**: Middle-click the bar icon to refresh live fixtures immediately.
-- **Keyboard Navigation**: Press <kbd>Escape</kbd> to close the popup, or <kbd>Tab</kbd> to cycle between open bar popouts.
-
-## Placement & Removal
-
+### Position on Bar (Optional)
 ```bash
-# Move widget to another bar section (left, center, right)
 omarchy bar move devbook.futbar --section right
+```
 
-# Remove the plugin
+### Set Default Club & League (Optional)
+You can choose your favorite team and league directly in the panel UI, or configure via CLI:
+```bash
+omarchy plugin config devbook.futbar set teamName "Barcelona" league "esp.1"
+```
+
+### Remove Plugin
+```bash
 omarchy plugin remove devbook.futbar
 ```
 
 ---
 
-## Configuration & Supported Leagues
+## Controls & Shortcuts
 
-You can select your team directly from the **in-panel picker**, or set it via Omarchy Plugin Settings:
+| Action | Shortcut / Control |
+| :--- | :--- |
+| **Open / Close Panel** | Click bar icon or configure custom Hyprland keybind |
+| **Quick Tooltip** | Hover over bar icon for live scores & kickoff times |
+| **Instant Refresh** | Middle-click bar icon |
+| **Close Panel** | <kbd>Escape</kbd> |
+| **Cycle Panels** | <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> |
+| **Follow Match** | Click "Follow" button in match card or detail header |
 
-- **Team Name**: The name ESPN uses (e.g., `Barcelona`, `Arsenal`, `Real Madrid`, `Inter Miami`).
-- **ESPN League Code**: The league identifier code.
+---
 
-### Popular League Codes
+## Optional Dependencies
+
+- **`libnotify` (`notify-send`)**: Required for desktop match event notifications (goals, cards, half-time, full-time). Pre-installed on standard Linux desktop distributions (e.g. `libnotify` package).
+
+---
+
+## Popular League Codes
 
 | League | ESPN Code |
 | :--- | :--- |
@@ -94,78 +92,13 @@ You can select your team directly from the **in-panel picker**, or set it via Om
 | **Ligue 1** | `fra.1` |
 | **UEFA Champions League** | `uefa.champions` |
 | **UEFA Europa League** | `uefa.europa` |
-| **Eredivisie** | `ned.1` |
-| **Primeira Liga** | `por.1` |
-| **MLS** | `usa.1` |
+| **Major League Soccer (MLS)** | `usa.1` |
 | **Brasileirão** | `bra.1` |
-
-### State & Storage Locations
-
-- **Settings**: `~/.config/omarchy/shell.json` (inline plugin settings).
-- **Favorite Store**: `~/.local/state/omarchy/futbar.json` (authoritative team state file across reloads).
-
----
-
-## Security & Dependencies
-
-- **Dependencies**: Uses Omarchy's built-in Quickshell modules (`Quickshell`, `Quickshell.Io`, `qs.Commons`, `qs.Ui`). Optional `notify-send` for desktop activity alerts.
-- **Network Data**: Connects exclusively over HTTPS to public ESPN REST endpoints (`site.api.espn.com`). All remote requests enforce strict size bounds (`--max-filesize` and in-memory byte limits) and timeouts (`--max-time 10`). No tokens, authentication, or tracking needed.
-- **Privilege Boundary**: Operates entirely within standard user privileges. All state is isolated to `~/.config/omarchy/plugins/devbook.futbar` and `~/.local/state/omarchy/futbar.json`.
-
----
-
-## Polling Behavior
-
-- **Live Match in Play**: Polls every **30 seconds**.
-- **Standard Mode**: Polls every **5 minutes**.
-- **Manual Refresh**: Middle-click the bar icon or tooltip to refresh immediately.
-
----
-
-## Local Development & Validation
-
-If you want to modify or test FutBar locally:
-
-1. **Navigate to the repository directory**:
-   Open a terminal in your local checkout of the plugin repository:
-   ```bash
-   cd omarchy-futbar-plugin
-   ```
-
-2. **Validate Manifest & QML**:
-   ```bash
-   # Validate Omarchy plugin manifest
-   omarchy plugin validate .
-
-   # Check QML syntax against Omarchy shell headers
-   qmllint -I "$OMARCHY_PATH/shell" FutBar.qml FutBarPanel.qml
-   ```
-
-3. **Install & Hot-Reload**:
-   ```bash
-   # Copy to local Omarchy plugins directory
-   mkdir -p ~/.config/omarchy/plugins/devbook.futbar
-   cp FutBarPanel.qml FutBar.qml manifest.json ~/.config/omarchy/plugins/devbook.futbar/
-
-   # Rescan plugins in Omarchy shell
-   omarchy shell shell rescanPlugins
-   ```
-
----
-
-## Repository Structure
-
-```
-omarchy-futbar-plugin/
-├── manifest.json       # Plugin metadata and entry points
-├── FutBar.qml          # Bar widget component
-├── FutBarPanel.qml     # Interactive fixture panel and standings view
-├── README.md           # Project documentation
-└── LICENSE             # MIT License
-```
+| **Eredivisie** | `ned.1` |
+| **Liga Portugal** | `por.1` |
 
 ---
 
 ## License
 
-Distributed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE).

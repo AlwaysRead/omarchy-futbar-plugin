@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 import qs.Ui
 
 // A deliberately small bar widget. It asks ESPN's public scoreboard for the
@@ -62,7 +63,7 @@ BarWidget {
   property string tooltip: "Checking for a live match…"
   property string liveTooltip: ""
   property bool live: false
-  property bool loading: (panelLoader.item ? panelLoader.item.loading === true : false)
+  property bool loading: (panelLoader.item ? (panelLoader.item.anyLoading === true || panelLoader.item.loading === true) : false)
   property real _pulse: 0.0
 
   implicitWidth: button.implicitWidth
@@ -76,6 +77,25 @@ BarWidget {
     NumberAnimation { to: 0.0; duration: 450; easing.type: Easing.InOutQuad }
   }
 
+  // Event blink: on each activity pulse (goal, card, kickoff, HT/FT — fired
+  // from the panel's notification path only, never per fetch) the icon
+  // alternates foreground/accent a few times, then settles back to the
+  // steady live color. Toggling useActiveColor keeps the accent binding and
+  // guarantees the animation ends in the colored state.
+  SequentialAnimation {
+    id: eventBlink
+    PropertyAction { target: button; property: "useActiveColor"; value: false }
+    PauseAnimation { duration: 350 }
+    PropertyAction { target: button; property: "useActiveColor"; value: true }
+    PauseAnimation { duration: 350 }
+    PropertyAction { target: button; property: "useActiveColor"; value: false }
+    PauseAnimation { duration: 350 }
+    PropertyAction { target: button; property: "useActiveColor"; value: true }
+    PauseAnimation { duration: 350 }
+    PropertyAction { target: button; property: "useActiveColor"; value: false }
+    PauseAnimation { duration: 350 }
+    PropertyAction { target: button; property: "useActiveColor"; value: true }
+  }
   function refresh() {
     if (root.needsTeam) {
       root.live = false
@@ -88,13 +108,25 @@ BarWidget {
 
   // The panel now fetches the team's fixtures across every competition, so the
   // bar tooltip derives from that data instead of its own scoreboard request.
+  // Live state is recomputed from scratch on every pass so error/loading
+  // early-returns can never leave a stale "live" (and its colored icon)
+  // behind after the match ends or a fetch fails.
   function updateTooltip() {
     var p = panelLoader.item
+    root.live = false
+    root.liveTooltip = ""
     if (root.needsTeam) {
       root.tooltip = "No Team Selected"
       return
     }
     if (!p) return
+    // League-follow mode summarizes the whole competition instead of one club.
+    if (p.leagueMode) {
+      root.live = false
+      root.tooltip = root.sanitizePlainText(p.leagueLabel() + " — " +
+        (p.leagueBoardSummary !== "" ? p.leagueBoardSummary : "checking fixtures…"))
+      return
+    }
     if (p.loading) {
       root.tooltip = root.sanitizePlainText("Fetching " + root.teamName + "…")
       return
@@ -115,8 +147,6 @@ BarWidget {
       root.live = true
       return
     }
-    root.live = false
-    root.liveTooltip = ""
     if (p.nextMatch) {
       var nextHome = root.sanitizePlainText(p.teamNameFor(p.nextMatch, "home"))
       var nextAway = root.sanitizePlainText(p.teamNameFor(p.nextMatch, "away"))
@@ -176,8 +206,15 @@ BarWidget {
     else if (button.tooltipHovered) root.bar.showTooltip(button, root.tooltip)
   }
 
+  // Refresh cadence for the shared data fetches (scoreboard, fixtures).
+  // Fast while a match is live so goals reach the bar and popup promptly;
+  // relaxed otherwise to stay off ESPN's back. Notification bodies never
+  // depend on this timing: they read scores from their own summary payload.
+  readonly property int liveRefreshMs: 10000
+  readonly property int idleRefreshMs: 60000
+
   Timer {
-    interval: root.live ? 30000 : 300000
+    interval: (root.live || root.opened) ? root.liveRefreshMs : root.idleRefreshMs
     running: !root.needsTeam
     repeat: true
     onTriggered: root.refresh()
@@ -202,6 +239,7 @@ BarWidget {
       p.nextMatchChanged.connect(function() { root.updateTooltip() })
       p.previousMatchChanged.connect(function() { root.updateTooltip() })
       p.requestErrorChanged.connect(function() { root.updateTooltip() })
+      p.activityPulse.connect(eventBlink.restart)
       root.updateTooltip()
     }
   }
@@ -213,10 +251,16 @@ BarWidget {
     // Keep the bar clean: fixture details stay in the popup and tooltip.
     text: "󰒸"
     tooltipText: root.tooltip
+    // Steady theme accent while a match is live; white otherwise. Events
+    // blink it via the eventBlink animation above.
     active: root.live
+    activeColor: Color.accent
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.MiddleButton) root.refresh()
-      else root.togglePanel()
+      else {
+        root.refresh()
+        root.togglePanel()
+      }
     }
   }
 }
