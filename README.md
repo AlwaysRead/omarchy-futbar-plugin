@@ -2,7 +2,7 @@
 
 ![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version: 2.0.0](https://img.shields.io/badge/Version-2.0.0-green.svg)](manifest.json)
+[![Version: 2.0.1](https://img.shields.io/badge/Version-2.0.1-green.svg)](manifest.json)
 
 **FutBar** is a live football companion and match center engineered for Omarchy. Track live fixtures, tactical pitch formations with athlete kits, minute-by-minute match timelines, head-to-head records, league standings, player leaderboards, and real-time desktop event notifications seamlessly from your top bar. Powered directly by ESPN's public endpoints with zero API costs, no authentication keys, and no account setup required.
 

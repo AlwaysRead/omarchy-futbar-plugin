@@ -122,7 +122,7 @@ BarWidget {
     if (!p) return
     // League-follow mode summarizes the whole competition instead of one club.
     if (p.leagueMode) {
-      root.live = false
+      root.live = (Array.isArray(p.leagueLive) && p.leagueLive.length > 0)
       root.tooltip = root.sanitizePlainText(p.leagueLabel() + " — " +
         (p.leagueBoardSummary !== "" ? p.leagueBoardSummary : "checking fixtures…"))
       return

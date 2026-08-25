@@ -87,7 +87,8 @@ Panel {
         : true)
   // League-follow mode: the user tracks a whole competition instead of a
   // single club. Stored in the favorite file (authoritative on reload).
-  readonly property bool leagueMode: root.savedFavorite.followLeague === true
+  readonly property bool leagueMode: (root.savedFavorite.followLeague === true
+    || ((root.savedFavorite.teamName === undefined || root.savedFavorite.teamName === "") && (setting("teamName", "") === "") && String(root.league || "") !== ""))
     && String(root.league || "") !== ""
   // True once the widget has started fetching with a real team. Reloads must
   // not fetch (or worse, resolve+persist) with stale in-memory settings before
@@ -101,7 +102,7 @@ Panel {
     return String(root.teamName) !== ""
   }
   function teamSignature() {
-    return String(root.teamName) + "|" + String(root.teamId) + "|" + String(root.league)
+    return String(root.teamName) + "|" + String(root.teamId) + "|" + String(root.league) + "|" + String(root.leagueMode)
   }
   function ensureStarted() {
     if (root._started) return
@@ -437,6 +438,47 @@ Panel {
   property var fetchQueue: []
   property var collectedEvents: []
   property string fetchStage: ""
+  readonly property var teamFixtureRows: root.matchRowsFromEvents(root.collectedEvents)
+  property int clubFixturePage: 0
+  readonly property int clubPageSize: 5
+  readonly property int clubPageCount: Math.max(1, Math.ceil(teamFixtureRows.length / clubPageSize))
+  readonly property var pagedClubRows: teamFixtureRows.slice(clubFixturePage * clubPageSize, (clubFixturePage + 1) * clubPageSize)
+
+  function clubSeasonWindow() {
+    var now = new Date()
+    var currentYear = now.getFullYear()
+    var currentMonth = now.getMonth()
+    var startYear, endYear
+    if (root.league === "usa.1" || root.league === "bra.1" || root.league === "jpn.1") {
+      return String(currentYear) + "0101-" + String(currentYear) + "1231"
+    }
+    if (currentMonth >= 6) {
+      startYear = currentYear
+      endYear = currentYear + 1
+    } else {
+      startYear = currentYear - 1
+      endYear = currentYear
+    }
+    return String(startYear) + "0701-" + String(endYear) + "0630"
+  }
+
+  function initClubFixturePage() {
+    var rows = root.teamFixtureRows
+    if (rows.length === 0) { root.clubFixturePage = 0; return }
+    var nowMs = Date.now()
+    var idx = -1
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].state === "in" || rows[i].state === "pre" || rows[i].kickoff >= nowMs) {
+        idx = i
+        break
+      }
+    }
+    if (idx !== -1) {
+      root.clubFixturePage = Math.floor(idx / root.clubPageSize)
+    } else {
+      root.clubFixturePage = Math.max(0, root.clubPageCount - 1)
+    }
+  }
   readonly property var leagues: [
     { value: "eng.1", label: "Premier League" },
     { value: "esp.1", label: "LaLiga" },
@@ -537,6 +579,22 @@ Panel {
     root.previousMatch = null
     root.liveMatch = null
     root.liveEvents = []
+    root.collectedEvents = []
+    root.requestError = ""
+  }
+
+  function resetMatchList() {
+    root.matchWeekRows = []
+    root.matchClusters = []
+    root.matchClusterIndex = 0
+    root.matchWindowOffset = 0
+    root.matchWeekLabel = ""
+    root.leagueLive = []
+    root.leagueRecent = []
+    root.leagueUpcoming = []
+    root.leagueBoardSummary = ""
+    root.matchListCache = {}
+    root.matchListError = ""
   }
 
   function refresh() {
@@ -554,9 +612,10 @@ Panel {
       root._fixtureTeamKey = key
       root.resetTeamData()
     }
-    root.loading = true
+    if (root.collectedEvents.length === 0) {
+      root.loading = true
+    }
     root.requestError = ""
-    root.collectedEvents = []
     // Cancel in-flight requests to prevent stalls and start fresh
     fixtureRequest.running = false
     sbRequest1.running = false
@@ -587,7 +646,7 @@ Panel {
     }
     var next = root.fetchQueue.shift()
     root.fetchStage = next.kind
-    var window = root.rangeDate(-120) + "-" + root.rangeDate(60)
+    var window = root.clubSeasonWindow()
     var team = root.safeIdentifier(root.resolvedTeamId !== "" ? root.resolvedTeamId : root.teamId)
     var leagueCode = root.safeIdentifier(root.league)
     if (next.kind === "teams") {
@@ -625,7 +684,7 @@ Panel {
           var slug = root.safeIdentifier(rawSlug)
           if (slug === "") continue
           root.sbSlugs[i] = slug
-          var window = root.rangeDate(-120) + "-" + root.rangeDate(60)
+          var window = root.clubSeasonWindow()
           procs[i].command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
             "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
           procs[i].running = true
@@ -687,6 +746,9 @@ Panel {
 
   function finishFetch() {
     root.setFixtures({ events: root.collectedEvents })
+    if (root.clubFixturePage === 0 && root.teamFixtureRows.length > 0) {
+      root.initClubFixturePage()
+    }
   }
 
   // A team plays in many competitions (league, cup, continental, friendly), so
@@ -719,7 +781,10 @@ Panel {
     var slug = event ? String(event.competitionSlug || "") : ""
     var info = root.competitionInfo(slug)
     if (info && info.name) return root.sanitizePlainText(String(info.name))
-    if (slug === "") return root.leagueLabel()
+    for (var i = 0; i < root.leagues.length; i++) {
+      if (root.leagues[i].value === slug) return String(root.leagues[i].label)
+    }
+    if (slug === "" || slug === root.league) return root.leagueLabel()
     return root.safeIdentifier(slug)
   }
 
@@ -730,14 +795,12 @@ Panel {
       if (directLogo !== "") return directLogo
     }
     var slug = event ? String(event.competitionSlug || "") : ""
-    var info = root.competitionInfo(slug)
-    if (info && info.logo) {
-      var infoLogo = root.sanitizeImageUrl(String(info.logo))
-      if (infoLogo !== "") return infoLogo
-    }
-    if (root.tournamentLogo) {
-      var tourneyLogo = root.sanitizeImageUrl(String(root.tournamentLogo))
-      if (tourneyLogo !== "") return tourneyLogo
+    if (slug !== "") {
+      var info = root.competitionInfo(slug)
+      if (info && info.logo) {
+        var infoLogo = root.sanitizeImageUrl(String(info.logo))
+        if (infoLogo !== "") return infoLogo
+      }
     }
     return ""
   }
@@ -841,9 +904,31 @@ Panel {
     return event ? root.sanitizePlainText(Qt.formatTime(new Date(event.date), "HH:mm")) : ""
   }
 
+  function shootoutSummaryFor(event) {
+    if (!event) return ""
+    var comp = (event.competitions && event.competitions[0]) || event
+    if (comp.shootout) {
+      var sH = comp.shootout.homeScore !== undefined ? String(comp.shootout.homeScore) : ""
+      var sA = comp.shootout.awayScore !== undefined ? String(comp.shootout.awayScore) : ""
+      if (sH !== "" && sA !== "") return sH + "–" + sA + " Pens"
+    }
+    var hComp = root.competitor(event, "home")
+    var aComp = root.competitor(event, "away")
+    if (hComp && aComp) {
+      var shH = hComp.shootoutScore !== undefined ? String(hComp.shootoutScore) : ""
+      var shA = aComp.shootoutScore !== undefined ? String(aComp.shootoutScore) : ""
+      if (shH !== "" && shA !== "") return shH + "–" + shA + " Pens"
+    }
+    return ""
+  }
+
   function statusFor(event) {
     var status = event && event.status
     var raw = status && status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
+    var shoot = root.shootoutSummaryFor(event)
+    if (shoot !== "" && raw.indexOf("Pen") === -1 && raw.indexOf("pen") === -1) {
+      return root.sanitizePlainText(raw + " (" + shoot + ")")
+    }
     return root.sanitizePlainText(raw)
   }
 
@@ -1024,6 +1109,8 @@ Panel {
       odds: null,
       seriesNote: "",
       shootoutNote: "",
+      shootoutScore: "",
+      shootoutText: "",
       info: { venue: "", attendance: "", officials: "" }
     }
 
@@ -1405,7 +1492,7 @@ Panel {
       var state = String(type.state || "")
       // Only unplayed fixtures carry a time: upcoming shows the full date
       // and time; started matches just show their state ("67'", "HT", "FT").
-      var detail = root.sanitizePlainText(String(type.shortDetail || type.detail || ""))
+      var detail = root.statusFor(e)
       var status = state === "pre"
         ? root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM · HH:mm"))
         : detail
@@ -1422,12 +1509,16 @@ Panel {
         // which otherwise splits rounds and mislabels the date range.
         day: Qt.formatDate(new Date(e.date), "yyyy-MM-dd"),
         status: status,
+        shootoutNote: root.shootoutSummaryFor(e),
         homeName: root.teamNameFor(e, "home"),
         awayName: root.teamNameFor(e, "away"),
         homeScore: root.scoreFor(e, "home"),
         awayScore: root.scoreFor(e, "away"),
         homeLogo: root.teamLogoFor(e, "home"),
-        awayLogo: root.teamLogoFor(e, "away")
+        awayLogo: root.teamLogoFor(e, "away"),
+        competitionSlug: e.competitionSlug !== undefined ? e.competitionSlug : (root.leagueMode ? root.league : ""),
+        competitionName: root.competitionNameFor(e),
+        competitionLogo: root.competitionLogoFor(e)
       }
       if (row.homeName === "—" || row.awayName === "—") continue
       if (!isNaN(row.kickoff)) rows.push(row)
@@ -1456,28 +1547,31 @@ Panel {
     for (var cStart = 0; cStart < rows.length; cStart += perRound)
       clusters.push(rows.slice(cStart, cStart + perRound))
     var today = new Date(); today.setHours(0, 0, 0, 0)
+    var todayMs = today.getTime()
     var idx = -1
     for (var c = 0; c < clusters.length && idx === -1; c++) {
-      var first = new Date(clusters[c][0].day); first.setHours(0, 0, 0, 0)
-      var last = new Date(clusters[c][clusters[c].length - 1].day); last.setHours(0, 0, 0, 0)
+      var first = new Date(clusters[c][0].kickoff); first.setHours(0, 0, 0, 0)
+      var last = new Date(clusters[c][clusters[c].length - 1].kickoff); last.setHours(0, 0, 0, 0)
       // A cluster is live while today sits anywhere inside it, with one day
       // of grace after its last match for late-night finishes.
       last.setDate(last.getDate() + 1)
-      if (today >= first && today <= last) idx = c
+      if (todayMs >= first.getTime() && todayMs <= last.getTime()) idx = c
     }
     if (idx === -1) {
       for (var f = 0; f < clusters.length && idx === -1; f++) {
-        var start = new Date(clusters[f][0].day); start.setHours(0, 0, 0, 0)
-        if (start > today) idx = f
+        var start = new Date(clusters[f][0].kickoff); start.setHours(0, 0, 0, 0)
+        if (start.getTime() > todayMs) idx = f
       }
     }
-    if (idx === -1) idx = clusters.length - 1
+    if (idx === -1) idx = Math.max(0, clusters.length - 1)
 
     var labeled = clusters.map(function(c) {
-      var from = new Date(c[0].day)
-      var to = new Date(c[c.length - 1].day)
+      var from = new Date(c[0].kickoff)
+      var to = new Date(c[c.length - 1].kickoff)
       var label = Qt.formatDate(from, "d MMM")
-      if (from.getTime() !== to.getTime()) label += " – " + Qt.formatDate(to, "d MMM")
+      if (Qt.formatDate(from, "yyyyMMdd") !== Qt.formatDate(to, "yyyyMMdd")) {
+        label += " – " + Qt.formatDate(to, "d MMM")
+      }
       return { rows: c, label: root.sanitizePlainText(label) }
     })
     return { clusters: labeled, index: Math.max(0, idx) }
@@ -2344,12 +2438,30 @@ Panel {
     root._queueSetBarWidget("teamName", teamVal)
     root._queueSetBarWidget("league", leagueVal)
     root._queueSetBarWidget("teamId", teamIdVal)
+
+    // Force clean state and immediate refresh for new club
     root.resetTeamData()
+    root.resetMatchList()
+    root.standingsRows = []
+    root.statsRows = []
+    root.standingsLeagueKey = ""
+    root.statsLeagueKey = ""
     root._fixtureTeamKey = ""
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
+    root.showMatchDetail = false
+    root.clubFixturePage = 0
     root.loading = true
+    root.requestError = ""
+
+    // Cancel in-flight processes
+    fixtureRequest.running = false
+    sbRequest1.running = false
+    sbRequest2.running = false
+    sbRequest3.running = false
+    matchListRequest.running = false
+
     root.refresh()
   }
 
@@ -2528,14 +2640,31 @@ Panel {
     // resurrect it alongside the league-follow.
     root._queueSetBarWidget("teamName", "")
     root._queueSetBarWidget("teamId", "")
+
+    // Force clean state and immediate fetch for new league
     root.resetTeamData()
+    root.resetMatchList()
+    root.standingsRows = []
+    root.statsRows = []
+    root.standingsLeagueKey = ""
+    root.statsLeagueKey = ""
     root._fixtureTeamKey = ""
     root.showStandings = false
     root.showStats = false
     root.showMatches = true
+    root.showMatchDetail = false
     root.leagueBrowseAll = false
     root.matchWindowOffset = 0
     root.matchListLoading = true
+    root.matchListError = ""
+
+    // Cancel in-flight processes
+    fixtureRequest.running = false
+    sbRequest1.running = false
+    sbRequest2.running = false
+    sbRequest3.running = false
+    matchListRequest.running = false
+
     root.loadMatchList(true)
   }
 
@@ -2555,11 +2684,29 @@ Panel {
     return root.league
   }
 
+  function showAllFixtures() {
+    root.showMatchDetail = false
+    root.showStandings = false
+    root.showStats = false
+    root.showMatches = true
+    if (root.leagueMode) {
+      root.leagueBrowseAll = true
+      root.matchWindowOffset = 0
+      root.loadMatchList(true)
+    } else {
+      root.initClubFixturePage()
+      if (root.collectedEvents.length === 0 && !root.loading) {
+        root.refresh()
+      }
+    }
+  }
+
   // Loads the current league's club list and shows the picker for editing.
   function openTeamPicker() {
     root.editingTeam = true
-    root.selectedLeague = root.league
+    root.selectedLeague = root.league !== "" ? root.league : (root.leagues.length > 0 ? root.leagues[0].value : "esp.1")
     root.selectedLeagueName = root.leagueLabel()
+    root.pickerLeagueOnly = root.leagueMode
     root.teams = []
     root.selectedTeam = null
     if (!teamsRequest.running) teamsRequest.running = true
@@ -3043,11 +3190,40 @@ onStreamFinished: root.warnStderr("", text)
             seriesNote = root.sanitizePlainText(String(comp.series.title))
           }
           var shootoutNote = ""
+          var shootoutScore = ""
+          var shootoutText = ""
           if (comp.shootout) {
             var sH = comp.shootout.homeScore !== undefined ? String(comp.shootout.homeScore) : ""
             var sA = comp.shootout.awayScore !== undefined ? String(comp.shootout.awayScore) : ""
             if (sH !== "" && sA !== "") {
+              shootoutScore = sH + " – " + sA
               shootoutNote = sH + "–" + sA + " Pens"
+              shootoutText = "After Penalties"
+            }
+          }
+          if (shootoutNote === "" && homeComp && awayComp) {
+            var sH2 = homeComp.shootoutScore !== undefined ? String(homeComp.shootoutScore) : ""
+            var sA2 = awayComp.shootoutScore !== undefined ? String(awayComp.shootoutScore) : ""
+            if (sH2 !== "" && sA2 !== "") {
+              shootoutScore = sH2 + " – " + sA2
+              shootoutNote = sH2 + "–" + sA2 + " Pens"
+              shootoutText = "After Penalties"
+            }
+          }
+          if (shootoutNote === "" && Array.isArray(comp.notes)) {
+            for (var nti = 0; nti < comp.notes.length; nti++) {
+              var nt = comp.notes[nti]
+              var ntText = nt ? String(nt.text || nt.headline || "") : ""
+              var mPen = ntText.match(/(\d+)\s*[-–]\s*(\d+)\s+on\s+penalties/i) || ntText.match(/penalties.*?(\d+)\s*[-–]\s*(\d+)/i)
+              if (mPen) {
+                shootoutScore = mPen[1] + " – " + mPen[2]
+                shootoutNote = mPen[1] + "–" + mPen[2] + " Pens"
+                shootoutText = "After Penalties"
+                break
+              } else if (ntText.toLowerCase().indexOf("penalties") !== -1) {
+                shootoutNote = ntText
+                shootoutText = "After Penalties"
+              }
             }
           }
 
@@ -3195,6 +3371,8 @@ onStreamFinished: root.warnStderr("", text)
             for (var di = 0; di < detailsList.length; di++) {
               var dItem = detailsList[di]
               if (dItem && dItem.scoringPlay) {
+                var dTypeStr = (dItem.type && dItem.type.text) ? String(dItem.type.text).toLowerCase() : ""
+                if (dItem.shootout || dTypeStr.indexOf("shootout") !== -1) continue
                 var dTeamId = dItem.team ? String(dItem.team.id || "") : ""
                 var dClk = dItem.clock ? String(dItem.clock.displayValue || "") : ""
                 var dParts = Array.isArray(dItem.participants) ? dItem.participants : []
@@ -3220,6 +3398,7 @@ onStreamFinished: root.warnStderr("", text)
               var kEv = rawEvents[ki]
               if (!kEv) continue
               var kTypeStr = (kEv.type && kEv.type.text) ? String(kEv.type.text).toLowerCase() : ""
+              if (kEv.shootout || kTypeStr.indexOf("shootout") !== -1) continue
               if (kTypeStr.indexOf("goal") !== -1 || kTypeStr.indexOf("penalty - scored") !== -1) {
                 var kTeamId = kEv.team ? String(kEv.team.id || "") : ""
                 var kClk = kEv.clock ? String(kEv.clock.displayValue || "") : ""
@@ -3265,6 +3444,10 @@ onStreamFinished: root.warnStderr("", text)
           }
 
           var statusDesc = (comp.status && comp.status.type && comp.status.type.description) ? String(comp.status.type.description) : "Full Time"
+          if (statusDesc.toLowerCase().indexOf("penalties") !== -1 || statusDesc.toLowerCase().indexOf("penalty") !== -1) {
+            if (shootoutText === "") shootoutText = "After Penalties"
+            statusDesc = "Full Time"
+          }
           if (isActuallyLive) {
             var rawClk = ""
             if (comp.status && comp.status.displayClock) {
@@ -3484,6 +3667,8 @@ onStreamFinished: root.warnStderr("", text)
             status: root.sanitizePlainText(statusDesc),
             seriesNote: root.sanitizePlainText(seriesNote),
             shootoutNote: root.sanitizePlainText(shootoutNote),
+            shootoutScore: root.sanitizePlainText(shootoutScore),
+            shootoutText: root.sanitizePlainText(shootoutText),
             home: {
               name: root.sanitizePlainText(String(homeTeam.displayName || homeTeam.name || (root.matchDetail && root.matchDetail.home && root.matchDetail.home.name) || "Home")),
               logo: root.sanitizeImageUrl((homeTeam.logos && homeTeam.logos[0] ? String(homeTeam.logos[0].href || "") : "") || String(homeTeam.logo || "") || (homeTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(homeTeam.id)) + ".png") : "") || (root.matchDetail && root.matchDetail.home && root.matchDetail.home.logo) || ""),
@@ -3871,9 +4056,12 @@ onStreamFinished: root.warnStderr("", text)
     running: root.opened && !root.needsTeam
     repeat: true
     onTriggered: {
-      root.refresh()
-      if (root.showMatches || root.leagueMode) {
-        root.loadMatchList(true)
+      if (root.leagueMode) {
+        if (root.showMatches || root.leagueBrowseAll) {
+          root.loadMatchList(true)
+        }
+      } else {
+        if (!root.fixtureFresh()) root.refresh()
       }
       if (root.showMatchDetail && root.matchDetail && root.matchDetail.id && (root.matchDetail.isLive || !root.matchDetail.started)) {
         if (!matchDetailRequest.running) {
@@ -4117,7 +4305,7 @@ root.warnStderr("team select failed", text)
             width: parent.width
             text: (root.showMatches || root.showStats || root.showStandings || root.leagueMode)
               ? (root.leagueMode ? "" : root.teamName)
-              : (root.tournamentName || root.leagueLabel())
+              : root.leagueLabel()
             color: Qt.darker(root.contentForeground, 1.25)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -4135,7 +4323,7 @@ root.warnStderr("team select failed", text)
           width: Style.space(32)
           height: Style.space(32)
           iconText: "󰕲"
-          tooltipText: "Fixtures"
+          tooltipText: root.leagueMode ? (root.leagueBrowseAll ? "Daily Slate" : "All League Fixtures") : (root.showMatches ? "Match Overview" : (root.teamName + " Fixtures"))
           fontFamily: root.contentFontFamily
           foreground: root.contentForeground
           accent: root.contentForeground
@@ -4154,19 +4342,19 @@ root.warnStderr("team select failed", text)
                 root.leagueBrowseAll = !root.leagueBrowseAll
               }
               root.matchWindowOffset = 0
-              if (!matchListRequest.running) root.loadMatchList()
+              root.loadMatchList(true)
               return
             }
             if (root.showStandings || root.showStats) {
               root.showStandings = false
               root.showStats = false
               root.showMatches = true
-              root.loadMatchList()
+              if (root.collectedEvents.length === 0 && !root.loading) root.refresh()
               return
             }
             root.showMatches = !root.showMatches
-            if (root.showMatches) {
-              root.loadMatchList()
+            if (root.showMatches && root.collectedEvents.length === 0 && !root.loading) {
+              root.refresh()
             }
           }
         }
@@ -4298,7 +4486,7 @@ root.warnStderr("team select failed", text)
         Item {
           id: heroCard
           width: parent.width
-          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + Style.space(24))
+          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (shootoutBottomCol.visible ? shootoutBottomCol.implicitHeight + Style.space(8) : 0) + Style.space(24))
 
           Rectangle {
             anchors.fill: parent
@@ -4369,7 +4557,7 @@ root.warnStderr("team select failed", text)
                 id: seriesText
                 textFormat: Text.PlainText
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: root.matchDetail ? (root.matchDetail.shootoutNote !== "" ? root.matchDetail.shootoutNote : (root.matchDetail.seriesNote || "")) : ""
+                text: root.matchDetail ? (root.matchDetail.shootoutNote === "" ? (root.matchDetail.seriesNote || "") : "") : ""
                 color: Qt.darker(root.contentForeground, 1.6)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.caption - 2
@@ -4497,6 +4685,39 @@ root.warnStderr("team select failed", text)
                 horizontalAlignment: Text.AlignRight
                 wrapMode: Text.NoWrap
               }
+            }
+          }
+
+          // Penalty Shootout Result (bottom middle)
+          Column {
+            id: shootoutBottomCol
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Style.space(8)
+            spacing: Style.space(1)
+            visible: !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: root.matchDetail ? (root.matchDetail.shootoutText || "After Penalties") : "After Penalties"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption - 2
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: root.matchDetail ? (root.matchDetail.shootoutScore !== "" ? root.matchDetail.shootoutScore : root.matchDetail.shootoutNote) : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
+              visible: text !== ""
             }
           }
         }
@@ -6726,19 +6947,59 @@ root.warnStderr("team select failed", text)
               }
             }
 
-            Text {
-              textFormat: Text.PlainText
+            Row {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: matchRow.modelData.state === "pre"
-                ? matchRow.modelData.dateText : matchRow.modelData.status
-              color: matchRow.modelData.state === "in"
-                ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: matchRow.modelData.state === "in"
-              horizontalAlignment: Text.AlignHCenter
-              visible: text !== ""
-              elide: Text.ElideRight
+              spacing: Style.space(5)
+
+              Image {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Style.space(12)
+                height: width
+                source: matchRow.modelData.competitionLogo || ""
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: 32
+                sourceSize.height: 32
+                mipmap: true
+                asynchronous: true
+                smooth: true
+                visible: source !== "" && !root.leagueMode
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchRow.modelData.competitionName || ""
+                color: Qt.darker(root.contentForeground, 1.4)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                visible: text !== "" && !root.leagueMode
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                text: "·"
+                color: Qt.darker(root.contentForeground, 1.8)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                visible: !root.leagueMode && (matchRow.modelData.competitionName || "") !== "" && matchRowSubText.text !== ""
+              }
+
+              Text {
+                id: matchRowSubText
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchRow.modelData.state === "pre"
+                  ? matchRow.modelData.dateText : matchRow.modelData.status
+                color: matchRow.modelData.state === "in"
+                  ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: matchRow.modelData.state === "in"
+                visible: text !== ""
+                elide: Text.ElideRight
+              }
             }
           }
         }
@@ -7079,15 +7340,16 @@ root.warnStderr("team select failed", text)
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - (matchWeekNav.visible ? matchWeekNav.width + parent.spacing : 0)
               - (liveBadge.visible ? liveBadge.width + parent.spacing : 0)
-            opacity: root.matchListLoading ? 0.4 + 0.6 * root._pulse : 1.0
+            opacity: (root.leagueMode ? root.matchListLoading : root.loading) ? 0.4 + 0.6 * root._pulse : 1.0
             text: root.matchListError !== "" ? "Could not load matches"
               : (root.leagueMode
                 ? (root.leagueBrowseAll
                   ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
                   : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0
                     ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No matches today")))
-                : (root.matchWeekRows.length > 0 ? root.leagueLabel()
-                : (root.matchListLoading ? "Fetching matches…" : "No matches this week")))
+                : (root.loading
+                  ? ("Fetching " + root.teamName + " fixtures…")
+                  : (root.teamFixtureRows.length > 0 ? (root.teamName + " Fixtures") : ("No fixtures found for " + root.teamName))))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
@@ -7103,12 +7365,12 @@ root.warnStderr("team select failed", text)
             // Sits between the title and the season/round controls.
             anchors.right: matchWeekNav.visible ? matchWeekNav.left : parent.right
             anchors.rightMargin: matchWeekNav.visible ? parent.spacing : 0
-            text: root.leagueLive.length + " live"
+            text: root.leagueMode ? (root.leagueLive.length + " live") : "Live"
             color: "#4ade80"
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
             font.bold: true
-            visible: root.leagueLive.length > 0
+            visible: root.leagueMode ? (root.leagueLive.length > 0) : (root.liveMatch !== null)
           }
 
           Row {
@@ -7116,7 +7378,7 @@ root.warnStderr("team select failed", text)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
-            visible: !root.leagueMode || root.leagueBrowseAll
+            visible: root.leagueMode && root.leagueBrowseAll
 
             Button {
               id: prevWeekButton
@@ -7187,16 +7449,92 @@ root.warnStderr("team select failed", text)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
           wrapMode: Text.WordWrap
-          visible: root.matchListError !== ""
+          visible: root.leagueMode && root.matchListError !== ""
         }
 
+        // Selected club's own full fixtures list (5 matches per view with navigation arrows)
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
+          visible: !root.leagueMode && root.showMatches && root.teamFixtureRows.length > 0
+
+          Column {
+            width: parent.width
+            spacing: 0
+
+            Repeater {
+              model: root.pagedClubRows
+              delegate: matchRowDelegate
+            }
+          }
+
+          // Navigation arrows below the 5 fixtures
+          Row {
+            width: parent.width
+            height: Style.space(32)
+            visible: root.clubPageCount > 1
+
+            Button {
+              id: clubPrevPageBtn
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(85)
+              height: Style.space(28)
+              iconText: ""
+              text: "Earlier"
+              enabled: root.clubFixturePage > 0
+              opacity: root.clubFixturePage > 0 ? 1.0 : 0.4
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              iconSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              onClicked: {
+                if (root.clubFixturePage > 0) root.clubFixturePage--
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.centerIn: parent
+              text: (root.clubFixturePage * root.clubPageSize + 1) + "–" + Math.min((root.clubFixturePage + 1) * root.clubPageSize, root.teamFixtureRows.length) + " of " + root.teamFixtureRows.length
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Button {
+              id: clubNextPageBtn
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(85)
+              height: Style.space(28)
+              iconText: ""
+              text: "Later"
+              enabled: root.clubFixturePage < root.clubPageCount - 1
+              opacity: root.clubFixturePage < root.clubPageCount - 1 ? 1.0 : 0.4
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              iconSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              onClicked: {
+                if (root.clubFixturePage < root.clubPageCount - 1) root.clubFixturePage++
+              }
+            }
+          }
+        }
+
+        // Full league fixtures by matchweek
         Column {
           width: parent.width
           spacing: 0
-          // Rows stay visible (dimmed) while a refresh runs so the popup
-          // never shrinks mid-fetch.
-          visible: (!root.leagueMode || root.leagueBrowseAll)
-            && root.matchWeekRows.length > 0
+          visible: root.leagueMode && root.leagueBrowseAll && root.matchWeekRows.length > 0
 
           Repeater {
             model: root.matchWeekRows
@@ -7233,6 +7571,78 @@ root.warnStderr("team select failed", text)
             Repeater {
               model: modelData.rows
               delegate: matchRowDelegate
+            }
+          }
+        }
+
+        Item {
+          width: parent.width
+          height: Style.space(32)
+          visible: root.leagueMode && !root.leagueBrowseAll && !root.matchListLoading && root.matchListError === "" && (root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) === 0
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.centerIn: parent
+            text: "No matches scheduled for today"
+            color: Qt.darker(root.contentForeground, 1.5)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+
+        // Daily slate option: navigate to all fixtures window
+        Item {
+          id: seeFixturesRow
+          width: parent.width
+          height: Style.space(38)
+          visible: root.leagueMode && !root.leagueBrowseAll && root.matchListError === ""
+          opacity: root.matchListLoading ? 0.5 : 1.0
+
+          Rectangle {
+            anchors.fill: parent
+            radius: Style.space(6)
+            color: root.contentForeground
+            opacity: seeFixturesMouseArea.containsMouse ? 0.08 : 0.04
+          }
+
+          MouseArea {
+            id: seeFixturesMouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.showAllFixtures()
+          }
+
+          Row {
+            anchors.centerIn: parent
+            spacing: Style.space(8)
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              text: "󰕲"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Show full fixtures"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              text: ""
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
             }
           }
         }
@@ -7599,6 +8009,16 @@ root.warnStderr("team select failed", text)
           font.letterSpacing: 1
           font.bold: true
         }
+
+        Text {
+          textFormat: Text.PlainText
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          text: root.kickoffDay(root.previousMatch) + " · " + root.statusFor(root.previousMatch)
+          color: Qt.darker(root.contentForeground, 1.5)
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+        }
       }
 
       Item {
@@ -7725,6 +8145,61 @@ root.warnStderr("team select failed", text)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
             }
+          }
+        }
+      }
+
+      Item {
+        id: clubSeeFixturesRow
+        width: parent.width
+        height: Style.space(38)
+        visible: !root.customViewActive && !root.loading && root.requestError === "" && (root.nextMatch || root.previousMatch)
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Style.space(6)
+          color: root.contentForeground
+          opacity: clubSeeFixturesMouseArea.containsMouse ? 0.08 : 0.04
+        }
+
+        MouseArea {
+          id: clubSeeFixturesMouseArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.showAllFixtures()
+        }
+
+        Row {
+          anchors.centerIn: parent
+          spacing: Style.space(8)
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: "󰕲"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Show full fixtures"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: ""
+            color: Qt.darker(root.contentForeground, 1.5)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
           }
         }
       }
