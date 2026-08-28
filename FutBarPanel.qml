@@ -521,6 +521,12 @@ Panel {
     root.showClubFixtures = false
     root.leagueBrowseAll = false
     root.showMatches = root.leagueMode
+    root.matchWindowOffset = 0
+    root.pendingEdge = ""
+    root.navAnchorDay = ""
+    if (root.matchClusters && root.matchClusters.length > 0) {
+      root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+    }
     if (root.leagueMode) root.loadMatchList()
     root.controller.show()
     // Cached fixtures are shown instantly; only refetch when they are stale
@@ -542,6 +548,9 @@ Panel {
     root.matchWindowOffset = 0
     root.pendingEdge = ""
     root.navAnchorDay = ""
+    if (root.matchClusters && root.matchClusters.length > 0) {
+      root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+    }
     root.standingsSeasonOffset = 0
     root.statsSeasonOffset = 0
     root.showStats = false
@@ -1531,6 +1540,49 @@ Panel {
     return rows
   }
 
+  function currentMatchWeekIndex(clusters) {
+    if (!clusters || !Array.isArray(clusters) || clusters.length === 0) return 0
+    var today = new Date(); today.setHours(0, 0, 0, 0)
+    var todayMs = today.getTime()
+    var idx = -1
+
+    // 1. Any cluster containing a live/active match?
+    for (var cl = 0; cl < clusters.length && idx === -1; cl++) {
+      var rows = clusters[cl].rows || clusters[cl]
+      if (!Array.isArray(rows)) continue
+      for (var r = 0; r < rows.length; r++) {
+        if (rows[r].state === "in" || rows[r].status === "Live" || String(rows[r].status).indexOf("'") !== -1 || rows[r].status === "HT") {
+          idx = cl
+          break
+        }
+      }
+    }
+
+    // 2. Any cluster where today sits within match dates (with 1 day grace for night finishes)?
+    for (var c = 0; c < clusters.length && idx === -1; c++) {
+      var cRows = clusters[c].rows || clusters[c]
+      if (!Array.isArray(cRows) || cRows.length === 0) continue
+      var first = new Date(cRows[0].kickoff); first.setHours(0, 0, 0, 0)
+      var last = new Date(cRows[cRows.length - 1].kickoff); last.setHours(0, 0, 0, 0)
+      last.setDate(last.getDate() + 1)
+      if (todayMs >= first.getTime() && todayMs <= last.getTime()) idx = c
+    }
+
+    // 3. Nearest future cluster?
+    if (idx === -1) {
+      for (var f = 0; f < clusters.length && idx === -1; f++) {
+        var fRows = clusters[f].rows || clusters[f]
+        if (!Array.isArray(fRows) || fRows.length === 0) continue
+        var start = new Date(fRows[0].kickoff); start.setHours(0, 0, 0, 0)
+        if (start.getTime() > todayMs) idx = f
+      }
+    }
+
+    // 4. Fallback: latest cluster
+    if (idx === -1) idx = Math.max(0, clusters.length - 1)
+    return Math.max(0, Math.min(idx, clusters.length - 1))
+  }
+
   function parseMatchWeek(data) {
     var events = data && Array.isArray(data.events) ? data.events : []
     var rows = root.matchRowsFromEvents(events)
@@ -1550,24 +1602,6 @@ Panel {
     var clusters = []
     for (var cStart = 0; cStart < rows.length; cStart += perRound)
       clusters.push(rows.slice(cStart, cStart + perRound))
-    var today = new Date(); today.setHours(0, 0, 0, 0)
-    var todayMs = today.getTime()
-    var idx = -1
-    for (var c = 0; c < clusters.length && idx === -1; c++) {
-      var first = new Date(clusters[c][0].kickoff); first.setHours(0, 0, 0, 0)
-      var last = new Date(clusters[c][clusters[c].length - 1].kickoff); last.setHours(0, 0, 0, 0)
-      // A cluster is live while today sits anywhere inside it, with one day
-      // of grace after its last match for late-night finishes.
-      last.setDate(last.getDate() + 1)
-      if (todayMs >= first.getTime() && todayMs <= last.getTime()) idx = c
-    }
-    if (idx === -1) {
-      for (var f = 0; f < clusters.length && idx === -1; f++) {
-        var start = new Date(clusters[f][0].kickoff); start.setHours(0, 0, 0, 0)
-        if (start.getTime() > todayMs) idx = f
-      }
-    }
-    if (idx === -1) idx = Math.max(0, clusters.length - 1)
 
     var labeled = clusters.map(function(c) {
       var from = new Date(c[0].kickoff)
@@ -1578,7 +1612,8 @@ Panel {
       }
       return { rows: c, label: root.sanitizePlainText(label) }
     })
-    return { clusters: labeled, index: Math.max(0, idx) }
+    var idx = root.currentMatchWeekIndex(labeled)
+    return { clusters: labeled, index: idx }
   }
 
   // Crest URL for the followed club: taken from its own fixture entry when
@@ -2695,12 +2730,16 @@ Panel {
     root.showStats = false
     root.showClubFixtures = false
     root.showMatches = true
+    root.matchWindowOffset = 0
+    root.pendingEdge = ""
+    root.navAnchorDay = ""
+    if (root.matchClusters && root.matchClusters.length > 0) {
+      root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+    }
     if (root.leagueMode) {
       root.leagueBrowseAll = true
-      root.matchWindowOffset = 0
       root.loadMatchList(true)
     } else {
-      root.matchWindowOffset = 0
       root.loadMatchList(true)
     }
   }
@@ -3995,11 +4034,15 @@ onStreamFinished: root.warnStderr("", text)
             }
             if (!landed) root.matchClusterIndex = week.clusters.length - 1
           } else {
-            var keep = -1
-            for (var k = 0; k < week.clusters.length && keep === -1; k++) {
-              if (week.clusters[k].label === root.matchWeekLabel) keep = k
+            if (root.matchWindowOffset === 0) {
+              root.matchClusterIndex = week.index
+            } else {
+              var keep = -1
+              for (var k = 0; k < week.clusters.length && keep === -1; k++) {
+                if (week.clusters[k].label === root.matchWeekLabel) keep = k
+              }
+              root.matchClusterIndex = keep !== -1 ? keep : week.index
             }
-            root.matchClusterIndex = keep !== -1 ? keep : week.index
           }
           root.pendingEdge = ""
           root.navAnchorDay = ""
@@ -4365,6 +4408,11 @@ root.warnStderr("team select failed", text)
                 root.leagueBrowseAll = !root.leagueBrowseAll
               }
               root.matchWindowOffset = 0
+              root.pendingEdge = ""
+              root.navAnchorDay = ""
+              if (root.matchClusters && root.matchClusters.length > 0) {
+                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              }
               root.loadMatchList(true)
               return
             }
@@ -4372,12 +4420,24 @@ root.warnStderr("team select failed", text)
               root.showStandings = false
               root.showStats = false
               root.showMatches = true
-              root.loadMatchList()
+              root.matchWindowOffset = 0
+              root.pendingEdge = ""
+              root.navAnchorDay = ""
+              if (root.matchClusters && root.matchClusters.length > 0) {
+                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              }
+              root.loadMatchList(true)
               return
             }
             root.showMatches = !root.showMatches
             if (root.showMatches) {
-              root.loadMatchList()
+              root.matchWindowOffset = 0
+              root.pendingEdge = ""
+              root.navAnchorDay = ""
+              if (root.matchClusters && root.matchClusters.length > 0) {
+                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              }
+              root.loadMatchList(true)
             }
           }
         }
@@ -4408,6 +4468,11 @@ root.warnStderr("team select failed", text)
               root.showMatches = true
               root.leagueBrowseAll = false
               root.matchWindowOffset = 0
+              root.pendingEdge = ""
+              root.navAnchorDay = ""
+              if (root.matchClusters && root.matchClusters.length > 0) {
+                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              }
               if (!matchListRequest.running) root.loadMatchList()
             }
           }
@@ -4439,6 +4504,11 @@ root.warnStderr("team select failed", text)
               root.showMatches = true
               root.leagueBrowseAll = false
               root.matchWindowOffset = 0
+              root.pendingEdge = ""
+              root.navAnchorDay = ""
+              if (root.matchClusters && root.matchClusters.length > 0) {
+                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              }
               if (!matchListRequest.running) root.loadMatchList()
             }
           }
