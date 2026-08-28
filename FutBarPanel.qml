@@ -77,6 +77,88 @@ Panel {
     NumberAnimation { to: 1.0; duration: 450; easing.type: Easing.InOutQuad }
     NumberAnimation { to: 0.0; duration: 450; easing.type: Easing.InOutQuad }
   }
+
+  component LoadingOverlay: Item {
+    id: overlay
+    property bool active: false
+    property string text: "Fetching data…"
+    property int spinnerSize: Style.space(36)
+
+    anchors.fill: parent
+    visible: opacity > 0
+    opacity: active ? 1.0 : 0.0
+    z: 99
+
+    Behavior on opacity {
+      NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
+    }
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: Color.popups.background
+      opacity: 0.90
+    }
+
+    Column {
+      anchors.centerIn: parent
+      spacing: Style.space(12)
+
+      Item {
+        id: spinnerContainer
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: overlay.spinnerSize
+        height: overlay.spinnerSize
+
+        Canvas {
+          id: spinnerCanvas
+          anchors.fill: parent
+          antialiasing: true
+
+          onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+            var cx = width / 2
+            var cy = height / 2
+            var radius = Math.min(width, height) / 2 - Style.space(3)
+
+            ctx.beginPath()
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
+            ctx.lineWidth = Style.space(3)
+            ctx.strokeStyle = Util.alpha(root.contentForeground, 0.15)
+            ctx.stroke()
+
+            ctx.beginPath()
+            ctx.arc(cx, cy, radius, -Math.PI / 2, Math.PI / 4)
+            ctx.lineWidth = Style.space(3.5)
+            ctx.lineCap = "round"
+            ctx.strokeStyle = root.contentForeground
+            ctx.stroke()
+          }
+        }
+
+        RotationAnimator on rotation {
+          running: overlay.active && overlay.visible
+          from: 0
+          to: 360
+          duration: 850
+          loops: Animation.Infinite
+        }
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: overlay.text
+        color: root.contentForeground
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        horizontalAlignment: Text.AlignHCenter
+        opacity: 0.6 + 0.4 * root._pulse
+      }
+    }
+  }
   // First run: no team has been stored in shell.json yet. The manifest default
   // only feeds the settings UI, so an untouched widget has an undefined value.
   // A remembered favorite (the state file) counts as a team too.
@@ -698,6 +780,225 @@ readonly property var leagues: [
     { value: "fifa.friendly_u21", label: "Under-21 International Friendly" },
     { value: "caf.w.nations", label: "Women's Africa Cup of Nations" }
   ]
+
+  readonly property var leagueLogoMap: ({
+    "eng.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/23.png",
+    "esp.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/15.png",
+    "ita.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/12.png",
+    "ger.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/10.png",
+    "fra.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/9.png",
+    "ned.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/11.png",
+    "por.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/14.png",
+    "ksa.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2488.png",
+    "usa.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/19.png",
+    "mex.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/22.png",
+    "bra.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/85.png",
+    "arg.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1.png",
+    "sco.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/45.png",
+    "bel.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/6.png",
+    "tur.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/18.png",
+    "aut.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/5.png",
+    "gre.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/98.png",
+    "den.1": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "swe.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/16.png",
+    "nor.1": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "rus.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/106.png",
+    "jpn.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2199.png",
+    "chn.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2350.png",
+    "ind.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2334.png",
+    "aus.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1308.png",
+    "col.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1543.png",
+    "chi.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/86.png",
+    "per.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1813.png",
+    "ecu.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1944.png",
+    "uru.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1592.png",
+    "par.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1892.png",
+    "bol.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1949.png",
+    "ven.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/1947.png",
+    "crc.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2245.png",
+    "rsa.1": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "eng.2": "https://a.espncdn.com/i/leaguelogos/soccer/500/24.png",
+    "eng.3": "https://a.espncdn.com/i/leaguelogos/soccer/500/25.png",
+    "eng.4": "https://a.espncdn.com/i/leaguelogos/soccer/500/26.png",
+    "eng.5": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "esp.2": "http://a.espncdn.com/i/leaguelogos/soccer/500/107.png",
+    "ger.2": "https://a.espncdn.com/i/leaguelogos/soccer/500/97.png",
+    "ita.2": "http://a.espncdn.com/i/leaguelogos/soccer/500/99.png",
+    "fra.2": "http://a.espncdn.com/i/leaguelogos/soccer/500/96.png",
+    "ned.2": "https://a.espncdn.com/i/leaguelogos/soccer/500/105.png",
+    "sco.2": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "usa.usl.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2292.png",
+    "usa.usl.l1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2452.png",
+    "mex.2": "https://a.espncdn.com/i/leaguelogos/soccer/500/2306.png",
+    "bra.2": "https://a.espncdn.com/i/leaguelogos/soccer/500/2299.png",
+    "arg.2": "https://a.espncdn.com/i/leaguelogos/soccer/500/2294.png",
+    "arg.3": "https://a.espncdn.com/i/leaguelogos/soccer/500/2308.png",
+    "usa.nwsl": "https://a.espncdn.com/i/leaguelogos/soccer/500/2323.png",
+    "eng.w.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2314.png",
+    "esp.w.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/15.png",
+    "fra.w.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/9.png",
+    "aus.w.1": "http://a.espncdn.com/i/leaguelogos/soccer/500/2402.png",
+    "uefa.wchampions": "https://a.espncdn.com/i/leaguelogos/soccer/500/2408.png",
+    "concacaf.w.champions_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2298.png",
+    "usa.w.usl.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2292.png",
+    "uefa.champions": "https://a.espncdn.com/i/leaguelogos/soccer/500/2.png",
+    "uefa.europa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2310.png",
+    "uefa.europa.conf": "https://a.espncdn.com/i/leaguelogos/soccer/500/20296.png",
+    "uefa.super_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/1272.png",
+    "conmebol.libertadores": "https://a.espncdn.com/i/leaguelogos/soccer/500/58.png",
+    "conmebol.sudamericana": "https://a.espncdn.com/i/leaguelogos/soccer/500/1208.png",
+    "conmebol.recopa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2335.png",
+    "concacaf.champions": "https://a.espncdn.com/i/leaguelogos/soccer/500/2298.png",
+    "concacaf.leagues.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2410.png",
+    "afc.champions": "https://a.espncdn.com/i/leaguelogos/soccer/500/2200.png",
+    "afc.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2243.png",
+    "caf.champions": "https://a.espncdn.com/i/leaguelogos/soccer/500/2391.png",
+    "caf.confed": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "fifa.cwc": "https://a.espncdn.com/i/leaguelogos/soccer/500/1932.png",
+    "campeones.cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "eng.fa": "https://a.espncdn.com/i/leaguelogos/soccer/500/40.png",
+    "eng.league_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/41.png",
+    "eng.charity": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "esp.copa_del_rey": "https://a.espncdn.com/i/leaguelogos/soccer/500/80.png",
+    "esp.super_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/431.png",
+    "ita.coppa_italia": "https://a.espncdn.com/i/leaguelogos/soccer/500/2192.png",
+    "ita.super_cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "ger.dfb_pokal": "https://a.espncdn.com/i/leaguelogos/soccer/500/2061.png",
+    "ger.super_cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "fra.coupe_de_france": "https://a.espncdn.com/i/leaguelogos/soccer/500/182.png",
+    "fra.super_cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "usa.open": "https://a.espncdn.com/i/leaguelogos/soccer/500/69.png",
+    "por.taca.portugal": "https://a.espncdn.com/i/leaguelogos/soccer/500/14.png",
+    "ned.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2196.png",
+    "sco.tennents": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "sco.cis": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "ksa.kings.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2488.png",
+    "bra.copa_do_brazil": "https://a.espncdn.com/i/leaguelogos/soccer/500/528.png",
+    "bra.supercopa_do_brazil": "https://a.espncdn.com/i/leaguelogos/soccer/500/85.png",
+    "arg.copa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2320.png",
+    "arg.supercopa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2343.png",
+    "col.copa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2332.png",
+    "fifa.world": "https://a.espncdn.com/i/leaguelogos/soccer/500/4.png",
+    "fifa.wwc": "https://a.espncdn.com/i/leaguelogos/soccer/500/60.png",
+    "uefa.euro": "https://a.espncdn.com/i/leaguelogos/soccer/500/74.png",
+    "uefa.weuro": "https://a.espncdn.com/i/leaguelogos/soccer/500/2381.png",
+    "uefa.nations": "https://a.espncdn.com/i/leaguelogos/soccer/500/2395.png",
+    "uefa.w.nations": "https://a.espncdn.com/i/leaguelogos/soccer/500/2395.png",
+    "conmebol.america": "https://a.espncdn.com/i/leaguelogos/soccer/500/83.png",
+    "conmebol.america.femenina": "https://a.espncdn.com/i/leaguelogos/soccer/500/83.png",
+    "concacaf.gold": "https://a.espncdn.com/i/leaguelogos/soccer/500/59.png",
+    "concacaf.w.gold": "https://a.espncdn.com/i/leaguelogos/soccer/500/59.png",
+    "concacaf.nations.league": "https://a.espncdn.com/i/leaguelogos/soccer/500/2406.png",
+    "caf.nations": "https://a.espncdn.com/i/leaguelogos/soccer/500/76.png",
+    "afc.asian.cup": "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/2243.png",
+    "fifa.olympics": "https://a.espncdn.com/i/leaguelogos/soccer/500/71.png",
+    "fifa.w.olympics": "https://a.espncdn.com/i/leaguelogos/soccer/500/84.png",
+    "fifa.friendly": "https://a.espncdn.com/i/leaguelogos/soccer/500/53.png",
+    "fifa.friendly.w": "https://a.espncdn.com/i/leaguelogos/soccer/500/70.png",
+    "club.friendly": "https://a.espncdn.com/i/leaguelogos/soccer/500/53.png",
+    "afc.cupq": "http://a.espncdn.com/i/leaguelogos/soccer/500/2246.png",
+    "afc.champions_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/2200.png",
+    "afc.cup_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/2243.png",
+    "afc.w.asian.cup": "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/2243.png",
+    "aff.championship": "https://a.espncdn.com/i/leaguelogos/soccer/500/2261.png",
+    "caf.nations_qual": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "caf.championship": "https://a.espncdn.com/i/leaguelogos/soccer/500/76.png",
+    "global.gulf_cup": "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/2243.png",
+    "arg.copa_de_la_superliga": "https://a.espncdn.com/i/leaguelogos/soccer/500/2407.png",
+    "arg.supercopa.internacional": "https://a.espncdn.com/i/leaguelogos/soccer/500/1.png",
+    "arg.trofeo_de_la_campeones": "https://a.espncdn.com/i/leaguelogos/soccer/500/1.png",
+    "global.arnold.clark_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2314.png",
+    "bel.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/6.png",
+    "bol.ply.rel": "https://a.espncdn.com/i/leaguelogos/soccer/500/1949.png",
+    "bra.camp.carioca": "https://a.espncdn.com/i/leaguelogos/soccer/500/2265.png",
+    "bra.camp.gaucho": "https://a.espncdn.com/i/leaguelogos/soccer/500/2272.png",
+    "bra.camp.mineiro": "https://a.espncdn.com/i/leaguelogos/soccer/500/2360.png",
+    "bra.camp.paulista": "https://a.espncdn.com/i/leaguelogos/soccer/500/2322.png",
+    "concacaf.champions_cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "concacaf.u23": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "fifa.conmebol.olympicsq": "https://a.espncdn.com/i/leaguelogos/soccer/500/19727.png",
+    "global.club_challenge": "https://a.espncdn.com/i/leaguelogos/soccer/500/2310.png",
+    "global.finalissima": "https://a.espncdn.com/i/leaguelogos/soccer/500/74.png",
+    "global.u20.intercontinental_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/58.png",
+    "global.w.finalissima": "https://a.espncdn.com/i/leaguelogos/soccer/500/2381.png",
+    "caf.cosafa": "https://a.espncdn.com/i/leaguelogos/soccer/500/76.png",
+    "chi.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/86.png",
+    "chi.super_cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "chn.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/2350.png",
+    "col.superliga": "https://a.espncdn.com/i/leaguelogos/soccer/500-dark/2405.png",
+    "concacaf.central.american.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2298.png",
+    "concacaf.confederations_playoff": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "concacaf.gold_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/59.png",
+    "concacaf.womens.championship": "https://a.espncdn.com/i/leaguelogos/soccer/500/18969.png",
+    "fifa.w.concacaf.olympicsq": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "bol.copa": "https://a.espncdn.com/i/leaguelogos/soccer/500/1949.png",
+    "chi.copa_chi": "http://a.espncdn.com/i/leaguelogos/soccer/500/2331.png",
+    "ned.playoff.relegation": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "ned.supercup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "ned.w.knvb_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2196.png",
+    "ned.3.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/11.png",
+    "ned.w.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2453.png",
+    "friendly.emirates_cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "eng.trophy": "https://a.espncdn.com/i/leaguelogos/soccer/500/42.png",
+    "eng.fa_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/40.png",
+    "eng.w.fa": "https://a.espncdn.com/i/leaguelogos/soccer/500/40.png",
+    "eng.w.league_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/41.png",
+    "eng.w.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/2314.png",
+    "fifa.intercontinental_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/1932.png",
+    "fifa.wworld.u17": "https://a.espncdn.com/i/leaguelogos/soccer/500/60.png",
+    "fifa.world.u17": "https://a.espncdn.com/i/leaguelogos/soccer/500/2288.png",
+    "fifa.world.u20": "https://a.espncdn.com/i/leaguelogos/soccer/500/2285.png",
+    "fifa.w.champions_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/60.png",
+    "fifa.wwcq.ply": "https://a.espncdn.com/i/leaguelogos/soccer/500/60.png",
+    "fifa.wworldq.uefa": "https://a.espncdn.com/i/leaguelogos/soccer/500/60.png",
+    "fifa.worldq.afc": "https://a.espncdn.com/i/leaguelogos/soccer/500/62.png",
+    "fifa.worldq.caf": "https://a.espncdn.com/i/leaguelogos/soccer/500/63.png",
+    "fifa.worldq.conmebol": "https://a.espncdn.com/i/leaguelogos/soccer/500/65.png",
+    "fifa.worldq.concacaf": "https://a.espncdn.com/i/leaguelogos/soccer/500/64.png",
+    "fifa.worldq.ofc": "https://a.espncdn.com/i/leaguelogos/soccer/500/66.png",
+    "fifa.wcq.ply": "https://a.espncdn.com/i/leaguelogos/soccer/500/4.png",
+    "fifa.worldq.uefa": "https://a.espncdn.com/i/leaguelogos/soccer/500/67.png",
+    "fra.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/9.png",
+    "ger.2.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/97.png",
+    "ger.playoff.relegation": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "gua.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2248.png",
+    "hon.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2247.png",
+    "fifa.intercontinental.cup": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "jpn.world_challenge": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "fifa.concacaf.olympicsq": "https://a.espncdn.com/i/leaguelogos/soccer/500/71.png",
+    "mex.campeon": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "usa.ncaa.m.1": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/sports-soccer-solid.png",
+    "usa.ncaa.w.1": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/sports-soccer-solid.png",
+    "usa.nwsl.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2445.png",
+    "can.w.nsl": "https://a.espncdn.com/i/leaguelogos/soccer/500/2323.png",
+    "nor.1.promotion.relegation": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "par.1.supercopa": "https://a.espncdn.com/i/leaguelogos/soccer/500/1892.png",
+    "global.pinatar_cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/15.png",
+    "por.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/14.png",
+    "rus.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/106.png",
+    "afc.saff.championship": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "slv.1": "https://a.espncdn.com/i/leaguelogos/soccer/500/2244.png",
+    "sco.2.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/45.png",
+    "sco.tennents_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/45.png",
+    "sco.challenge": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "sco.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/45.png",
+    "fifa.shebelieves": "https://a.espncdn.com/i/leaguelogos/soccer/500/60.png",
+    "esp.copa_de_la_reina": "https://a.espncdn.com/i/leaguelogos/soccer/500/80.png",
+    "swe.1.promotion.relegation": "https://a.espncdn.com/i/leaguelogos/soccer/500/16.png",
+    "esp.joan_gamper": "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100",
+    "uefa.champions_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/2.png",
+    "uefa.europa.conf_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/20296.png",
+    "uefa.europa_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/2310.png",
+    "uefa.euroq": "https://a.espncdn.com/i/leaguelogos/soccer/500/56.png",
+    "uefa.euro.u19": "http://a.espncdn.com/i/leaguelogos/soccer/500/2297.png",
+    "uefa.euro_u21": "http://a.espncdn.com/i/leaguelogos/soccer/500/2284.png",
+    "uefa.euro_u21_qual": "http://a.espncdn.com/i/leaguelogos/soccer/500/2284.png",
+    "uefa.wchampions_qual": "https://a.espncdn.com/i/leaguelogos/soccer/500/2408.png",
+    "uefa.w.europa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2310.png",
+    "usa.usl.l1.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2452.png",
+    "fifa.friendly_u21": "https://a.espncdn.com/i/leaguelogos/soccer/500/53.png",
+    "caf.w.nations": "https://a.espncdn.com/i/leaguelogos/soccer/500/76.png",
+  })
   property string selectedLeague: ""
   property string selectedLeagueName: ""
   property var selectedTeam: null
@@ -1006,8 +1307,12 @@ readonly property var leagues: [
         var infoLogo = root.sanitizeImageUrl(String(info.logo))
         if (infoLogo !== "") return infoLogo
       }
+      if (root.leagueLogoMap && root.leagueLogoMap[slug]) {
+        var mapLogo = root.sanitizeImageUrl(String(root.leagueLogoMap[slug]))
+        if (mapLogo !== "") return mapLogo
+      }
     }
-    return ""
+    return root.leagueLogoUrl()
   }
 
   function setFixtures(data) {
@@ -1078,13 +1383,17 @@ readonly property var leagues: [
 
     var item = competitor(event, side)
     if (!item) return ""
-    var t = item.team || {}
-    var l = String(t.logo || "")
+    var t = item.team || item || {}
+    var l = String(t.logo || (item.team && item.team.logo) || "")
     if (l === "" && Array.isArray(t.logos) && t.logos.length > 0 && t.logos[0].href) {
       l = String(t.logos[0].href)
     }
-    if (l === "" && t.id) {
-      var safeId = root.safeIdentifier(String(t.id))
+    if (l === "" && item.team && Array.isArray(item.team.logos) && item.team.logos.length > 0 && item.team.logos[0].href) {
+      l = String(item.team.logos[0].href)
+    }
+    if (l === "" && (t.id || (item.team && item.team.id))) {
+      var rawId = String(t.id || (item.team && item.team.id) || "")
+      var safeId = root.safeIdentifier(rawId)
       if (safeId !== "") l = "https://a.espncdn.com/i/teamlogos/soccer/500/" + safeId + ".png"
     }
     return root.sanitizeImageUrl(l)
@@ -1588,6 +1897,11 @@ readonly property var leagues: [
         var teamLogo = ""
         if (team.logos && team.logos[0]) {
           teamLogo = root.sanitizeImageUrl(String(team.logos[0].href || ""))
+        } else if (team.logo) {
+          teamLogo = root.sanitizeImageUrl(String(team.logo))
+        } else if (team.id) {
+          var safeTid = root.safeIdentifier(String(team.id))
+          if (safeTid !== "") teamLogo = "https://a.espncdn.com/i/teamlogos/soccer/500/" + safeTid + ".png"
         }
         var entry = {
           rank: j + 1,
@@ -1845,225 +2159,8 @@ readonly property var leagues: [
       if (s !== "") return s
     }
     var code = root.safeIdentifier(root.league)
-var leagueCdnMap = {
-      "fifa.world": "606",
-      "fifa.wwc": "795",
-      "uefa.champions": "775",
-      "eng.1": "700",
-      "eng.fa": "3918",
-      "eng.league_cup": "3920",
-      "esp.1": "740",
-      "eng.charity": "5329",
-      "esp.super_cup": "8102",
-      "esp.copa_del_rey": "3951",
-      "usa.1": "770",
-      "concacaf.leagues.cup": "19425",
-      "campeones.cup": "18771",
-      "usa.nwsl": "8301",
-      "usa.nwsl.cup": "19868",
-      "fifa.shebelieves": "19728",
-      "fifa.w.champions_cup": "24081",
-      "uefa.wchampions": "19483",
-      "uefa.europa": "776",
-      "uefa.europa.conf": "20296",
-      "fifa.friendly": "3922",
-      "mex.1": "760",
-      "ger.1": "720",
-      "ger.playoff.relegation": "8304",
-      "ger.dfb_pokal": "3954",
-      "ita.1": "730",
-      "ita.coppa_italia": "3956",
-      "fra.1": "710",
-      "fra.super_cup": "8357",
-      "ita.super_cup": "8103",
-      "ger.super_cup": "8101",
-      "eng.w.1": "8097",
-      "eng.2": "3914",
-      "eng.w.promotion.relegation": "24405",
-      "ned.1": "725",
-      "por.1": "715",
-      "fra.coupe_de_france": "3952",
-      "usa.open": "5337",
-      "ksa.1": "21231",
-      "club.friendly": "19834",
-      "conmebol.libertadores": "783",
-      "concacaf.champions": "5699",
-      "fifa.worldq.uefa": "786",
-      "fifa.wcq.ply": "23449",
-      "fifa.worldq.concacaf": "788",
-      "fifa.worldq.afc": "789",
-      "fifa.worldq.caf": "790",
-      "fifa.worldq.conmebol": "787",
-      "fifa.worldq.ofc": "792",
-      "uefa.nations": "2395",
-      "fifa.friendly.w": "3923",
-      "fifa.wworldq.uefa": "20649",
-      "uefa.w.nations": "23088",
-      "usa.w.usl.1": "23633",
-      "uefa.champions_qual": "19874",
-      "uefa.wchampions_qual": "24458",
-      "eng.w.fa": "20226",
-      "eng.w.league_cup": "23390",
-      "esp.w.1": "20956",
-      "esp.copa_de_la_reina": "20381",
-      "fra.w.1": "20955",
-      "ned.cup": "3957",
-      "sco.1": "735",
-      "sco.tennents": "3959",
-      "sco.cis": "5330",
-      "aus.1": "3906",
-      "aus.w.1": "18992",
-      "ksa.kings.cup": "22057",
-      "por.taca.portugal": "20922",
-      "tur.1": "3946",
-      "caf.nations": "3908",
-      "afc.champions": "3902",
-      "afc.cup": "2466",
-      "fifa.cwc": "5501",
-      "fifa.olympics": "3924",
-      "fifa.w.olympics": "3925",
-      "concacaf.gold": "4004",
-      "concacaf.gold_qual": "19778",
-      "concacaf.w.gold": "22060",
-      "concacaf.nations.league": "19267",
-      "concacaf.confederations_playoff": "8360",
-      "concacaf.w.champions_cup": "22946",
-      "concacaf.womens.championship": "18969",
-      "uefa.euro": "781",
-      "uefa.euroq": "3947",
-      "uefa.weuro": "17915",
-      "uefa.euro_u21": "5693",
-      "uefa.super_cup": "5462",
-      "conmebol.america": "780",
-      "conmebol.america.femenina": "20703",
-      "usa.usl.1": "4002",
-      "usa.usl.l1": "19915",
-      "usa.usl.l1.cup": "22059",
-      "mex.2": "3932",
-      "global.finalissima": "20704",
-      "global.u20.intercontinental_cup": "22781",
-      "global.w.finalissima": "21191",
-      "fifa.world.u20": "5694",
-      "afc.asian.cup": "20219",
-      "afc.w.asian.cup": "23537",
-      "afc.cupq": "5662",
-      "aff.championship": "5672",
-      "caf.nations_qual": "8315",
-      "caf.w.nations": "23523",
-      "caf.championship": "8365",
-      "can.w.nsl": "23286",
-      "uefa.europa_qual": "19887",
-      "uefa.europa.conf_qual": "20221",
-      "uefa.w.europa": "24079",
-      "fifa.intercontinental_cup": "22902",
-      "afc.champions_qual": "24452",
-      "afc.cup_qual": "24455",
-      "rus.1": "3939",
-      "rus.1.promotion.relegation": "20731",
-      "bel.1": "3901",
-      "bel.promotion.relegation": "20116",
-      "esp.2": "3921",
-      "ger.2": "3927",
-      "ita.2": "3931",
-      "fra.1.promotion.relegation": "20159",
-      "fra.2": "3926",
-      "por.1.promotion.relegation": "20186",
-      "aut.1": "3907",
-      "gre.1": "3955",
-      "chn.1": "8376",
-      "global.club_challenge": "21597",
-      "ned.supercup": "10749",
-      "global.pinatar_cup": "20571",
-      "friendly.emirates_cup": "11108",
-      "esp.joan_gamper": "17929",
-      "jpn.world_challenge": "17931",
-      "global.arnold.clark_cup": "20566",
-      "fifa.conmebol.olympicsq": "19727",
-      "fifa.concacaf.olympicsq": "19831",
-      "fifa.w.concacaf.olympicsq": "5342",
-      "fifa.world.u17": "5697",
-      "fifa.wworld.u17": "20865",
-      "uefa.euro_u21_qual": "20114",
-      "uefa.euro.u19": "5698",
-      "fifa.friendly_u21": "20132",
-      "ger.2.promotion.relegation": "19871",
-      "eng.trophy": "18481",
-      "eng.3": "3915",
-      "eng.4": "3916",
-      "eng.5": "3917",
-      "eng.fa_qual": "23480",
-      "sco.1.promotion.relegation": "20133",
-      "sco.2": "3940",
-      "sco.2.promotion.relegation": "20134",
-      "sco.challenge": "5331",
-      "sco.tennents_qual": "24457",
-      "ned.playoff.relegation": "8305",
-      "ned.2": "3933",
-      "ned.3.promotion.relegation": "20798",
-      "ned.w.knvb_cup": "20115",
-      "ned.w.1": "19945",
-      "swe.1": "3945",
-      "swe.1.promotion.relegation": "19968",
-      "den.1": "3913",
-      "nor.1.promotion.relegation": "19989",
-      "nor.1": "3960",
-      "conmebol.sudamericana": "5454",
-      "conmebol.recopa": "8333",
-      "arg.1": "745",
-      "arg.copa": "8107",
-      "arg.copa_de_la_superliga": "19264",
-      "arg.trofeo_de_la_campeones": "19705",
-      "arg.2": "3903",
-      "arg.supercopa": "8346",
-      "arg.supercopa.internacional": "23348",
-      "arg.3": "3904",
-      "bra.supercopa_do_brazil": "19721",
-      "bra.1": "630",
-      "bra.2": "4007",
-      "bra.copa_do_brazil": "8306",
-      "bra.camp.carioca": "2265",
-      "bra.camp.paulista": "8207",
-      "bra.camp.gaucho": "2272",
-      "bra.camp.mineiro": "10872",
-      "chi.super_cup": "8364",
-      "chi.1": "640",
-      "chi.1.promotion.relegation": "20524",
-      "chi.copa_chi": "8312",
-      "uru.1": "680",
-      "col.superliga": "19112",
-      "col.1": "650",
-      "col.copa": "8313",
-      "per.1": "670",
-      "par.1": "3934",
-      "par.1.supercopa": "20526",
-      "ecu.1": "660",
-      "ven.1": "3949",
-      "bol.ply.rel": "20525",
-      "bol.copa": "23284",
-      "bol.1": "620",
-      "jpn.1": "750",
-      "mex.campeon": "17893",
-      "concacaf.central.american.cup": "22947",
-      "concacaf.champions_cup": "5692",
-      "concacaf.u23": "3911",
-      "hon.1": "3929",
-      "crc.1": "4005",
-      "gua.1": "3928",
-      "slv.1": "3943",
-      "fifa.intercontinental.cup": "782",
-      "afc.saff.championship": "18914",
-      "chn.1.promotion.relegation": "19948",
-      "ind.1": "8316",
-      "global.gulf_cup": "23107",
-      "caf.cosafa": "20220",
-      "caf.champions": "2391",
-      "caf.confed": "18000",
-      "rsa.1": "3937",
-      "usa.ncaa.m.1": "5487",
-      "usa.ncaa.w.1": "5499"
-    }
-    if (code in leagueCdnMap) {
-      return root.sanitizeImageUrl("https://a.espncdn.com/i/leaguelogos/soccer/500/" + leagueCdnMap[code] + ".png")
+    if (code !== "" && root.leagueLogoMap && root.leagueLogoMap[code]) {
+      return root.sanitizeImageUrl(String(root.leagueLogoMap[code]))
     }
     if (code !== "") {
       return root.sanitizeImageUrl("https://a.espncdn.com/i/leaguelogos/soccer/500/" + code + ".png")
@@ -2382,16 +2479,6 @@ var leagueCdnMap = {
     if (detail !== "") console.warn("futbar", label === "" ? detail : label + ": " + detail)
   }
 
-  // "Barcelona 2–0 Al Ahly" for the current live match.
-  function scoreText() {
-    return root.scoreTextFor(root.liveMatch)
-  }
-
-  // "Barcelona 2–0" — the score without the away team name, used for cards.
-  function shortScoreText() {
-    return root.shortScoreTextFor(root.liveMatch)
-  }
-
   // Score text built from an arbitrary match-shaped source. Notifications use
   // the live summary's own competitors, whose scores are fresher than the
   // scoreboard data (the two refresh on independent timers, so a goal event
@@ -2697,64 +2784,64 @@ var leagueCdnMap = {
 
     // 1. Explicit tactical abbreviations from ESPN
     if (abbr === "G") return { x: 0.50, y: 0.90 }
-    if (abbr === "LB") return { x: 0.14, y: 0.74 }
-    if (abbr === "LWB") return { x: 0.14, y: 0.68 }
+    if (abbr === "LB") return { x: 0.13, y: 0.74 }
+    if (abbr === "LWB") return { x: 0.13, y: 0.68 }
     if (abbr === "CD-L") return { x: 0.38, y: 0.74 }
     if (abbr === "CD") return { x: 0.50, y: 0.74 }
     if (abbr === "CD-R") return { x: 0.62, y: 0.74 }
-    if (abbr === "RB") return { x: 0.86, y: 0.74 }
-    if (abbr === "RWB") return { x: 0.86, y: 0.68 }
+    if (abbr === "RB") return { x: 0.87, y: 0.74 }
+    if (abbr === "RWB") return { x: 0.87, y: 0.68 }
 
     if (abbr === "DM") return { x: 0.50, y: 0.58 }
-    if (abbr === "DM-L") return { x: 0.37, y: 0.58 }
-    if (abbr === "DM-R") return { x: 0.63, y: 0.58 }
-    if (abbr === "CM-L") return { x: 0.37, y: 0.44 }
+    if (abbr === "DM-L") return { x: 0.36, y: 0.58 }
+    if (abbr === "DM-R") return { x: 0.64, y: 0.58 }
+    if (abbr === "CM-L") return { x: 0.34, y: 0.44 }
     if (abbr === "CM") return { x: 0.50, y: 0.44 }
-    if (abbr === "CM-R") return { x: 0.63, y: 0.44 }
-    if (abbr === "LM") return { x: 0.14, y: 0.44 }
-    if (abbr === "RM") return { x: 0.86, y: 0.44 }
+    if (abbr === "CM-R") return { x: 0.66, y: 0.44 }
+    if (abbr === "LM") return { x: 0.13, y: 0.44 }
+    if (abbr === "RM") return { x: 0.87, y: 0.44 }
 
-    if (abbr === "AM-L" || abbr === "LW" || abbr === "LF") return { x: 0.14, y: 0.28 }
+    if (abbr === "AM-L" || abbr === "LW" || abbr === "LF") return { x: 0.16, y: 0.24 }
     if (abbr === "AM") return { x: 0.50, y: 0.30 }
-    if (abbr === "AM-R" || abbr === "RW" || abbr === "RF") return { x: 0.86, y: 0.28 }
+    if (abbr === "AM-R" || abbr === "RW" || abbr === "RF") return { x: 0.84, y: 0.24 }
 
-    if (abbr === "CF-L") return { x: 0.36, y: 0.12 }
-    if (abbr === "CF-R") return { x: 0.64, y: 0.12 }
+    if (abbr === "CF-L") return { x: 0.35, y: 0.12 }
+    if (abbr === "CF-R") return { x: 0.65, y: 0.12 }
     if (abbr === "CF" || abbr === "F" || abbr === "ST") return { x: 0.50, y: 0.12 }
 
     // 2. Position Name matching
     if (posName.indexOf("goal") !== -1 || fp === 1) return { x: 0.50, y: 0.90 }
-    if (posName.indexOf("left back") !== -1 || (posName.indexOf("def") !== -1 && fp === 3)) return { x: 0.14, y: 0.74 }
-    if (posName.indexOf("right back") !== -1 || (posName.indexOf("def") !== -1 && fp === 2)) return { x: 0.86, y: 0.74 }
+    if (posName.indexOf("left back") !== -1 || (posName.indexOf("def") !== -1 && fp === 3)) return { x: 0.13, y: 0.74 }
+    if (posName.indexOf("right back") !== -1 || (posName.indexOf("def") !== -1 && fp === 2)) return { x: 0.87, y: 0.74 }
     if (posName.indexOf("center left def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 4 || fp === 6))) return { x: 0.38, y: 0.74 }
     if (posName.indexOf("center right def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 5 || fp === 7))) return { x: 0.62, y: 0.74 }
     if (posName.indexOf("center def") !== -1 || (posName.indexOf("def") !== -1 && fp === 5)) return { x: 0.50, y: 0.74 }
 
     if (posName.indexOf("defensive mid") !== -1) return { x: 0.50, y: 0.58 }
-    if (posName.indexOf("left mid") !== -1) return { x: 0.14, y: 0.44 }
-    if (posName.indexOf("right mid") !== -1) return { x: 0.86, y: 0.44 }
-    if (posName.indexOf("center left mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 8)) return { x: 0.37, y: 0.44 }
-    if (posName.indexOf("center right mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 7)) return { x: 0.63, y: 0.44 }
+    if (posName.indexOf("left mid") !== -1) return { x: 0.13, y: 0.44 }
+    if (posName.indexOf("right mid") !== -1) return { x: 0.87, y: 0.44 }
+    if (posName.indexOf("center left mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 8)) return { x: 0.34, y: 0.44 }
+    if (posName.indexOf("center right mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 7)) return { x: 0.66, y: 0.44 }
     if (posName.indexOf("center mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 4)) return { x: 0.50, y: 0.44 }
 
-    if (posName.indexOf("left forw") !== -1 || posName.indexOf("left wing") !== -1 || (posName.indexOf("att") !== -1 && fp === 11)) return { x: 0.14, y: 0.28 }
-    if (posName.indexOf("right forw") !== -1 || posName.indexOf("right wing") !== -1 || (posName.indexOf("att") !== -1 && (fp === 7 || fp === 10))) return { x: 0.86, y: 0.28 }
-    if (posName.indexOf("center left forw") !== -1) return { x: 0.36, y: 0.12 }
-    if (posName.indexOf("center right forw") !== -1) return { x: 0.64, y: 0.12 }
+    if (posName.indexOf("left forw") !== -1 || posName.indexOf("left wing") !== -1 || (posName.indexOf("att") !== -1 && fp === 11)) return { x: 0.16, y: 0.24 }
+    if (posName.indexOf("right forw") !== -1 || posName.indexOf("right wing") !== -1 || (posName.indexOf("att") !== -1 && (fp === 7 || fp === 10))) return { x: 0.84, y: 0.24 }
+    if (posName.indexOf("center left forw") !== -1) return { x: 0.35, y: 0.12 }
+    if (posName.indexOf("center right forw") !== -1) return { x: 0.65, y: 0.12 }
     if (posName.indexOf("forw") !== -1 || posName.indexOf("striker") !== -1 || fp === 9) return { x: 0.50, y: 0.12 }
     if (posName.indexOf("att") !== -1 || fp === 10) return { x: 0.50, y: 0.30 }
 
     // 3. formationPlace mapping fallback
     if (fp === 1) return { x: 0.50, y: 0.90 }
-    if (fp === 3) return { x: 0.14, y: 0.74 }
+    if (fp === 3) return { x: 0.13, y: 0.74 }
     if (fp === 4) return { x: 0.38, y: 0.74 }
     if (fp === 5) return { x: 0.50, y: 0.74 }
     if (fp === 6) return { x: 0.62, y: 0.74 }
-    if (fp === 2) return { x: 0.86, y: 0.74 }
-    if (fp === 8) return { x: 0.37, y: 0.44 }
-    if (fp === 7) return { x: 0.63, y: 0.44 }
-    if (fp === 11) return { x: 0.14, y: 0.28 }
-    if (fp === 10) return { x: 0.86, y: 0.28 }
+    if (fp === 2) return { x: 0.87, y: 0.74 }
+    if (fp === 8) return { x: 0.34, y: 0.44 }
+    if (fp === 7) return { x: 0.66, y: 0.44 }
+    if (fp === 11) return { x: 0.16, y: 0.24 }
+    if (fp === 10) return { x: 0.84, y: 0.24 }
     if (fp === 9) return { x: 0.50, y: 0.12 }
 
     return { x: 0.50, y: 0.50 }
@@ -2792,20 +2879,30 @@ var leagueCdnMap = {
       })
     }
 
-    // Robust multi-pass de-collision repulsion: ensure minimum 0.16 horizontal separation on each tactical line
-    for (var pass = 0; pass < 4; pass++) {
+    // Robust multi-pass 2D de-collision repulsion: ensure minimum 0.18 horizontal and 0.08 vertical separation
+    for (var pass = 0; pass < 6; pass++) {
       for (var a = 0; a < result.length; a++) {
         for (var b = a + 1; b < result.length; b++) {
           var dx = Math.abs(result[a].x - result[b].x)
           var dy = Math.abs(result[a].y - result[b].y)
-          if (dy < 0.08 && dx < 0.16) {
-            var needed = (0.16 - dx) / 2
+          if (dy < 0.10 && dx < 0.18) {
+            var neededX = (0.18 - dx) / 2
             if (result[a].x <= result[b].x) {
-              result[a].x = Math.max(0.10, result[a].x - needed)
-              result[b].x = Math.min(0.90, result[b].x + needed)
+              result[a].x = Math.max(0.12, result[a].x - neededX)
+              result[b].x = Math.min(0.88, result[b].x + neededX)
             } else {
-              result[a].x = Math.min(0.90, result[a].x + needed)
-              result[b].x = Math.max(0.10, result[b].x - needed)
+              result[a].x = Math.min(0.88, result[a].x + neededX)
+              result[b].x = Math.max(0.12, result[b].x - neededX)
+            }
+            if (dy < 0.06) {
+              var neededY = (0.06 - dy) / 2
+              if (result[a].y <= result[b].y) {
+                result[a].y = Math.max(0.10, result[a].y - neededY)
+                result[b].y = Math.min(0.90, result[b].y + neededY)
+              } else {
+                result[a].y = Math.min(0.90, result[a].y + neededY)
+                result[b].y = Math.max(0.10, result[b].y - neededY)
+              }
             }
           }
         }
@@ -2820,16 +2917,6 @@ var leagueCdnMap = {
     if (val >= 7.0) return "#16a34a"  // Green (Good / Excellent)
     if (val >= 6.0) return "#ca8a04"  // Yellow / Amber (Average / Solid)
     return "#dc2626"                  // Red (Below Average)
-  }
-
-  function repeatGlyph(glyph, count) {
-    var c = parseInt(count, 10)
-    if (isNaN(c) || c <= 0) return ""
-    var arr = []
-    for (var i = 0; i < c; i++) {
-      arr.push(glyph)
-    }
-    return arr.join(" ")
   }
 
   // Persists the user's club choice through the shell IPC, which writes
@@ -3377,7 +3464,7 @@ onStreamFinished: root.warnStderr("", text)
                 rank: root.sanitizePlainText(String(rankVal)),
                 teamName: root.sanitizePlainText(String(team.displayName || team.name || "—")),
                 teamId: root.safeIdentifier(String(team.id || "")),
-                logo: root.sanitizeImageUrl(team.logos && team.logos[0] ? String(team.logos[0].href || "") : ""),
+                logo: root.sanitizeImageUrl(team.logos && team.logos[0] ? String(team.logos[0].href || "") : (team.logo ? String(team.logo) : (team.id ? "https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(team.id)) + ".png" : ""))),
                 note: entry.note || null,
                 stats: stats
               }
@@ -4315,8 +4402,11 @@ onStreamFinished: root.warnStderr("", text)
             // the single `logo` string the scoreboard uses.
             var logo = String(team.logo || "")
             if (logo === "" && team.logos && team.logos[0]) logo = String(team.logos[0].href || "")
-            var safeLogo = root.sanitizeImageUrl(logo)
             var safeId = root.safeIdentifier(String(team.id || ""))
+            if (logo === "" && safeId !== "") {
+              logo = "https://a.espncdn.com/i/teamlogos/soccer/500/" + safeId + ".png"
+            }
+            var safeLogo = root.sanitizeImageUrl(logo)
             return name === "" ? null : { value: name, label: name, logo: safeLogo, id: safeId }
           }).filter(function(item) { return item !== null })
           if (root.editingTeam) {
@@ -4646,16 +4736,16 @@ root.warnStderr("team select failed", text)
           onChanged: function(value) { root.selectTeam(value) }
         }
 
-        Text {
-          textFormat: Text.PlainText
-          visible: root.teamsLoading && !root.pickerLeagueOnly
+        Item {
           width: parent.width
-          horizontalAlignment: Text.AlignHCenter
-          opacity: 0.4 + 0.6 * root._pulse
-          text: "Fetching " + root.selectedLeagueName + " clubs…"
-          color: Qt.darker(root.contentForeground, 1.5)
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
+          height: Style.space(70)
+          visible: root.teamsLoading && !root.pickerLeagueOnly
+
+          LoadingOverlay {
+            active: root.teamsLoading && !root.pickerLeagueOnly
+            text: "Fetching " + root.selectedLeagueName + " clubs…"
+            spinnerSize: Style.space(28)
+          }
         }
 
         Row {
@@ -4981,7 +5071,18 @@ root.warnStderr("team select failed", text)
           }
         }
 
-        // Scoreboard Hero Card
+        Item {
+          width: parent.width
+          height: Math.max(Style.space(260), matchDetailInnerCol.implicitHeight)
+
+          Column {
+            id: matchDetailInnerCol
+            width: parent.width
+            spacing: Style.space(12)
+            opacity: root.matchDetailLoading ? 0.15 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 180 } }
+
+            // Scoreboard Hero Card
         Item {
           id: heroCard
           width: parent.width
@@ -5856,7 +5957,7 @@ root.warnStderr("team select failed", text)
           Flickable {
             id: lineupFlickable
             width: parent.width
-            height: Math.min(lineupCol.implicitHeight, Style.space(370))
+            height: Math.min(lineupCol.implicitHeight, Style.space(390))
             contentHeight: lineupCol.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -5871,7 +5972,7 @@ root.warnStderr("team select failed", text)
               Rectangle {
                 id: pitchField
                 width: parent.width
-                height: Style.space(360)
+                height: Style.space(370)
                 radius: Style.space(8)
                 color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.025)
                 clip: true
@@ -6049,8 +6150,9 @@ root.warnStderr("team select failed", text)
                   delegate: Item {
                     id: pitchPlayerItem
                     required property var modelData
-                    width: Style.space(62)
-                    height: Style.space(46)
+                    width: Style.space(64)
+                    height: Style.space(50)
+                    z: (pitchPlayerItem.modelData.goals > 0 || pitchPlayerItem.modelData.assists > 0 ? 30 : 10) + Math.round((1.0 - pitchPlayerItem.modelData.y) * 20)
                     x: (pitchField.width * pitchPlayerItem.modelData.x) - (width / 2)
                     y: (pitchField.height * pitchPlayerItem.modelData.y) - (jerseyContainer.height / 2)
 
@@ -6101,12 +6203,12 @@ root.warnStderr("team select failed", text)
                     // 1. Goals (Top-Right of Jersey - Overlapping Badges, White Icon)
                     Row {
                       id: goalOverlapRow
-                      anchors.bottom: jerseyContainer.top
+                      anchors.top: jerseyContainer.top
                       anchors.right: jerseyContainer.right
-                      anchors.bottomMargin: -Style.space(2)
-                      anchors.rightMargin: -Style.space(2)
-                      spacing: -Style.space(5)
-                      z: 10
+                      anchors.topMargin: -Style.space(3)
+                      anchors.rightMargin: -Style.space(4)
+                      spacing: -Style.space(4)
+                      z: 20
                       visible: !!(pitchPlayerItem.modelData.goals && pitchPlayerItem.modelData.goals > 0)
 
                       Repeater {
@@ -6118,7 +6220,7 @@ root.warnStderr("team select failed", text)
                           color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
                           border.color: Qt.rgba(1, 1, 1, 0.3)
                           border.width: 0.7
-                          z: 10 - index
+                          z: 20 - index
 
                           Text {
                             textFormat: Text.PlainText
@@ -6136,12 +6238,12 @@ root.warnStderr("team select failed", text)
                     // 2. Assists (Top-Left of Jersey - Overlapping Boot Badges, White Icon)
                     Row {
                       id: assistOverlapRow
-                      anchors.bottom: jerseyContainer.top
+                      anchors.top: jerseyContainer.top
                       anchors.left: jerseyContainer.left
-                      anchors.bottomMargin: -Style.space(2)
-                      anchors.leftMargin: -Style.space(2)
-                      spacing: -Style.space(5)
-                      z: 10
+                      anchors.topMargin: -Style.space(3)
+                      anchors.leftMargin: -Style.space(4)
+                      spacing: -Style.space(4)
+                      z: 20
                       visible: !!(pitchPlayerItem.modelData.assists && pitchPlayerItem.modelData.assists > 0)
 
                       Repeater {
@@ -6153,7 +6255,7 @@ root.warnStderr("team select failed", text)
                           color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
                           border.color: Qt.rgba(1, 1, 1, 0.3)
                           border.width: 0.7
-                          z: 10 - index
+                          z: 20 - index
 
                           Text {
                             textFormat: Text.PlainText
@@ -6170,19 +6272,20 @@ root.warnStderr("team select failed", text)
                       }
                     }
 
-                    // 3. Substitute Out Badge (Right Side - White ▼)
+                    // 3. Substitute Out Badge (Bottom-Right - White ▼)
                     Rectangle {
                       id: subBadge
                       width: Style.space(13)
                       height: Style.space(13)
                       radius: width / 2
-                      anchors.verticalCenter: jerseyContainer.verticalCenter
-                      anchors.left: jerseyContainer.right
-                      anchors.leftMargin: -Style.space(2)
+                      anchors.bottom: jerseyContainer.bottom
+                      anchors.right: jerseyContainer.right
+                      anchors.bottomMargin: -Style.space(2)
+                      anchors.rightMargin: -Style.space(3)
                       color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
                       border.color: Qt.rgba(1, 1, 1, 0.3)
                       border.width: 0.7
-                      z: 10
+                      z: 20
                       visible: !!pitchPlayerItem.modelData.subbedOut
 
                       Text {
@@ -6196,19 +6299,20 @@ root.warnStderr("team select failed", text)
                       }
                     }
 
-                    // 4. Card Badge (Left Side - Yellow / Red Card)
+                    // 4. Card Badge (Bottom-Left - Yellow / Red Card)
                     Rectangle {
                       id: cardBadge
-                      width: Style.space(6)
-                      height: Style.space(9)
+                      width: Style.space(7)
+                      height: Style.space(10)
                       radius: 1
-                      anchors.verticalCenter: jerseyContainer.verticalCenter
-                      anchors.right: jerseyContainer.left
-                      anchors.rightMargin: -Style.space(2)
+                      anchors.bottom: jerseyContainer.bottom
+                      anchors.left: jerseyContainer.left
+                      anchors.bottomMargin: -Style.space(1)
+                      anchors.leftMargin: -Style.space(3)
                       color: (pitchPlayerItem.modelData.redCards && pitchPlayerItem.modelData.redCards > 0) ? "#ef4444" : "#eab308"
                       border.color: "#ffffff"
                       border.width: 0.8
-                      z: 10
+                      z: 20
                       visible: !!((pitchPlayerItem.modelData.redCards && pitchPlayerItem.modelData.redCards > 0) || (pitchPlayerItem.modelData.yellowCards && pitchPlayerItem.modelData.yellowCards > 0))
                     }
 
@@ -6224,7 +6328,7 @@ root.warnStderr("team select failed", text)
                       color: root.ratingColor(pitchPlayerItem.modelData.rating)
                       border.color: "#ffffff"
                       border.width: 0.8
-                      z: 10
+                      z: 20
                       visible: !!(pitchPlayerItem.modelData.rating !== null && pitchPlayerItem.modelData.rating !== undefined)
 
                       Text {
@@ -6242,7 +6346,7 @@ root.warnStderr("team select failed", text)
                     // Sleek dark pill for player name
                     Rectangle {
                       anchors.top: ratingBadge.visible ? ratingBadge.bottom : jerseyContainer.bottom
-                      anchors.topMargin: 2
+                      anchors.topMargin: Style.space(2)
                       anchors.horizontalCenter: parent.horizontalCenter
                       width: Math.min(parent.width, Math.max(Style.space(32), pitchNameText.implicitWidth + Style.space(8)))
                       height: Style.space(13)
@@ -7033,16 +7137,35 @@ root.warnStderr("team select failed", text)
             }
           }
         }
+          }
+
+          LoadingOverlay {
+            active: root.matchDetailLoading
+            text: "Fetching match details…"
+          }
+        }
       }
 
       Column {
+        id: standingsView
         width: parent.width
         spacing: Style.space(12)
         visible: root.showStandings && !root.showMatchDetail
 
-        Row {
+        Item {
           width: parent.width
-          spacing: Style.space(8)
+          height: Math.max(Style.space(260), standingsInnerCol.implicitHeight)
+
+          Column {
+            id: standingsInnerCol
+            width: parent.width
+            spacing: Style.space(12)
+            opacity: root.standingsLoading ? 0.15 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 180 } }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
 
           Button {
             id: prevSeasonButton
@@ -7306,6 +7429,13 @@ root.warnStderr("team select failed", text)
             }
           }
         }
+          }
+
+          LoadingOverlay {
+            active: root.standingsLoading
+            text: "Fetching standings…"
+          }
+        }
       }
 
       // League Matches: what matters for the selected league — everything
@@ -7505,13 +7635,25 @@ root.warnStderr("team select failed", text)
       }
 
       Column {
+        id: statsView
         width: parent.width
         spacing: Style.space(12)
         visible: root.showStats && !root.showMatchDetail
 
-        Row {
+        Item {
           width: parent.width
-          spacing: Style.space(8)
+          height: Math.max(Style.space(260), statsInnerCol.implicitHeight)
+
+          Column {
+            id: statsInnerCol
+            width: parent.width
+            spacing: Style.space(12)
+            opacity: root.statsLoading ? 0.15 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 180 } }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
 
           Button {
             id: prevStatsSeasonButton
@@ -7819,17 +7961,36 @@ root.warnStderr("team select failed", text)
             }
           }
         }
+          }
+
+          LoadingOverlay {
+            active: root.statsLoading
+            text: "Fetching statistics…"
+          }
+        }
       }
 
       // Selected club's own full fixtures list (5 matches per view with Earlier/Later navigation)
       Column {
+        id: clubFixturesView
         width: parent.width
         spacing: Style.space(12)
         visible: !root.leagueMode && root.showClubFixtures && !root.showStandings && !root.showStats && !root.showMatchDetail
 
         Item {
           width: parent.width
-          height: clubFixturesTitleText.implicitHeight
+          height: Math.max(Style.space(220), clubFixturesInnerCol.implicitHeight)
+
+          Column {
+            id: clubFixturesInnerCol
+            width: parent.width
+            spacing: Style.space(12)
+            opacity: (root.loading && root.teamFixtureRows.length === 0) ? 0.15 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 180 } }
+
+            Item {
+              width: parent.width
+              height: clubFixturesTitleText.implicitHeight
 
           Text {
             id: clubFixturesTitleText
@@ -7920,17 +8081,36 @@ root.warnStderr("team select failed", text)
             }
           }
         }
+          }
+
+          LoadingOverlay {
+            active: root.loading && root.teamFixtureRows.length === 0
+            text: "Fetching " + root.teamName + " fixtures…"
+          }
+        }
       }
 
       // League Matchweek Fixtures and Daily Slate container
       Column {
+        id: leagueMatchesView
         width: parent.width
         spacing: Style.space(12)
         visible: (root.leagueMode ? (!root.showStandings && !root.showStats && !root.showMatchDetail) : (root.showMatches && !root.showStandings && !root.showStats && !root.showMatchDetail && !root.showClubFixtures))
 
-        // League name on the left; on the right, chevrons page between the
-        // detected fixture rounds around the date-range label.
         Item {
+          width: parent.width
+          height: Math.max(Style.space(240), leagueMatchesInnerCol.implicitHeight)
+
+          Column {
+            id: leagueMatchesInnerCol
+            width: parent.width
+            spacing: Style.space(12)
+            opacity: root.matchListLoading ? 0.15 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 180 } }
+
+            // League name on the left; on the right, chevrons page between the
+            // detected fixture rounds around the date-range label.
+            Item {
           width: parent.width
           height: Math.max(matchTitleText.implicitHeight, matchWeekNav.implicitHeight)
 
@@ -8164,12 +8344,32 @@ root.warnStderr("team select failed", text)
             }
           }
         }
+          }
+
+          LoadingOverlay {
+            active: root.matchListLoading
+            text: "Fetching fixtures…"
+          }
+        }
       }
 
       Item {
+        id: overviewContainer
         width: parent.width
-        height: Style.space(20)
-        visible: root.liveMatch && !root.customViewActive
+        height: Math.max(overviewInnerCol.implicitHeight, (root.loading && !root.liveMatch && !root.nextMatch && !root.previousMatch) ? Style.space(240) : 0)
+        visible: !root.customViewActive
+
+        Column {
+          id: overviewInnerCol
+          width: parent.width
+          spacing: Style.space(14)
+          opacity: (root.loading && !root.liveMatch && !root.nextMatch && !root.previousMatch) ? 0.15 : 1.0
+          Behavior on opacity { NumberAnimation { duration: 180 } }
+
+          Item {
+            width: parent.width
+            height: Style.space(20)
+            visible: root.liveMatch && !root.customViewActive
 
         Text {
           textFormat: Text.PlainText
@@ -8724,12 +8924,18 @@ root.warnStderr("team select failed", text)
 
       Text {
         textFormat: Text.PlainText
-        visible: !root.customViewActive && (root.loading || root.requestError !== "" || (!root.nextMatch && !root.previousMatch))
-        opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
-        text: root.loading ? "Fetching " + (root.teamName || "fixtures") + "…" : (root.requestError !== "" ? root.requestError : "No fixtures found for " + root.teamName)
+        visible: !root.customViewActive && root.requestError !== ""
+        text: root.requestError
         color: Qt.darker(root.contentForeground, 1.5)
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.caption
+      }
+        }
+
+        LoadingOverlay {
+          active: root.loading && !root.liveMatch && !root.nextMatch && !root.previousMatch
+          text: "Fetching " + (root.teamName || "fixtures") + "…"
+        }
       }
     }
   }
