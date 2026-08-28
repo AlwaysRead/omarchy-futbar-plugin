@@ -1382,19 +1382,35 @@ readonly property var leagues: [
     if (side === "away" && event.away && event.away.logo) return root.sanitizeImageUrl(String(event.away.logo))
 
     var item = competitor(event, side)
-    if (!item) return ""
-    var t = item.team || item || {}
-    var l = String(t.logo || (item.team && item.team.logo) || "")
-    if (l === "" && Array.isArray(t.logos) && t.logos.length > 0 && t.logos[0].href) {
-      l = String(t.logos[0].href)
+    var t = item ? (item.team || item || {}) : {}
+    if (!item) {
+      if (side === "home" && event.homeTeam) t = event.homeTeam
+      else if (side === "away" && event.awayTeam) t = event.awayTeam
+      else if (side === "home" && event.home) t = event.home
+      else if (side === "away" && event.away) t = event.away
     }
-    if (l === "" && item.team && Array.isArray(item.team.logos) && item.team.logos.length > 0 && item.team.logos[0].href) {
-      l = String(item.team.logos[0].href)
+    var l = String(t.logo || (item && item.team && item.team.logo) || "")
+    if (l === "" && Array.isArray(t.logos) && t.logos.length > 0) {
+      l = String(t.logos[0].href || t.logos[0] || "")
     }
-    if (l === "" && (t.id || (item.team && item.team.id))) {
-      var rawId = String(t.id || (item.team && item.team.id) || "")
+    if (l === "" && item && item.team && Array.isArray(item.team.logos) && item.team.logos.length > 0) {
+      l = String(item.team.logos[0].href || item.team.logos[0] || "")
+    }
+    if (l === "" && (t.id || (item && item.team && item.team.id))) {
+      var rawId = String(t.id || (item && item.team && item.team.id) || "")
       var safeId = root.safeIdentifier(rawId)
       if (safeId !== "") l = "https://a.espncdn.com/i/teamlogos/soccer/500/" + safeId + ".png"
+    }
+    if (l === "" && (t.displayName || t.name)) {
+      var rawName = String(t.displayName || t.name || "").toLowerCase()
+      if (Array.isArray(root.teams)) {
+        for (var m = 0; m < root.teams.length; m++) {
+          if (root.teams[m] && String(root.teams[m].label || root.teams[m].value || "").toLowerCase() === rawName) {
+            if (root.teams[m].logo) { l = String(root.teams[m].logo); break }
+            if (root.teams[m].id) { l = "https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(root.teams[m].id)) + ".png"; break }
+          }
+        }
+      }
     }
     return root.sanitizeImageUrl(l)
   }
@@ -2148,6 +2164,15 @@ readonly property var leagues: [
     }
     if (root.selectedTeam && root.selectedTeam.logo) {
       return root.sanitizeImageUrl(String(root.selectedTeam.logo))
+    }
+    if (root.teamName !== "" && Array.isArray(root.teams)) {
+      var tName = root.teamName.toLowerCase()
+      for (var k = 0; k < root.teams.length; k++) {
+        if (root.teams[k] && String(root.teams[k].label || root.teams[k].value || "").toLowerCase() === tName) {
+          if (root.teams[k].logo) return root.sanitizeImageUrl(String(root.teams[k].logo))
+          if (root.teams[k].id) return root.sanitizeImageUrl("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(root.teams[k].id)) + ".png")
+        }
+      }
     }
     return ""
   }
@@ -4764,7 +4789,7 @@ root.warnStderr("team select failed", text)
             mipmap: true
             smooth: true
             anchors.verticalCenter: parent.verticalCenter
-            visible: source !== ""
+            visible: String(source) !== ""
           }
 
           Column {
@@ -4825,7 +4850,7 @@ root.warnStderr("team select failed", text)
           cache: true
           mipmap: true
           smooth: true
-          visible: source !== ""
+          visible: String(source) !== ""
         }
 
         Column {
@@ -5189,7 +5214,7 @@ root.warnStderr("team select failed", text)
               cache: true
               mipmap: true
               smooth: true
-              visible: source !== ""
+              visible: String(source) !== ""
               onStatusChanged: {
                 if (status === Image.Ready || status === Image.Error) {
                   if (!root.matchDetailCrestsLoaded && (!awayDetailCrestImg.visible || awayDetailCrestImg.status === Image.Ready || awayDetailCrestImg.status === Image.Error)) {
@@ -5249,7 +5274,7 @@ root.warnStderr("team select failed", text)
               cache: true
               mipmap: true
               smooth: true
-              visible: source !== ""
+              visible: String(source) !== ""
               onStatusChanged: {
                 if (status === Image.Ready || status === Image.Error) {
                   if (!root.matchDetailCrestsLoaded && (!homeDetailCrestImg.visible || homeDetailCrestImg.status === Image.Ready || homeDetailCrestImg.status === Image.Error)) {
@@ -6688,7 +6713,7 @@ root.warnStderr("team select failed", text)
                   mipmap: true
                   smooth: true
                   anchors.verticalCenter: parent.verticalCenter
-                  visible: source !== ""
+                  visible: String(source) !== ""
                 }
 
                 Text {
@@ -6756,7 +6781,7 @@ root.warnStderr("team select failed", text)
                   mipmap: true
                   smooth: true
                   anchors.verticalCenter: parent.verticalCenter
-                  visible: source !== ""
+                  visible: String(source) !== ""
                 }
 
                 Text {
@@ -7367,11 +7392,13 @@ root.warnStderr("team select failed", text)
                     anchors.verticalCenter: parent.verticalCenter
                     source: rowRect.entry.logo
                     fillMode: Image.PreserveAspectFit
+                    sourceSize.width: 64
+                    sourceSize.height: 64
                     asynchronous: true
                     cache: true
                     mipmap: true
                     smooth: true
-                    visible: rowRect.entry.logo !== ""
+                    visible: String(source) !== ""
                   }
                   Text {
                     textFormat: Text.PlainText
@@ -7518,8 +7545,10 @@ root.warnStderr("team select failed", text)
                 sourceSize.width: 128
                 sourceSize.height: 128
                 mipmap: true
+                cache: true
                 asynchronous: true
                 smooth: true
+                visible: String(source) !== ""
               }
 
               Text {
@@ -7571,8 +7600,10 @@ root.warnStderr("team select failed", text)
                 sourceSize.width: 128
                 sourceSize.height: 128
                 mipmap: true
+                cache: true
                 asynchronous: true
                 smooth: true
+                visible: String(source) !== ""
               }
             }
 
@@ -7591,7 +7622,7 @@ root.warnStderr("team select failed", text)
                 mipmap: true
                 asynchronous: true
                 smooth: true
-                visible: source !== "" && !root.leagueMode
+                visible: String(source) !== "" && !root.leagueMode
               }
 
               Text {
@@ -7899,7 +7930,7 @@ root.warnStderr("team select failed", text)
                   mipmap: true
                   asynchronous: true
                   smooth: true
-                  visible: source !== ""
+                  visible: String(source) !== ""
                 }
 
                 Item { width: Style.space(6); height: 1 }
@@ -8443,7 +8474,7 @@ root.warnStderr("team select failed", text)
             width: parent.width
             spacing: Style.space(8)
 
-            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
             Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignRight; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
             Column {
               width: Style.space(86)
@@ -8474,7 +8505,7 @@ root.warnStderr("team select failed", text)
               }
             }
             Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignLeft; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
-            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: source !== "" }
+            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
           }
 
           Item {
@@ -8515,7 +8546,7 @@ root.warnStderr("team select failed", text)
             id: liveCompRow
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image { id: competitionLogo; width: Style.space(14); height: width; source: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: source !== "" }
+            Image { id: competitionLogo; width: Style.space(14); height: width; source: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: String(source) !== "" }
             Text {
               textFormat: Text.PlainText
               text: root.competitionNameFor(root.liveMatch)
@@ -8618,7 +8649,7 @@ root.warnStderr("team select failed", text)
               mipmap: true
               smooth: true
               anchors.verticalCenter: parent.verticalCenter
-              visible: source !== ""
+              visible: String(source) !== ""
             }
 
             Text {
@@ -8673,7 +8704,7 @@ root.warnStderr("team select failed", text)
               mipmap: true
               smooth: true
               anchors.verticalCenter: parent.verticalCenter
-              visible: source !== ""
+              visible: String(source) !== ""
             }
           }
 
@@ -8690,7 +8721,7 @@ root.warnStderr("team select failed", text)
               mipmap: true
               smooth: true
               anchors.verticalCenter: parent.verticalCenter
-              visible: source !== ""
+              visible: String(source) !== ""
             }
             Text {
               textFormat: Text.PlainText
@@ -8784,7 +8815,7 @@ root.warnStderr("team select failed", text)
               mipmap: true
               smooth: true
               anchors.verticalCenter: parent.verticalCenter
-              visible: source !== ""
+              visible: String(source) !== ""
             }
 
             Text {
@@ -8837,7 +8868,7 @@ root.warnStderr("team select failed", text)
               mipmap: true
               smooth: true
               anchors.verticalCenter: parent.verticalCenter
-              visible: source !== ""
+              visible: String(source) !== ""
             }
           }
 
@@ -8854,7 +8885,7 @@ root.warnStderr("team select failed", text)
               mipmap: true
               smooth: true
               anchors.verticalCenter: parent.verticalCenter
-              visible: source !== ""
+              visible: String(source) !== ""
             }
             Text {
               textFormat: Text.PlainText
