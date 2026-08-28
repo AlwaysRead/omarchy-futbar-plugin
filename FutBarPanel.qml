@@ -4601,10 +4601,12 @@ root.warnStderr("team select failed", text)
           font.bold: true
         }
 
-        Dropdown {
+        SearchableDropdown {
           id: leagueDropdown
           width: parent.width
           label: "League"
+          placeholderText: "Search league…"
+          emptyText: "No leagues found"
           fontFamily: root.contentFontFamily
           options: root.leagues
           value: root.selectedLeague
@@ -4630,11 +4632,13 @@ root.warnStderr("team select failed", text)
           onClicked: root.pickerLeagueOnly = !root.pickerLeagueOnly
         }
 
-        Dropdown {
+        SearchableDropdown {
           id: teamDropdown
           width: parent.width
           visible: !root.pickerLeagueOnly
           label: root.teamsLoading ? "Fetching clubs…" : "Club"
+          placeholderText: "Search club…"
+          emptyText: "No clubs found"
           fontFamily: root.contentFontFamily
           options: root.teams
           value: root.selectedTeam ? String(root.selectedTeam.value) : ""
