@@ -149,7 +149,7 @@ Panel {
       Text {
         textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
-        text: overlay.text
+        text: root.sanitizePlainText(overlay.text)
         color: root.contentForeground
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.caption
@@ -4743,7 +4743,7 @@ root.warnStderr("team select failed", text)
 
           LoadingOverlay {
             active: root.teamsLoading && !root.pickerLeagueOnly
-            text: "Fetching " + root.selectedLeagueName + " clubs…"
+            text: root.sanitizePlainText("Fetching " + root.selectedLeagueName + " clubs…")
             spinnerSize: Style.space(28)
           }
         }
@@ -7235,8 +7235,8 @@ root.warnStderr("team select failed", text)
 
             Button {
               height: Style.space(24)
-              text: modelData.name || modelData.shortName
-              tooltipText: modelData.name
+              text: root.sanitizePlainText(String(modelData.name || modelData.shortName || ""))
+              tooltipText: root.sanitizePlainText(String(modelData.name || ""))
               fontFamily: root.contentFontFamily
               foreground: root.contentForeground
               accent: root.contentForeground
@@ -8085,7 +8085,7 @@ root.warnStderr("team select failed", text)
 
           LoadingOverlay {
             active: root.loading && root.teamFixtureRows.length === 0
-            text: "Fetching " + root.teamName + " fixtures…"
+            text: root.sanitizePlainText("Fetching " + root.teamName + " fixtures…")
           }
         }
       }
@@ -8934,7 +8934,7 @@ root.warnStderr("team select failed", text)
 
         LoadingOverlay {
           active: root.loading && !root.liveMatch && !root.nextMatch && !root.previousMatch
-          text: "Fetching " + (root.teamName || "fixtures") + "…"
+          text: root.sanitizePlainText("Fetching " + (root.teamName || "fixtures") + "…")
         }
       }
     }
