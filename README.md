@@ -2,23 +2,27 @@
 
 ![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version: 2.0.1](https://img.shields.io/badge/Version-2.0.1-green.svg)](manifest.json)
+[![Version: 2.1.0](https://img.shields.io/badge/Version-2.1.0-green.svg)](manifest.json)
 
 **FutBar** is a live football companion and match center engineered for Omarchy. Track live fixtures, tactical pitch formations with athlete kits, minute-by-minute match timelines, head-to-head records, league standings, player leaderboards, and real-time desktop event notifications seamlessly from your top bar. Powered directly by ESPN's public endpoints with zero API costs, no authentication keys, and no account setup required.
 
-![FutBar Preview](assets/Live%20Match%20Preview.png)
+![FutBar Preview](preview.png)
 
 ---
 
 ## Screenshots
 
-| Live Match Card | Tactical Pitch & Lineups |
+| Club Overview | Tactical Pitch & Lineups |
 | :---: | :---: |
-| <img src="assets/Live%20Match%20Preview.png" width="400" alt="Live Match Preview"> | <img src="assets/Standings.png" width="400" alt="Tactical Pitch and Lineups"> |
+| <img src="assets/Club%20Overview.png" width="400" alt="Club Overview"> | <img src="assets/Tactical%20Lineups.png" width="400" alt="Tactical Pitch and Lineups"> |
 
-| Upcoming Fixtures (Dark) | Upcoming Fixtures (Light) |
+| Match Statistics & Leaders | League Matchweek Fixtures |
 | :---: | :---: |
-| <img src="assets/Fetch%20Fixture%20Dark.png" width="400" alt="Upcoming Fixtures Dark"> | <img src="assets/Fetch%20Fixture%20Light.png" width="400" alt="Upcoming Fixtures Light"> |
+| <img src="assets/Match%20Statistics.png" width="400" alt="Match Statistics and Leaders"> | <img src="assets/League%20Fixtures.png" width="400" alt="League Matchweek Fixtures"> |
+
+| Player Stats & Leaderboards | Searchable Club Picker |
+| :---: | :---: |
+| <img src="assets/League%20Stats.png" width="400" alt="Player Stats and Leaderboards"> | <img src="assets/Club%20Picker.png" width="400" alt="Searchable Club Picker"> |
 
 ---
 
