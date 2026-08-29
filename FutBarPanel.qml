@@ -278,18 +278,100 @@ Panel {
     onTriggered: favoriteStore.reload()
   }
 
-  function saveFavorite(teamName, league, teamId) {
+  // followedTeamsOverride (5th arg): pass the list explicitly when it's
+  // changing in the same logical action as the active club (e.g. adding a
+  // club switches to it *and* pushes the outgoing active club onto the tab
+  // strip) -- writing both in one setText() avoids a second, separate write
+  // racing this one (two back-to-back writes previously let addFollowedTeam
+  // persist "adding Liverpool, tab-list gets Ajax" as two steps, where a
+  // reload between them could leave the active club still Ajax with Ajax
+  // *also* now in the tab list -- "two Ajax tabs" instead of Ajax+Liverpool).
+  function saveFavorite(teamName, league, teamId, followedTeamsOverride) {
     var name = teamName !== undefined ? teamName : root.teamName
     var lg = league !== undefined ? league : root.league
     var tid = teamId !== undefined ? teamId : (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
-    // A fourth truthy argument saves a league-follow instead of a club; it
-    // also clears stale club fields so the favorite file stays consistent.
-    var asLeague = arguments.length > 3 && arguments[3] === true
+    // A truthy 5th argument (asLeague, shifted down since followedTeamsOverride
+    // took slot 4) saves a league-follow instead of a club; it also clears
+    // stale club fields so the favorite file stays consistent.
+    var asLeague = arguments.length > 4 && arguments[4] === true
     var payload = asLeague
       ? { teamName: "", league: lg, teamId: "", followLeague: true }
       : { teamName: name, league: lg, teamId: tid }
+    // Preserve fields this function doesn't know about across a plain save --
+    // it used to fully replace the payload, silently dropping followMatchIds
+    // (and now followedTeams) whenever the active club changed.
+    if (root.savedFavorite && typeof root.savedFavorite === "object") {
+      if (Array.isArray(root.savedFavorite.followMatchIds)) payload.followMatchIds = root.savedFavorite.followMatchIds
+      if (Array.isArray(root.savedFavorite.followedTeams)) payload.followedTeams = root.savedFavorite.followedTeams
+    }
+    if (followedTeamsOverride !== undefined) payload.followedTeams = followedTeamsOverride
     root.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
+  }
+
+  // Teams you're tracking besides the active one -- rendered as tabs in the
+  // panel header. The active team is never stored here; it's implicit (it's
+  // whatever teamName/league/teamId currently resolve to), so a single-team
+  // user's favorite file needs no migration at all.
+  function teamKey(name, league) {
+    return String(name || "").trim().toLowerCase() + "|" + String(league || "").trim().toLowerCase()
+  }
+  function followedTeamsList() {
+    return Array.isArray(root.savedFavorite.followedTeams) ? root.savedFavorite.followedTeams : []
+  }
+  function persistFollowedTeams(list) {
+    var payload = {}
+    if (root.savedFavorite && typeof root.savedFavorite === "object") {
+      for (var k in root.savedFavorite) payload[k] = root.savedFavorite[k]
+    }
+    payload.followedTeams = list
+    if (payload.teamName === undefined || payload.teamName === null) payload.teamName = root.teamName
+    if (payload.league === undefined || payload.league === null || payload.league === "") payload.league = root.league
+    if (payload.teamId === undefined || payload.teamId === null) payload.teamId = (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
+    root.savedFavorite = payload
+    favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
+  }
+  // The one place that changes which club is active. The active club is
+  // never itself stored in followedTeams (it's implicit -- whatever
+  // teamName/league/teamId currently resolve to), which means every switch
+  // has to do two things to the *explicit* list, not just one:
+  //   1. drop the destination club from it (it's about to become the
+  //      implicit active club, so leaving it in the list too would render
+  //      as a duplicate tab of itself)
+  //   2. add the club we're switching AWAY from, if it isn't already there
+  //      (otherwise it just vanishes -- it was only ever "remembered" by
+  //      virtue of being active, and it's about to stop being that)
+  // A plain tab click used to call activateTeam directly and only do
+  // neither, which is exactly what made switching away from a freshly
+  // added club discard that club and re-duplicate whatever you switched to.
+  function switchActiveTeam(teamName, league, teamId) {
+    var destKey = root.teamKey(teamName, league)
+    var activeKey = root.teamKey(root.teamName, root.league)
+    var list = root.followedTeamsList().slice()
+    for (var i = list.length - 1; i >= 0; i--) {
+      if (root.teamKey(list[i].teamName, list[i].league) === destKey) list.splice(i, 1)
+    }
+    if (destKey !== activeKey && root.teamName !== "") {
+      var already = false
+      for (var j = 0; j < list.length; j++) {
+        if (root.teamKey(list[j].teamName, list[j].league) === activeKey) { already = true; break }
+      }
+      if (!already) list.push({ teamName: root.teamName, league: root.league, teamId: root.teamId })
+    }
+    root.activateTeam(teamName, league, teamId, list)
+  }
+  // "+" flow: adding a club is just switching to one that (typically) isn't
+  // followed yet, so it reuses the exact same bookkeeping.
+  function addFollowedTeam(teamName, league, teamId) {
+    root.switchActiveTeam(teamName, league, teamId)
+  }
+  function removeFollowedTeam(teamName, league) {
+    var key = root.teamKey(teamName, league)
+    var list = root.followedTeamsList().slice()
+    for (var i = list.length - 1; i >= 0; i--) {
+      if (root.teamKey(list[i].teamName, list[i].league) === key) list.splice(i, 1)
+    }
+    root.persistFollowedTeams(list)
   }
   onSettingsChanged: root.ensureStarted()
 
@@ -1006,6 +1088,9 @@ readonly property var leagues: [
   property bool editingTeam: false
   // Picker-local: when true, Confirm saves a league-follow instead of a club.
   property bool pickerLeagueOnly: false
+  // Picker-local: when true, Confirm adds the picked club to followedTeams
+  // and switches to it, instead of replacing the single active club.
+  property bool addingTeam: false
 
   function open() {
     // Always start on the fixtures view; standings, stats and league matches are
@@ -2709,6 +2794,7 @@ readonly property var leagues: [
     if (!root.opened) {
       root.editingTeam = false
       root.pickerLeagueOnly = false
+      root.addingTeam = false
     } else {
       root.refresh()
       if (root.leagueMode || root.showMatches) {
@@ -2781,6 +2867,106 @@ readonly property var leagues: [
     interval: root.activityPollMs
     repeat: true
     onTriggered: root.pollLiveActivity()
+  }
+
+  // Auto-switch to whichever followed club is live right now, so the bar
+  // icon shows an in-progress match without the user having to notice and
+  // pick it themselves. Deliberately NOT reusing the heavy per-club fixture
+  // pipeline above (buildFetchQueue/scoreboardQueue) for every followed
+  // club -- that fetches every competition a club plays in; this only needs
+  // a single scoreboard per unique followed league, run occasionally.
+  property bool _liveSwitchDone: false
+  property var _livePollQueue: []
+  Timer {
+    id: livePollTimer
+    interval: 90000
+    repeat: true
+    running: true
+    onTriggered: root.startLivePoll()
+  }
+  Process {
+    id: livePollProcess
+    stdout: StdioCollector {
+      id: livePollOut
+      waitForEnd: true
+      onStreamFinished: root.handleLivePollResult(text)
+    }
+    onExited: function(code) {
+      if (code !== 0) root.pollNextLiveCheck()
+    }
+  }
+  function startLivePoll() {
+    // The active club's own liveMatch already comes from the full fetch
+    // pipeline -- nothing to gain by polling, and switching away from a club
+    // that's currently live (to another live one) would just be disruptive.
+    if (root.leagueMode || root.liveMatch) return
+    var seen = {}
+    var leagues = []
+    var candidates = root.followedTeamsList()
+    for (var i = 0; i < candidates.length; i++) {
+      var lg = root.safeIdentifier(String(candidates[i].league || ""))
+      if (lg === "" || seen[lg]) continue
+      seen[lg] = true
+      leagues.push(lg)
+    }
+    if (leagues.length === 0) return
+    root._liveSwitchDone = false
+    root._livePollQueue = leagues
+    root.pollNextLiveCheck()
+  }
+  function pollNextLiveCheck() {
+    if (livePollProcess.running || root._liveSwitchDone) return
+    if (root._livePollQueue.length === 0) return
+    var queue = root._livePollQueue.slice()
+    var slug = queue.shift()
+    root._livePollQueue = queue
+    // Local day +/- 1 UTC neighbour, same reasoning as loadMatchList: an
+    // evening UTC kickoff lands on the next morning east of Greenwich.
+    var window = root.rangeDate(-1) + "-" + root.rangeDate(1)
+    livePollProcess.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "5242880",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
+      + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
+    livePollProcess.running = true
+  }
+  function handleLivePollResult(text) {
+    try {
+      if (typeof text === "string" && text.length > 0 && text.length <= 5242880) {
+        var data = JSON.parse(text)
+        var events = Array.isArray(data.events) ? data.events : []
+        var candidates = root.followedTeamsList()
+        var activeKey = root.teamKey(root.teamName, root.league)
+        for (var i = 0; i < events.length && !root._liveSwitchDone; i++) {
+          var comp = events[i].competitions && events[i].competitions[0]
+          var state = comp && comp.status && comp.status.type ? String(comp.status.type.state) : ""
+          if (state !== "in") continue
+          var competitors = comp.competitors
+          if (!Array.isArray(competitors)) continue
+          for (var c = 0; c < candidates.length; c++) {
+            var cand = candidates[c]
+            if (root.teamKey(cand.teamName, cand.league) === activeKey) continue
+            var matched = false
+            for (var k = 0; k < competitors.length; k++) {
+              var team = competitors[k].team || {}
+              if (cand.teamId && String(team.id || "") === String(cand.teamId)) { matched = true; break }
+              if (!cand.teamId) {
+                var wanted = String(cand.teamName || "").toLowerCase()
+                if ([team.displayName, team.shortDisplayName, team.name, team.abbreviation].some(function(n) {
+                  return String(n || "").toLowerCase().indexOf(wanted) !== -1
+                })) { matched = true; break }
+              }
+            }
+            if (matched) {
+              root._liveSwitchDone = true
+              root.switchActiveTeam(cand.teamName, cand.league, cand.teamId)
+              break
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("futbar", "live poll parse error: " + e)
+    }
+    root.pollNextLiveCheck()
   }
 
   property var _setWidgetQueue: []
@@ -2975,14 +3161,17 @@ readonly property var leagues: [
     }
   }
 
-  function confirmTeam() {
-    if (!selectedTeam) return
+  // Switches the active club and refetches everything for it. Shared by the
+  // picker's Confirm button, tab clicks, and the live-poller's auto-switch.
+  // followedTeamsOverride: pass when the tab list is changing in the same
+  // action as the active club (see addFollowedTeam) so both land in one write.
+  function activateTeam(teamName, league, teamId, followedTeamsOverride) {
     root.editingTeam = false
-    var teamVal = root.sanitizePlainText(String(selectedTeam.value || ""))
-    var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
-    var teamIdVal = root.safeIdentifier(String(selectedTeam.id || ""))
+    var teamVal = root.sanitizePlainText(String(teamName || ""))
+    var leagueVal = root.safeIdentifier(String(league || ""))
+    var teamIdVal = root.safeIdentifier(String(teamId || ""))
     root.resolvedTeamId = teamIdVal
-    root.saveFavorite(teamVal, leagueVal, teamIdVal)
+    root.saveFavorite(teamVal, leagueVal, teamIdVal, followedTeamsOverride)
     root._queueSetBarWidget("teamName", teamVal)
     root._queueSetBarWidget("league", leagueVal)
     root._queueSetBarWidget("teamId", teamIdVal)
@@ -3012,6 +3201,19 @@ readonly property var leagues: [
     matchListRequest.running = false
 
     root.refresh()
+  }
+
+  function confirmTeam() {
+    if (!selectedTeam) return
+    var teamVal = root.sanitizePlainText(String(selectedTeam.value || ""))
+    var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
+    var teamIdVal = root.safeIdentifier(String(selectedTeam.id || ""))
+    if (root.addingTeam) {
+      root.addingTeam = false
+      root.addFollowedTeam(teamVal, leagueVal, teamIdVal)
+    } else {
+      root.switchActiveTeam(teamVal, leagueVal, teamIdVal)
+    }
   }
 
   function isLeagueMatchFollowed(id) {
@@ -3183,7 +3385,7 @@ readonly property var leagues: [
     var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
     if (leagueVal === "") return
     root.editingTeam = false
-    root.saveFavorite("", leagueVal, "", true)
+    root.saveFavorite("", leagueVal, "", undefined, true)
     root._queueSetBarWidget("league", leagueVal)
     // Wipe the previous club from widget settings so a reload cannot
     // resurrect it alongside the league-follow.
@@ -3268,9 +3470,24 @@ readonly property var leagues: [
   // Loads the current league's club list and shows the picker for editing.
   function openTeamPicker() {
     root.editingTeam = true
+    root.addingTeam = false
     root.selectedLeague = root.league !== "" ? root.league : (root.leagues.length > 0 ? root.leagues[0].value : "esp.1")
     root.selectedLeagueName = root.leagueLabel()
     root.pickerLeagueOnly = root.leagueMode
+    root.teams = []
+    root.selectedTeam = null
+    if (!teamsRequest.running) teamsRequest.running = true
+  }
+
+  // Same picker, but Confirm adds the club to the tab strip instead of
+  // replacing the active one. Starts from a blank league so adding Feyenoord
+  // doesn't require first clearing Ajax out of the League dropdown.
+  function openAddTeamPicker() {
+    root.editingTeam = true
+    root.addingTeam = true
+    root.selectedLeague = root.leagues.length > 0 ? root.leagues[0].value : "esp.1"
+    root.selectedLeagueName = root.leagues.length > 0 ? String(root.leagues[0].label) : root.selectedLeague
+    root.pickerLeagueOnly = false
     root.teams = []
     root.selectedTeam = null
     if (!teamsRequest.running) teamsRequest.running = true
@@ -4434,7 +4651,13 @@ onStreamFinished: root.warnStderr("", text)
             var safeLogo = root.sanitizeImageUrl(logo)
             return name === "" ? null : { value: name, label: name, logo: safeLogo, id: safeId }
           }).filter(function(item) { return item !== null })
-          if (root.editingTeam) {
+          // Pre-highlighting the active club only makes sense when *changing*
+          // it -- openAddTeamPicker() also sets editingTeam=true, and without
+          // this guard, browsing to a league your active club also plays in
+          // (e.g. Champions League) while adding a *different* club silently
+          // preselects your active club instead, one confirm-click away from
+          // adding a duplicate of it rather than the club you meant to add.
+          if (root.editingTeam && !root.addingTeam) {
             for (var i = 0; i < root.teams.length; i++) {
               if (String(root.teams[i].value) === root.teamName) {
                 root.selectedTeam = root.teams[i]
@@ -4709,7 +4932,7 @@ root.warnStderr("team select failed", text)
 
         Text {
           textFormat: Text.PlainText
-          text: root.editingTeam ? "Change your club" : "Choose your club"
+          text: root.addingTeam ? "Add a club to follow" : (root.editingTeam ? "Change your club" : "Choose your club")
           color: root.contentForeground
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.body
@@ -4828,6 +5051,53 @@ root.warnStderr("team select failed", text)
         visible: !root.needsTeam && !root.editingTeam
         width: parent.width
         spacing: Style.space(14)
+
+        // Club tabs: only shown once a second club has been added, so a
+        // single-team setup (everyone before this feature existed) looks
+        // exactly as before. Click switches; right-click removes (the active
+        // club has no remove -- it isn't stored in followedTeams to begin
+        // with, so there's nothing to remove it from).
+        Flow {
+          // Always visible (once a club is active, outside league-follow mode)
+          // so the "add" button is reachable even before a second club has
+          // ever been followed -- not gated on followedTeamsList() being
+          // non-empty, or there'd be no way to add the very first extra club.
+          visible: !root.leagueMode
+          width: parent.width
+          spacing: Style.space(6)
+
+          Repeater {
+            model: [{ teamName: root.teamName, league: root.league, teamId: root.teamId, active: true }]
+              .concat(root.followedTeamsList().map(function(t) {
+                return { teamName: t.teamName, league: t.league, teamId: t.teamId, active: false }
+              }))
+            delegate: Button {
+              text: modelData.teamName
+              tooltipText: modelData.active ? modelData.teamName : ("Switch to " + modelData.teamName + " · right-click to remove")
+              selected: modelData.active
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(10)
+              verticalPadding: Style.space(4)
+              onClicked: if (!modelData.active) root.switchActiveTeam(modelData.teamName, modelData.league, modelData.teamId)
+              onRightClicked: if (!modelData.active) root.removeFollowedTeam(modelData.teamName, modelData.league)
+            }
+          }
+
+          Button {
+            iconText: "󰐕"
+            tooltipText: "Add another club to follow"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: Style.space(8)
+            verticalPadding: Style.space(4)
+            onClicked: root.openAddTeamPicker()
+          }
+        }
 
         Row {
           width: parent.width
