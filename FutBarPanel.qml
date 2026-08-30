@@ -1617,16 +1617,26 @@ readonly property var leagues: [
   }
 
   function statusFor(event) {
-    if (!event || !event.status) return ""
-    var status = event.status
+    if (!event) return ""
+    var status = event.status || (event.competitions && event.competitions[0] && event.competitions[0].status)
+    if (!status) return ""
     if (status.type && status.type.state === "pre") {
       var kTime = root.kickoffTime(event)
-      return kTime !== "" ? kTime : "Kickoff Soon"
+      return kTime !== "" ? kTime : "Scheduled"
+    }
+    if (status.displayClock) {
+      var clk = String(status.displayClock).trim()
+      if (clk !== "" && clk !== "0'") {
+        if (status.type && (status.type.shortDetail === "HT" || status.type.detail === "Halftime" || status.type.detail === "Half Time")) {
+          return "HT"
+        }
+        return root.sanitizePlainText(clk)
+      }
     }
     var raw = status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
     if (/\d{1,2}\/\d{1,2}\s*-\s*\d{1,2}:\d{2}/.test(raw)) {
       var kTime2 = root.kickoffTime(event)
-      raw = kTime2 !== "" ? kTime2 : "Kickoff"
+      raw = kTime2 !== "" ? kTime2 : "Scheduled"
     }
     var shoot = root.shootoutSummaryFor(event)
     if (shoot !== "" && raw.indexOf("Pen") === -1 && raw.indexOf("pen") === -1) {
