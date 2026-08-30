@@ -413,7 +413,7 @@ Panel {
   // half-time and full-time while a match is in play.
   property bool liveActivity: false
   property string activityMatchId: ""
-  property var activityFlags: ({ started: false, halftime: false, fulltime: false })
+  property var activityFlags: ({ started: false, halftime: false, secondhalf: false, fulltime: false })
   // False until the first summary poll has seeded the flags from the match's
   // current state, so enabling Live Activity mid-match never retro-reports
   // events that already happened.
@@ -2634,7 +2634,7 @@ readonly property var leagues: [
       // A different match went live while activity was on: start tracking it
       // cleanly, so its start/goals are reported from scratch.
       root.activityMatchId = id
-      root.activityFlags = { started: false, halftime: false, fulltime: false }
+      root.activityFlags = { started: false, halftime: false, secondhalf: false, fulltime: false }
       root.activityInitialized = false
       root.activityWasHT = false
       root.activityET = false
@@ -2652,7 +2652,7 @@ readonly property var leagues: [
   function startLiveActivity() {
     root.liveActivity = true
     root.activityMatchId = ""
-    root.activityFlags = { started: false, halftime: false, fulltime: false }
+    root.activityFlags = { started: false, halftime: false, secondhalf: false, fulltime: false }
     root.activityInitialized = false
     root.activityWasHT = false
     root.activityET = false
@@ -2724,7 +2724,9 @@ readonly property var leagues: [
   function isHalftimeStatus(status) {
     var type = status && status.type ? status.type : {}
     if (String(type.name || "") === "STATUS_HALFTIME") return true
-    return String(type.description || "").indexOf("Halftime") !== -1
+    if (String(type.description || "").indexOf("Halftime") !== -1 || String(type.description || "").indexOf("Half Time") !== -1) return true
+    if (String(type.shortDetail || "") === "HT" || String(type.detail || "") === "HT") return true
+    return false
   }
 
   // Compares a fresh summary against what has already been reported.
@@ -2752,6 +2754,7 @@ readonly property var leagues: [
       if (state === "post") {
         root.activityFlags.started = true
         root.activityFlags.halftime = true
+        root.activityFlags.secondhalf = true
         root.activityFlags.fulltime = true
       } else if (state === "hal" || root.isHalftimeStatus(status)) {
         root.activityFlags.started = true
@@ -2762,6 +2765,10 @@ readonly property var leagues: [
         if (!root.activityET) root.activityWasHT = true
       } else if (state === "in") {
         root.activityFlags.started = true
+        if (status.period === 2 || String(status.type && status.type.name || "") === "STATUS_SECOND_HALF" || String(status.type && status.type.description || "").indexOf("Second Half") !== -1) {
+          root.activityFlags.halftime = true
+          root.activityFlags.secondhalf = true
+        }
       }
       return
     }
@@ -2783,10 +2790,12 @@ readonly property var leagues: [
       root.notify("Half Time", root.scoreTextFor(scoreSource) + " (HT)", "󱎫")
     }
 
-    // The break ended and play resumed: announce the second half. Soccer keeps
-    // both halves and the break under state "in", so this is a Halftime →
-    // non-Halftime move rather than a state transition.
-    if (root.activityWasHT && !halftime && state !== "" && state !== "pre" && state !== "post") {
+    // The break ended and play resumed or match reached period 2 / second half:
+    // announce the second half.
+    var isSecondHalf = !root.activityET && (status.period === 2 || String(status.type && status.type.name || "") === "STATUS_SECOND_HALF" || String(status.type && status.type.description || "").indexOf("Second Half") !== -1)
+    if ((!root.activityFlags.secondhalf && isSecondHalf && !halftime) || (root.activityWasHT && !halftime && state !== "" && state !== "pre" && state !== "post")) {
+      root.activityFlags.secondhalf = true
+      root.activityFlags.halftime = true
       root.notify("Second Half Started", root.scoreTextFor(scoreSource) + " · " + root.periodLabel(status.type), "󰦶")
     }
     root.activityWasHT = halftime
@@ -3424,8 +3433,22 @@ readonly property var leagues: [
         if (!flags.et && String(existing[k].type && existing[k].type.text || "") === "Start Extra Time")
           flags.et = true
       }
-      if (state === "post") { flags.fulltime = true; flags.started = true }
-      else if (state === "in") { flags.started = true }
+      if (state === "post") {
+        flags.fulltime = true
+        flags.started = true
+        flags.halftime = true
+        flags.secondhalf = true
+      } else if (state === "hal" || root.isHalftimeStatus(status)) {
+        flags.started = true
+        flags.halftime = true
+        if (!flags.et) flags.wasHT = true
+      } else if (state === "in") {
+        flags.started = true
+        if (status.period === 2 || String(status.type && status.type.name || "") === "STATUS_SECOND_HALF" || String(status.type && status.type.description || "").indexOf("Second Half") !== -1) {
+          flags.halftime = true
+          flags.secondhalf = true
+        }
+      }
     }
 
     var halftime = !flags.et && (state === "hal" || root.isHalftimeStatus(status))
@@ -3436,7 +3459,10 @@ readonly property var leagues: [
     }
     if (halftime) flags.halftime = true
 
-    if (flags.wasHT && !halftime && state !== "" && state !== "pre" && state !== "post") {
+    var isSecondHalf = !flags.et && (status.period === 2 || String(status.type && status.type.name || "") === "STATUS_SECOND_HALF" || String(status.type && status.type.description || "").indexOf("Second Half") !== -1)
+    if ((!flags.secondhalf && isSecondHalf && !halftime) || (flags.wasHT && !halftime && state !== "" && state !== "pre" && state !== "post")) {
+      flags.secondhalf = true
+      flags.halftime = true
       root.notify("Second Half Started",
         root.scoreTextFor(scoreSource) + " \u00b7 " + root.periodLabel(status.type), "󰦶")
     }
