@@ -1622,20 +1622,31 @@ readonly property var leagues: [
     if (!event) return ""
     var status = event.status || (event.competitions && event.competitions[0] && event.competitions[0].status)
     if (!status) return ""
-    if (status.type && status.type.state === "pre") {
+    var type = status.type || {}
+    var state = String(type.state || "")
+    if (state === "pre") {
       var kTime = root.kickoffTime(event)
       return kTime !== "" ? kTime : "Scheduled"
+    }
+    if (state === "post" || type.completed === true) {
+      var rawPost = String(type.shortDetail || type.detail || type.description || "FT").trim()
+      if (rawPost === "" || rawPost === "Full Time" || rawPost === "Final") rawPost = "FT"
+      var shootPost = root.shootoutSummaryFor(event)
+      if (shootPost !== "" && rawPost.indexOf("Pen") === -1 && rawPost.indexOf("pen") === -1) {
+        return root.sanitizePlainText(rawPost + " (" + shootPost + ")")
+      }
+      return root.sanitizePlainText(rawPost)
+    }
+    if (type.shortDetail === "HT" || type.detail === "Halftime" || type.detail === "Half Time") {
+      return "HT"
     }
     if (status.displayClock) {
       var clk = String(status.displayClock).trim()
       if (clk !== "" && clk !== "0'") {
-        if (status.type && (status.type.shortDetail === "HT" || status.type.detail === "Halftime" || status.type.detail === "Half Time")) {
-          return "HT"
-        }
         return root.sanitizePlainText(clk)
       }
     }
-    var raw = status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
+    var raw = String(type.shortDetail || type.detail || "Live")
     if (/\d{1,2}\/\d{1,2}\s*-\s*\d{1,2}:\d{2}/.test(raw)) {
       var kTime2 = root.kickoffTime(event)
       raw = kTime2 !== "" ? kTime2 : "Scheduled"
@@ -1715,7 +1726,7 @@ readonly property var leagues: [
     if (leagueCode === "") return
     var key = leagueCode + "|" + String(root.standingsSeasonOffset)
     var now = Date.now()
-    if (!force && key === root._lastStandingsKey && root.standings.length > 0 && (now - root.lastStandingsRefresh < 15 * 60 * 1000)) {
+    if (!force && key === root._lastStandingsKey && root.standings.length > 0 && (now - root.lastStandingsRefresh < 30 * 1000)) {
       return
     }
     standingsRequest.running = false
@@ -1735,7 +1746,7 @@ readonly property var leagues: [
     if (leagueCode === "") return
     var key = leagueCode + "|" + String(root.statsSeasonOffset)
     var now = Date.now()
-    if (!force && key === root._lastStatsKey && (root.statsGoals.length > 0 || root.statsYellow.length > 0) && (now - root.lastStatsRefresh < 15 * 60 * 1000)) {
+    if (!force && key === root._lastStatsKey && (root.statsGoals.length > 0 || root.statsYellow.length > 0) && (now - root.lastStatsRefresh < 30 * 1000)) {
       return
     }
     statsRequest.running = false
@@ -2260,6 +2271,7 @@ readonly property var leagues: [
     if (!clusters || !Array.isArray(clusters) || clusters.length === 0) return 0
     var today = new Date(); today.setHours(0, 0, 0, 0)
     var todayMs = today.getTime()
+    var nowMs = Date.now()
     var idx = -1
 
     // 1. Any cluster containing a live/active match?
@@ -2274,23 +2286,29 @@ readonly property var leagues: [
       }
     }
 
-    // 2. Any cluster where today sits within match dates (with 1 day grace for night finishes)?
-    for (var c = 0; c < clusters.length && idx === -1; c++) {
-      var cRows = clusters[c].rows || clusters[c]
-      if (!Array.isArray(cRows) || cRows.length === 0) continue
-      var first = new Date(cRows[0].kickoff); first.setHours(0, 0, 0, 0)
-      var last = new Date(cRows[cRows.length - 1].kickoff); last.setHours(0, 0, 0, 0)
-      last.setDate(last.getDate() + 1)
-      if (todayMs >= first.getTime() && todayMs <= last.getTime()) idx = c
+    // 2. The active/current round: first cluster containing unplayed (pre) or currently active fixtures
+    if (idx === -1) {
+      for (var c = 0; c < clusters.length && idx === -1; c++) {
+        var cRows = clusters[c].rows || clusters[c]
+        if (!Array.isArray(cRows) || cRows.length === 0) continue
+        var hasActiveOrUpcoming = cRows.some(function(row) {
+          return row.state === "pre" || row.state === "in" || row.kickoff >= nowMs
+        })
+        if (hasActiveOrUpcoming) {
+          idx = c
+          break
+        }
+      }
     }
 
-    // 3. Nearest future cluster?
+    // 3. Any cluster where today sits within match dates?
     if (idx === -1) {
-      for (var f = 0; f < clusters.length && idx === -1; f++) {
-        var fRows = clusters[f].rows || clusters[f]
-        if (!Array.isArray(fRows) || fRows.length === 0) continue
-        var start = new Date(fRows[0].kickoff); start.setHours(0, 0, 0, 0)
-        if (start.getTime() > todayMs) idx = f
+      for (var c2 = 0; c2 < clusters.length && idx === -1; c2++) {
+        var cRows2 = clusters[c2].rows || clusters[c2]
+        if (!Array.isArray(cRows2) || cRows2.length === 0) continue
+        var first = new Date(cRows2[0].kickoff); first.setHours(0, 0, 0, 0)
+        var last = new Date(cRows2[cRows2.length - 1].kickoff); last.setHours(0, 0, 0, 0)
+        if (todayMs >= first.getTime() && todayMs <= last.getTime()) idx = c2
       }
     }
 
@@ -5478,7 +5496,7 @@ root.warnStderr("team select failed", text)
             if (root.showStandings) {
               root.showMatches = false
               root.showStats = false
-              root.loadStandings()
+              root.loadStandings(true)
             } else if (root.leagueMode) {
               // League-follow always lands back on the match board.
               root.showMatches = true
@@ -5514,7 +5532,7 @@ root.warnStderr("team select failed", text)
             if (root.showStats) {
               root.showMatches = false
               root.showStandings = false
-              root.loadStats()
+              root.loadStats(true)
             } else if (root.leagueMode) {
               // League-follow always lands back on the match board.
               root.showMatches = true
@@ -8200,7 +8218,7 @@ root.warnStderr("team select failed", text)
             verticalPadding: 0
             onClicked: {
               root.statsSeasonOffset++
-              root.loadStats()
+              root.loadStats(true)
             }
           }
 
@@ -8219,7 +8237,7 @@ root.warnStderr("team select failed", text)
             verticalPadding: 0
             onClicked: {
               root.statsSeasonOffset = 0
-              root.loadStats()
+              root.loadStats(true)
             }
           }
 
@@ -8239,7 +8257,7 @@ root.warnStderr("team select failed", text)
             opacity: enabled ? 1 : 0.35
             onClicked: {
               root.statsSeasonOffset--
-              root.loadStats()
+              root.loadStats(true)
             }
           }
         }
