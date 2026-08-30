@@ -388,6 +388,9 @@ Panel {
       if (root.teamKey(list[i].teamName, list[i].league) === key) list.splice(i, 1)
     }
     root.persistFollowedTeams(list)
+    // Unfollowed clubs don't need their fetched state kept around for a
+    // switch that can no longer happen.
+    delete root._teamStateCache[key]
   }
   onSettingsChanged: root.ensureStarted()
 
@@ -1190,17 +1193,76 @@ readonly property var leagues: [
     root.requestError = ""
   }
 
+  // In-memory only (never written to the favorite file) cache of each
+  // followed club's already-fetched dashboard state, keyed by teamKey().
+  // Switching clubs used to reset*() + refetch from zero every single
+  // time, even switching straight back to a club you were looking at
+  // seconds ago -- this is what let switchActiveTeam() skip that for a
+  // club already in here. Session-only by design: a stale-for-days cache
+  // surviving a restart would be worse than just refetching once on
+  // startup, so this intentionally starts empty every launch.
+  property var _teamStateCache: ({})
+
+  function snapshotTeamState() {
+    return {
+      competitionSlugs: root.competitionSlugs,
+      competitionRefresh: root.competitionRefresh,
+      leagueInfo: root.leagueInfo,
+      lastRefresh: root.lastRefresh,
+      nextMatch: root.nextMatch,
+      previousMatch: root.previousMatch,
+      liveMatch: root.liveMatch,
+      liveEvents: root.liveEvents,
+      collectedEvents: root.collectedEvents
+    }
+  }
+
+  // Restores exactly the fields resetTeamData() clears -- deliberately not
+  // the resetMatchList()/standings/stats fields (the fixtures-browser and
+  // standings/stats sub-views): those are opt-in views nobody sees on a
+  // plain tab switch, so caching them would add complexity for state the
+  // dashboard's default view never renders. A club whose fixtures browser
+  // you've already opened once just pays that specific sub-fetch again.
+  function restoreTeamState(snap) {
+    root.competitionSlugs = snap.competitionSlugs
+    root.competitionRefresh = snap.competitionRefresh
+    root.leagueInfo = snap.leagueInfo
+    root.lastRefresh = snap.lastRefresh
+    root.nextMatch = snap.nextMatch
+    root.previousMatch = snap.previousMatch
+    root.liveMatch = snap.liveMatch
+    root.liveEvents = snap.liveEvents
+    root.collectedEvents = snap.collectedEvents
+    // Computed fresh rather than carried over from the snapshot: this is
+    // what tells refresh() "the currently-live properties already belong
+    // to this club" so it skips its own resetTeamData() and loading=true
+    // -- deriving it here guarantees that match instead of trusting it
+    // stayed valid since the snapshot was taken (resolvedTeamId in
+    // particular could in principle have been re-resolved differently
+    // meanwhile, e.g. by the picker's own team search).
+    root._fixtureTeamKey = root.fixtureTeamKey()
+  }
+
+  // matchWeekRows/matchWeekLabel are deliberately not reset here: both are
+  // `readonly` properties derived from activeMatchCluster (itself derived
+  // from matchClusters/matchClusterIndex, both reset below), so they
+  // recompute correctly on their own. Explicitly assigning to a readonly
+  // property throws a TypeError -- previously the very first thing this
+  // function did, on every single call. QML's error handling for that
+  // varies by call context enough that it wasn't always visibly obvious,
+  // but at least via a direct imperative call (confirmed while testing the
+  // club-switch cache below, which calls this function) it aborted the
+  // rest of resetMatchList() (and this function only ever had two callers,
+  // both further up their own call chain -- see git history if the exact
+  // blast radius of that ever needs re-deriving).
   function resetMatchList() {
-    root.matchWeekRows = []
     root.matchClusters = []
     root.matchClusterIndex = 0
     root.matchWindowOffset = 0
-    root.matchWeekLabel = ""
     root.leagueLive = []
     root.leagueRecent = []
     root.leagueUpcoming = []
     root.leagueBoardSummary = ""
-    root.matchListCache = {}
     root.matchListError = ""
   }
 
@@ -3186,35 +3248,64 @@ readonly property var leagues: [
     var teamVal = root.sanitizePlainText(String(teamName || ""))
     var leagueVal = root.safeIdentifier(String(league || ""))
     var teamIdVal = root.safeIdentifier(String(teamId || ""))
+
+    // Snapshot the outgoing club's already-fetched state before touching
+    // anything, so switching back to it later can restore instead of
+    // refetching from zero. Uses root.teamName/league as they still read
+    // *before* this function changes them below.
+    if (root.teamName !== "" && root.teamKey(root.teamName, root.league) !== root.teamKey(teamVal, leagueVal)) {
+      root._teamStateCache[root.teamKey(root.teamName, root.league)] = root.snapshotTeamState()
+    }
+
     root.resolvedTeamId = teamIdVal
     root.saveFavorite(teamVal, leagueVal, teamIdVal, followedTeamsOverride)
     root._queueSetBarWidget("teamName", teamVal)
     root._queueSetBarWidget("league", leagueVal)
     root._queueSetBarWidget("teamId", teamIdVal)
 
-    // Force clean state and immediate refresh for new club
-    root.resetTeamData()
+    // View/navigation state always resets on a club switch, cache hit or
+    // not -- whatever detail view was open belonged to the outgoing club.
+    // (standingsRows/statsRows/standingsLeagueKey/statsLeagueKey used to be
+    // "reset" here too, but none of the four is an actually-declared
+    // property anywhere in this file -- assigning to them throws "Cannot
+    // assign to non-existent property" and, same as the resetMatchList()
+    // bug above, aborted whatever called this. Dead/vestigial, removed.)
     root.resetMatchList()
-    root.standingsRows = []
-    root.statsRows = []
-    root.standingsLeagueKey = ""
-    root.statsLeagueKey = ""
-    root._fixtureTeamKey = ""
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
     root.showClubFixtures = false
     root.showMatchDetail = false
     root.clubFixturePage = 0
-    root.loading = true
     root.requestError = ""
 
-    // Cancel in-flight processes
+    // Cancel in-flight processes -- their result would belong to whichever
+    // club was active when they were fired, not this one.
     fixtureRequest.running = false
     sbRequest1.running = false
     sbRequest2.running = false
     sbRequest3.running = false
     matchListRequest.running = false
+
+    var cached = root._teamStateCache[root.teamKey(teamVal, leagueVal)]
+    if (cached) {
+      // Cache hit: show the last-known dashboard instantly, no reset-to-
+      // empty/spinner flash. refresh() below still runs to bring it up to
+      // date -- restoreTeamState() sets _fixtureTeamKey to match, so
+      // refresh() skips its own resetTeamData() and (since collectedEvents
+      // is non-empty again) the loading flag, and buildFetchQueue() skips
+      // rediscovering competitions if competitionSlugs is still fresh --
+      // so this becomes a light "just refetch scoreboards" pass rather
+      // than the full cold-start pipeline.
+      root.restoreTeamState(cached)
+      root.loading = false
+    } else {
+      // No cache entry -- never loaded this session (first pick, or just
+      // added via "+"). Today's full reset + spinner + fetch from scratch.
+      root.resetTeamData()
+      root._fixtureTeamKey = ""
+      root.loading = true
+    }
 
     root.refresh()
   }
@@ -3411,10 +3502,6 @@ readonly property var leagues: [
     // Force clean state and immediate fetch for new league
     root.resetTeamData()
     root.resetMatchList()
-    root.standingsRows = []
-    root.statsRows = []
-    root.standingsLeagueKey = ""
-    root.statsLeagueKey = ""
     root._fixtureTeamKey = ""
     root.showStandings = false
     root.showStats = false
