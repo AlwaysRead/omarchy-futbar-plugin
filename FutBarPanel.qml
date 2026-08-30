@@ -2816,19 +2816,6 @@ readonly property var leagues: [
           + " · " + root.periodLabel(status.type), "󰦶")
     }
 
-    if (!root.activityFlags.fulltime && state === "post") {
-      root.activityFlags.fulltime = true
-      var ftHome = Number(root.scoreFor(scoreSource, "home"))
-      var ftAway = Number(root.scoreFor(scoreSource, "away"))
-      // A level scoreline is only a draw when nobody won on penalties:
-      // shootout finishes (STATUS_FINAL_PEN) keep equal scores but a winner.
-      var tied = !isNaN(ftHome) && !isNaN(ftAway) && ftHome === ftAway
-        && String(status.type && status.type.name || "") !== "STATUS_FINAL_PEN"
-      root.notify(tied ? "Match Tied" : "Full Time", root.scoreTextFor(scoreSource) + " (FT)", "󱉾")
-      activityPollTimer.stop()
-      return
-    }
-
     var events = Array.isArray(data.keyEvents) ? data.keyEvents : []
 
     // ESPN can publish a goal key event before the header score catches up,
@@ -2896,6 +2883,19 @@ readonly property var leagues: [
       } else {
         root.activityMarkSeen(e)
       }
+    }
+
+    if (!root.activityFlags.fulltime && state === "post") {
+      root.activityFlags.fulltime = true
+      var ftHome = Number(root.scoreFor(scoreSource, "home"))
+      var ftAway = Number(root.scoreFor(scoreSource, "away"))
+      // A level scoreline is only a draw when nobody won on penalties:
+      // shootout finishes (STATUS_FINAL_PEN) keep equal scores but a winner.
+      var tied = !isNaN(ftHome) && !isNaN(ftAway) && ftHome === ftAway
+        && String(status.type && status.type.name || "") !== "STATUS_FINAL_PEN"
+      root.notify(tied ? "Match Tied" : "Full Time", root.scoreTextFor(scoreSource) + " (FT)", "󱉾")
+      activityPollTimer.stop()
+      return
     }
   }
 
@@ -3483,18 +3483,6 @@ readonly property var leagues: [
         homeName + " vs " + awayName + " \u00b7 " + root.periodLabel(status.type), "󰦶")
     }
 
-    if (!flags.fulltime && state === "post") {
-      flags.fulltime = true
-      var ftHome = Number(root.scoreFor(scoreSource, "home"))
-      var ftAway = Number(root.scoreFor(scoreSource, "away"))
-      var tied = !isNaN(ftHome) && !isNaN(ftAway) && ftHome === ftAway
-        && String(status.type && status.type.name || "") !== "STATUS_FINAL_PEN"
-      root.notify(tied ? "Match Tied" : "Full Time",
-        root.scoreTextFor(scoreSource) + " (FT)", "󱉾")
-      delete root.leagueMatchFlags[matchId]
-      return
-    }
-
     var events = Array.isArray(data.keyEvents) ? data.keyEvents : []
     for (var i = 0; i < events.length; i++) {
       var e = events[i]
@@ -3537,6 +3525,18 @@ readonly property var leagues: [
       } else {
         root.activityMarkKey(key)
       }
+    }
+
+    if (!flags.fulltime && state === "post") {
+      flags.fulltime = true
+      var ftHome = Number(root.scoreFor(scoreSource, "home"))
+      var ftAway = Number(root.scoreFor(scoreSource, "away"))
+      var tied = !isNaN(ftHome) && !isNaN(ftAway) && ftHome === ftAway
+        && String(status.type && status.type.name || "") !== "STATUS_FINAL_PEN"
+      root.notify(tied ? "Match Tied" : "Full Time",
+        root.scoreTextFor(scoreSource) + " (FT)", "󱉾")
+      delete root.leagueMatchFlags[matchId]
+      return
     }
   }
 
