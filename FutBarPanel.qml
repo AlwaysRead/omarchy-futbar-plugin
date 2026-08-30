@@ -1750,12 +1750,18 @@ readonly property var leagues: [
       return
     }
     statsRequest.running = false
+    cardLeadersRequest.running = false
+    athletesRequest.running = false
+    athleteStatsRequest.running = false
     root.statsLoading = true
     root.statsError = ""
+    root.statsGoals = []
+    root.statsAssists = []
     root.rawYellowLeaders = []
     root.rawRedLeaders = []
     root.statsYellow = []
     root.statsRed = []
+    root.athleteMap = ({})
     var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
     var statsUrl = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/statistics"
     if (root.statsSeasonOffset > 0) {
