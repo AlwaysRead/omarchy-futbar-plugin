@@ -1159,8 +1159,9 @@ readonly property var leagues: [
   // Fixture data is considered fresh until its TTL expires: 10 minutes when a
   // fixture involving the team falls on today, 30 minutes otherwise.
   function fixtureTtl() {
+    if (root.liveMatch) return 15 * 1000
     var today = Qt.formatDate(new Date(), "yyyyMMdd")
-    var candidates = [root.nextMatch, root.previousMatch, root.liveMatch]
+    var candidates = [root.nextMatch, root.previousMatch]
     for (var i = 0; i < candidates.length; i++) {
       var ev = candidates[i]
       if (ev && Qt.formatDate(new Date(ev.date), "yyyyMMdd") === today) return 10 * 60 * 1000
@@ -1391,10 +1392,19 @@ readonly property var leagues: [
       var events = Array.isArray(data.events) ? data.events : []
       for (var e = 0; e < events.length; e++) {
         if (!root.eventMatchesTeam(events[e])) continue
-        var dup = merged.some(function(ev) { return String(ev.id) === String(events[e].id) })
-        if (dup) continue
         if (events[e].competitionSlug === undefined) events[e].competitionSlug = slug
-        merged.push(events[e])
+        var existingIndex = -1
+        for (var k = 0; k < merged.length; k++) {
+          if (String(merged[k].id) === String(events[e].id)) {
+            existingIndex = k
+            break
+          }
+        }
+        if (existingIndex !== -1) {
+          merged[existingIndex] = events[e]
+        } else {
+          merged.push(events[e])
+        }
       }
       root.collectedEvents = merged
     } catch (error) {
@@ -1494,17 +1504,8 @@ readonly property var leagues: [
     nextMatch = upcoming.length ? upcoming[0] : null
     previousMatch = completed.length ? completed[0] : null
 
-    // ESPN reports a match as `pre` until moments after kickoff. A scheduled
-    // event whose kickoff just passed is therefore treated as in-play so it
-    // does not vanish between kickoff and ESPN flipping it to `in`.
-    var nowMs = now
     var inPlay = events.filter(function(event) {
-      if (event.status && event.status.type.state === "in") return true
-      if (event.status && event.status.type.state === "pre") {
-        var ms = new Date(event.date).getTime()
-        return ms <= nowMs && nowMs - ms <= 3 * 3600 * 1000
-      }
-      return false
+      return event.status && event.status.type && event.status.type.state === "in"
     })
     liveMatch = inPlay.length ? inPlay[0] : null
     root.loadLiveSummary()
@@ -1616,8 +1617,17 @@ readonly property var leagues: [
   }
 
   function statusFor(event) {
-    var status = event && event.status
-    var raw = status && status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
+    if (!event || !event.status) return ""
+    var status = event.status
+    if (status.type && status.type.state === "pre") {
+      var kTime = root.kickoffTime(event)
+      return kTime !== "" ? kTime : "Kickoff Soon"
+    }
+    var raw = status.type ? String(status.type.shortDetail || status.type.detail || "Full time") : "Full time"
+    if (/\d{1,2}\/\d{1,2}\s*-\s*\d{1,2}:\d{2}/.test(raw)) {
+      var kTime2 = root.kickoffTime(event)
+      raw = kTime2 !== "" ? kTime2 : "Kickoff"
+    }
     var shoot = root.shootoutSummaryFor(event)
     if (shoot !== "" && raw.indexOf("Pen") === -1 && raw.indexOf("pen") === -1) {
       return root.sanitizePlainText(raw + " (" + shoot + ")")
@@ -3730,6 +3740,24 @@ onStreamFinished: root.warnStderr("", text)
         try {
           var data = JSON.parse(text)
           root.liveEvents = Array.isArray(data.keyEvents) ? data.keyEvents : []
+          if (data.header && Array.isArray(data.header.competitions) && data.header.competitions[0] && root.liveMatch) {
+            var headerComp = data.header.competitions[0]
+            var updated = Object.assign({}, root.liveMatch)
+            if (headerComp.status) updated.status = headerComp.status
+            if (Array.isArray(headerComp.competitors)) {
+              if (!Array.isArray(updated.competitions) || !updated.competitions[0]) {
+                updated.competitions = [{ competitors: headerComp.competitors, status: headerComp.status }]
+              } else {
+                var newComps = updated.competitions.slice()
+                newComps[0] = Object.assign({}, newComps[0], {
+                  competitors: headerComp.competitors,
+                  status: headerComp.status || newComps[0].status
+                })
+                updated.competitions = newComps
+              }
+            }
+            root.liveMatch = updated
+          }
         } catch (error) {
           root.liveEvents = []
           console.warn("futbar", "summary: " + error)
@@ -4960,7 +4988,7 @@ onStreamFinished: root.warnStderr("", text)
           root.loadMatchList(true)
         }
       } else {
-        if (!root.fixtureFresh()) root.refresh()
+        if (root.liveMatch || !root.fixtureFresh()) root.refresh()
       }
       if (root.showMatchDetail && root.matchDetail && root.matchDetail.id && (root.matchDetail.isLive || !root.matchDetail.started)) {
         if (!matchDetailRequest.running) {
@@ -8793,7 +8821,7 @@ root.warnStderr("team select failed", text)
           textFormat: Text.PlainText
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
-          text: root.statusFor(root.liveMatch)
+          text: "LIVE"
           color: "#4ade80"
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
@@ -8850,11 +8878,24 @@ root.warnStderr("team select failed", text)
             spacing: Style.space(8)
 
             Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "home"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignRight; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+            Text {
+              textFormat: Text.PlainText
+              width: (parent.width - Style.space(50) * 2 - Style.space(90) - parent.spacing * 4) / 2
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.teamNameFor(root.liveMatch, "home")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+              horizontalAlignment: Text.AlignRight
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
             Column {
-              width: Style.space(86)
+              width: Style.space(90)
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(1)
+              clip: true
 
               Text {
                 textFormat: Text.PlainText
@@ -8876,10 +8917,24 @@ root.warnStderr("team select failed", text)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
+                elide: Text.ElideRight
+                maximumLineCount: 1
                 visible: text !== ""
               }
             }
-            Text { textFormat: Text.PlainText; width: Style.space(72); anchors.verticalCenter: parent.verticalCenter; text: root.teamNameFor(root.liveMatch, "away"); color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.body; horizontalAlignment: Text.AlignLeft; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+            Text {
+              textFormat: Text.PlainText
+              width: (parent.width - Style.space(50) * 2 - Style.space(90) - parent.spacing * 4) / 2
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.teamNameFor(root.liveMatch, "away")
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+              horizontalAlignment: Text.AlignLeft
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideRight
+            }
             Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
           }
 
