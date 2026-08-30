@@ -2420,8 +2420,9 @@ readonly property var leagues: [
   // `penalty---scored` type rather than "Goal", so a plain text match misses
   // them.
   function isGoalEvent(event) {
-    var t = String(event && event.type && event.type.text || "")
-    var tt = String(event && event.type && event.type.type || "")
+    if (!event || event.shootout === true) return false
+    var t = String(event.type && event.type.text || "")
+    var tt = String(event.type && event.type.type || "")
     if (t.indexOf("Goal") !== -1) return true
     if (t.indexOf("Penalty - Scored") !== -1) return true
     if (tt.indexOf("goal") !== -1) return true
@@ -2855,13 +2856,14 @@ readonly property var leagues: [
         }
         root.activityMarkSeen(e)
         root.notify(goalTitle, (minute !== "" ? minute + "' · " : "") + score, "󰒸")
-      } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1) {
+      } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1 || t.indexOf("Second Yellow") !== -1) {
         if (!players.length) { root.activityMarkSeen(e); continue }
         var cardFirst = players[0]
         var cardPerson = cardFirst.athlete || cardFirst
         var cardName = root.sanitizePlainText(String(cardPerson.displayName || "?"))
-        var cardKind = t.indexOf("Yellow") !== -1 ? "Yellow Card" : "Red Card"
-        var cardGlyph = t.indexOf("Yellow") !== -1 ? "🟨" : "🟥"
+        var isRed = t.indexOf("Red") !== -1 || t.indexOf("Second Yellow") !== -1
+        var cardKind = isRed ? (t.indexOf("Second Yellow") !== -1 ? "Red Card (2nd Yellow)" : "Red Card") : "Yellow Card"
+        var cardGlyph = isRed ? "🟥" : "🟨"
         var parts = []
         if (minute !== "") parts.push(minute + "'")
         if (teamName !== "") parts.push(teamName)
@@ -3502,12 +3504,13 @@ readonly property var leagues: [
         var goalTitle = isOG ? "Own Goal (OG) — " + playerName : (root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName)
         root.activityMarkKey(key)
         root.notify(goalTitle, (minute !== "" ? minute + "' · " : "") + score, "󰒸")
-      } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1) {
+      } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1 || t.indexOf("Second Yellow") !== -1) {
         if (!players.length) { root.activityMarkKey(key); continue }
         var cardPerson = players[0].athlete || players[0]
         var cardName = root.sanitizePlainText(String(cardPerson.displayName || "?"))
-        var cardKind = t.indexOf("Yellow") !== -1 ? "Yellow Card" : "Red Card"
-        var cardGlyph = t.indexOf("Yellow") !== -1 ? "\u{1F7E8}" : "\u{1F7E5}"
+        var isRed = t.indexOf("Red") !== -1 || t.indexOf("Second Yellow") !== -1
+        var cardKind = isRed ? (t.indexOf("Second Yellow") !== -1 ? "Red Card (2nd Yellow)" : "Red Card") : "Yellow Card"
+        var cardGlyph = isRed ? "\u{1F7E5}" : "\u{1F7E8}"
         root.activityMarkKey(key)
         root.notify(cardKind + " — " + cardName,
           (minute !== "" ? minute + "' · " : "") + root.shortScoreTextFor(scoreSource), cardGlyph)
