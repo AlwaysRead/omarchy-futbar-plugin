@@ -234,8 +234,24 @@ Panel {
   function teamKey(name, league) {
     return String(name || "").trim().toLowerCase() + "|" + String(league || "").trim().toLowerCase()
   }
+  // Normalizes to well-formed { teamName, league, teamId } objects (all
+  // strings) so every consumer -- switchActiveTeam, the tab Repeater -- can
+  // trust entry.teamName/.league without a null-check of its own. A
+  // hand-edited or otherwise malformed favorite file (nulls, strings,
+  // missing keys in followedTeams) would otherwise throw at runtime the
+  // first time something reads a field off a bad entry.
   function followedTeamsList() {
-    return Array.isArray(root.savedFavorite.followedTeams) ? root.savedFavorite.followedTeams : []
+    var raw = Array.isArray(root.savedFavorite.followedTeams) ? root.savedFavorite.followedTeams : []
+    var out = []
+    for (var i = 0; i < raw.length; i++) {
+      var entry = raw[i]
+      if (!entry || typeof entry !== "object") continue
+      var name = typeof entry.teamName === "string" ? entry.teamName : ""
+      var lg = typeof entry.league === "string" ? entry.league : ""
+      if (name === "" && lg === "") continue
+      out.push({ teamName: name, league: lg, teamId: typeof entry.teamId === "string" ? entry.teamId : "" })
+    }
+    return out
   }
   function persistFollowedTeams(list) {
     var payload = {}
@@ -274,7 +290,7 @@ Panel {
       for (var j = 0; j < list.length; j++) {
         if (root.teamKey(list[j].teamName, list[j].league) === activeKey) { already = true; break }
       }
-      if (!already) list.push({ teamName: root.teamName, league: root.league, teamId: root.teamId })
+      if (!already) list.push({ teamName: root.teamName, league: root.league, teamId: (root.teamId !== "" ? root.teamId : root.resolvedTeamId) })
     }
     root.activateTeam(teamName, league, teamId, list)
   }
@@ -2932,8 +2948,10 @@ Panel {
   }
 
   // Same picker, but Confirm adds the club to the tab strip instead of
-  // replacing the active one. Starts from a blank league so adding Feyenoord
-  // doesn't require first clearing Ajax out of the League dropdown.
+  // replacing the active one. Defaults to the first league in the list
+  // (independent of whichever league the active club plays in), so adding
+  // e.g. Liverpool doesn't require first clearing Ajax out of the League
+  // dropdown.
   function openAddTeamPicker() {
     root.editingTeam = true
     root.addingTeam = true
