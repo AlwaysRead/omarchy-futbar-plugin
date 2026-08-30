@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "devbook.futbar",
   "name": "FutBar",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "author": "devbook",
   "license": "MIT",
   "description": "Live match center and football tracker with tactical lineups, real-time scores, league tables, and live event alerts.",

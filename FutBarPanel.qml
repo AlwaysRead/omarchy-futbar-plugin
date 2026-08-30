@@ -1493,22 +1493,24 @@ readonly property var leagues: [
     var now = new Date().getTime()
     // ESPN occasionally omits or delays the `pre` state. A dated future
     // fixture is still the next match, so do not hide its teams in that case.
-    var upcoming = events.filter(function(event) {
-      return new Date(event.date).getTime() >= now
-    })
-    var completed = events.filter(function(event) {
-      return event.status && event.status.type.state === "post"
-    })
-    upcoming.sort(function(a, b) { return new Date(a.date) - new Date(b.date) })
-    completed.sort(function(a, b) { return new Date(b.date) - new Date(a.date) })
-    nextMatch = upcoming.length ? upcoming[0] : null
-    previousMatch = completed.length ? completed[0] : null
-
     var inPlay = events.filter(function(event) {
       return event.status && event.status.type && event.status.type.state === "in"
     })
     liveMatch = inPlay.length ? inPlay[0] : null
     root.loadLiveSummary()
+
+    var upcoming = events.filter(function(event) {
+      var state = event.status && event.status.type && event.status.type.state
+      if (state === "in" || state === "post") return false
+      return state === "pre" || new Date(event.date).getTime() >= now
+    })
+    var completed = events.filter(function(event) {
+      return event.status && event.status.type && event.status.type.state === "post"
+    })
+    upcoming.sort(function(a, b) { return new Date(a.date) - new Date(b.date) })
+    completed.sort(function(a, b) { return new Date(b.date) - new Date(a.date) })
+    nextMatch = upcoming.length ? upcoming[0] : null
+    previousMatch = completed.length ? completed[0] : null
 
     var ref = nextMatch || previousMatch
     tournamentName = ref ? root.competitionNameFor(ref) : root.leagueLabel()
@@ -1650,6 +1652,8 @@ readonly property var leagues: [
     var hW = 0
     var aW = 0
     var d = 0
+    var hLower = root.sanitizePlainText(String(homeName || "")).toLowerCase()
+    var aLower = root.sanitizePlainText(String(awayName || "")).toLowerCase()
     for (var i = 0; i < h2hList.length; i++) {
       var item = h2hList[i]
       var hs = parseInt(item.homeScore, 10)
@@ -1657,12 +1661,18 @@ readonly property var leagues: [
       if (!isNaN(hs) && !isNaN(as_)) {
         if (hs === as_) {
           d++
-        } else if (hs > as_) {
-          if (item.home === homeName) hW++
-          else aW++
         } else {
-          if (item.away === homeName) hW++
-          else aW++
+          var itemHome = String(item.home || "").toLowerCase()
+          var itemAway = String(item.away || "").toLowerCase()
+          var isHomeMatchHome = (itemHome === hLower || (hLower !== "" && itemHome.indexOf(hLower) !== -1) || (itemHome !== "" && hLower.indexOf(itemHome) !== -1))
+          var isHomeMatchAway = (itemAway === hLower || (hLower !== "" && itemAway.indexOf(hLower) !== -1) || (itemAway !== "" && hLower.indexOf(itemAway) !== -1))
+          if (hs > as_) {
+            if (isHomeMatchHome || !isHomeMatchAway) hW++
+            else aW++
+          } else {
+            if (isHomeMatchAway || !isHomeMatchHome) hW++
+            else aW++
+          }
         }
       }
     }
@@ -2520,6 +2530,7 @@ readonly property var leagues: [
   // runs, which the omarchy notifications service renders as a popup. The
   // optional glyph (Nerd Font character or emoji) travels in the omarchy-glyph
   // hint and is drawn in the card's icon slot; other daemons ignore it.
+  property var _notifyQueue: []
   function notify(title, body, glyph) {
     if (!title) return
     var cleanTitle = root.sanitizePlainText(String(title))
@@ -2529,11 +2540,21 @@ readonly property var leagues: [
     var cleanGlyph = root.sanitizePlainText(String(glyph || ""))
     if (cleanGlyph !== "") args.push("-h", "string:omarchy-glyph:" + cleanGlyph)
     args.push(cleanTitle, cleanBody)
-    notifyRequest.command = args
-    notifyRequest.running = true
+    var q = root._notifyQueue.slice()
+    q.push(args)
+    root._notifyQueue = q
+    root._runNextNotify()
     // Every fired notification is a match event: pulse the bar widget so its
     // icon can flash instead of staying colored for the whole match.
     root.activityPulse()
+  }
+  function _runNextNotify() {
+    if (notifyRequest.running || root._notifyQueue.length === 0) return
+    var q = root._notifyQueue.slice()
+    var cmd = q.shift()
+    root._notifyQueue = q
+    notifyRequest.command = cmd
+    notifyRequest.running = true
   }
 
   // Emitted whenever a live-activity notification fires (goal, card, kickoff,
@@ -2845,6 +2866,7 @@ readonly property var leagues: [
         if (!players.length) { root.activityMarkSeen(e); continue }
         var first = players[0]
         var person = first.athlete || first
+        var playerName = root.sanitizePlainText(String(person.displayName || person.shortName || "?"))
         var isOG = root.isOwnGoalEvent(e)
         var goalTitle = isOG ? "Own Goal (OG) — " + playerName : (root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName)
         if (!scoresAgree) {
@@ -3005,7 +3027,16 @@ readonly property var leagues: [
     stdout: StdioCollector {
       id: livePollOut
       waitForEnd: true
-      onStreamFinished: root.handleLivePollResult(text)
+      onStreamFinished: {
+        if (typeof text === "string" && text.length > 5242880) {
+          console.warn("futbar", "live poll response exceeded byte limit")
+        }
+        root.handleLivePollResult(text)
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.warnStderr("live poll", text)
     }
     onExited: function(code) {
       if (code !== 0) root.pollNextLiveCheck()
@@ -3500,6 +3531,7 @@ readonly property var leagues: [
       if (root.isGoalEvent(e)) {
         if (!players.length) { root.activityMarkKey(key); continue }
         var person = players[0].athlete || players[0]
+        var playerName = root.sanitizePlainText(String(person.displayName || person.shortName || "?"))
         var isOG = root.isOwnGoalEvent(e)
         var goalTitle = isOG ? "Own Goal (OG) — " + playerName : (root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName)
         root.activityMarkKey(key)
@@ -3842,6 +3874,17 @@ onStreamFinished: root.warnStderr("", text)
   Process {
     id: notifyRequest
     running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root._runNextNotify()
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root._runNextNotify()
+    }
+    onExited: function(code) {
+      root._runNextNotify()
+    }
   }
 
   Process {
@@ -4785,6 +4828,10 @@ onStreamFinished: root.warnStderr("", text)
         root.parseAthletesStream(text)
       }
     }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.warnStderr("athletes stream", text)
+    }
   }
 
   Process {
@@ -4799,6 +4846,10 @@ onStreamFinished: root.warnStderr("", text)
         }
         root.parseAthleteStatsStream(text)
       }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.warnStderr("athlete stats stream", text)
     }
   }
 
