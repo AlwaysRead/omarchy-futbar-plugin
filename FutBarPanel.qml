@@ -2435,6 +2435,13 @@ readonly property var leagues: [
     return t.indexOf("Penalty") !== -1 || tt.indexOf("penalty") !== -1
   }
 
+  function isOwnGoalEvent(event) {
+    if (!event) return false
+    var t = String(event.type && event.type.text || "")
+    var txt = String(event.text || "")
+    return t.indexOf("Own Goal") !== -1 || txt.indexOf("Own Goal") !== -1 || txt.indexOf("own goal") !== -1
+  }
+
   // Extracts goal (or card) events from the live summary. `kind` matches the
   // event type text ("Goal" or "Red").
   function liveEventDetails(kind) {
@@ -2476,7 +2483,7 @@ readonly property var leagues: [
       if (String(events[i].isHome) !== side) continue
       var minute = events[i].minute !== "" ? events[i].minute + "'" : ""
       var player = root.sanitizePlainText(events[i].player)
-      out.push(prefix + (minute !== "" ? minute + " " : "") + player + (events[i].own ? " (og)" : "") + (events[i].penalty ? " (P)" : ""))
+      out.push(prefix + (minute !== "" ? minute + " " : "") + player + (events[i].own ? " (OG)" : "") + (events[i].penalty ? " (P)" : ""))
     }
     return root.sanitizePlainText(out.join("\n"))
   }
@@ -2850,8 +2857,8 @@ readonly property var leagues: [
         if (!players.length) { root.activityMarkSeen(e); continue }
         var first = players[0]
         var person = first.athlete || first
-        var playerName = root.sanitizePlainText(String(person.displayName || "?"))
-        var goalTitle = root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName
+        var isOG = root.isOwnGoalEvent(e)
+        var goalTitle = isOG ? "Own Goal (OG) — " + playerName : (root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName)
         if (!scoresAgree) {
           // Mid-update payload: park the toast until the score settles.
           var pkey = root.liveActivityKey(e)
@@ -3503,9 +3510,9 @@ readonly property var leagues: [
       if (root.isGoalEvent(e)) {
         if (!players.length) { root.activityMarkKey(key); continue }
         var person = players[0].athlete || players[0]
-        var playerName = root.sanitizePlainText(String(person.displayName || "?"))
+        var isOG = root.isOwnGoalEvent(e)
+        var goalTitle = isOG ? "Own Goal (OG) — " + playerName : (root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName)
         root.activityMarkKey(key)
-        var goalTitle = root.isPenaltyEvent(e) ? "Penalty — " + teamName : "Goal — " + playerName
         root.notify(goalTitle, (minute !== "" ? minute + "' · " : "") + score, "󰒸")
       } else if (t.indexOf("Yellow Card") !== -1 || t.indexOf("Red Card") !== -1) {
         if (!players.length) { root.activityMarkKey(key); continue }
@@ -4517,7 +4524,7 @@ onStreamFinished: root.warnStderr("", text)
                     if (!pl) continue
                     var clk = pl.clock && pl.clock.displayValue ? String(pl.clock.displayValue).trim() : ""
                     if (pl.didScore) {
-                      var tag = pl.penaltyKick ? " (P)" : (pl.ownGoal ? " (og)" : "")
+                      var tag = pl.penaltyKick ? " (P)" : (pl.ownGoal ? " (OG)" : "")
                       eventDetails.push("" + (clk !== "" ? (" " + clk) : "") + tag)
                     }
                     if (pl.didAssist) {
