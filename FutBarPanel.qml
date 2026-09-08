@@ -5725,6 +5725,7 @@ onStreamFinished: root.warnStderr("", text)
               color: clr,
               alternateColor: altClr,
               leagueSlug: root.selectedClubProfile ? root.selectedClubProfile.leagueSlug : "",
+              form: t.form ? String(t.form) : "",
               recentMatches: root.selectedClubProfile && root.selectedClubProfile.recentMatches ? root.selectedClubProfile.recentMatches : [],
               webUrl: root.selectedClubProfile ? root.selectedClubProfile.webUrl : ""
             }
@@ -6233,10 +6234,12 @@ onStreamFinished: root.warnStderr("", text)
     root.selectedClubProfile = {
       id: item.id,
       displayName: item.displayName,
+      leagueName: item.subtitle,
       abbreviation: "",
       location: "",
       standingSummary: "",
       record: "",
+      form: "",
       nextEvent: "",
       logo: item.image,
       leagueSlug: item.leagueSlug || root.league || "esp.1",
@@ -7674,17 +7677,8 @@ root.warnStderr("team select failed", text)
                       width: Style.space(44)
                       height: width
 
-                      Rectangle {
-                        anchors.fill: parent
-                        radius: Style.space(8)
-                        color: Util.alpha(root.contentForeground, 0.06)
-                        border.width: Style.spacing.hairline
-                        border.color: Util.alpha(root.contentForeground, 0.15)
-                      }
-
                       Image {
                         anchors.fill: parent
-                        anchors.margins: Style.space(4)
                         source: root.selectedClubOption() ? root.selectedClubOption().logo : ""
                         fillMode: Image.PreserveAspectFit
                         mipmap: true
@@ -7694,7 +7688,6 @@ root.warnStderr("team select failed", text)
 
                       Image {
                         anchors.fill: parent
-                        anchors.margins: Style.space(6)
                         source: root.selectedPlayerProfile ? root.selectedPlayerProfile.flag : ""
                         fillMode: Image.PreserveAspectFit
                         visible: String(source) !== "" && root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId === "national"
@@ -7993,20 +7986,11 @@ root.warnStderr("team select failed", text)
                 spacing: Style.space(12)
 
                 Item {
-                  width: Style.space(56)
+                  width: Style.space(60)
                   height: width
-
-                  Rectangle {
-                    anchors.fill: parent
-                    radius: Style.space(8)
-                    color: Util.alpha(root.contentForeground, 0.06)
-                    border.width: Style.spacing.hairline
-                    border.color: Util.alpha(root.contentForeground, 0.15)
-                  }
 
                   Image {
                     anchors.fill: parent
-                    anchors.margins: Style.space(4)
                     source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
@@ -8067,10 +8051,42 @@ root.warnStderr("team select failed", text)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.caption
                       elide: Text.ElideRight
+                    }
+                  }
+
+                  Row {
+                    spacing: Style.space(4)
+                    visible: root.selectedClubProfile && root.selectedClubProfile.form !== ""
+
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: "FORM:"
+                      font.pixelSize: Style.space(9)
+                      font.bold: true
+                      color: Qt.darker(root.contentForeground, 1.6)
+                      font.family: root.contentFontFamily
+                    }
+
+                    Repeater {
+                      model: root.selectedClubProfile && root.selectedClubProfile.form ? root.selectedClubProfile.form.split("") : []
+                      delegate: Rectangle {
+                        width: Style.space(16)
+                        height: width
+                        radius: Style.space(3)
+                        color: modelData === "W" ? "#22c55e" : (modelData === "D" ? "#eab308" : "#ef4444")
+                        Text {
+                          anchors.centerIn: parent
+                          text: modelData
+                          color: "#ffffff"
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.space(9)
+                          font.bold: true
+                        }
+                      }
+                    }
+                  }
                 }
               }
-            }
-          }
 
           Rectangle {
             width: parent.width
