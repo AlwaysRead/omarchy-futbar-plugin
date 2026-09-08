@@ -5569,6 +5569,7 @@ onStreamFinished: root.warnStderr("", text)
             prof2.clubFilterLoading = false
             root.selectedPlayerProfile = Object.assign({}, prof2)
             root.maybeStartCareerAgg()
+            root.ensureClubNames()
           }
         } catch (e) {}
       }
@@ -5600,6 +5601,14 @@ onStreamFinished: root.warnStderr("", text)
                 })
                 opts.sort(function(a, b) { return (b.start || 0) - (a.start || 0) })
                 p.clubOptions = opts
+                // Update careerHistory with resolved club names as well
+                if (p.careerHistory && p.careerHistory.length > 0) {
+                  for (var hi = 0; hi < p.careerHistory.length; hi++) {
+                    if (p.careerHistory[hi].teamId === teamId) {
+                      p.careerHistory[hi].name = String(t.shortDisplayName || t.displayName || t.name || "")
+                    }
+                  }
+                }
                 root.selectedPlayerProfile = Object.assign({}, p)
               }
             } catch (e2) {}
@@ -7859,7 +7868,7 @@ root.warnStderr("team select failed", text)
                     Repeater {
                       model: root.selectedPlayerProfile ? root.selectedPlayerProfile.careerHistory : []
                       delegate: Row {
-                        spacing: Style.space(4)
+                        spacing: Style.space(5)
                         Image {
                           width: Style.space(18)
                           height: width
@@ -7872,10 +7881,11 @@ root.warnStderr("team select failed", text)
                         }
                         Text {
                           anchors.verticalCenter: parent.verticalCenter
-                          text: modelData.years
+                          text: (modelData.name && modelData.name !== "" ? (modelData.name + " ") : "") + "(" + modelData.years + ")"
                           font.family: root.contentFontFamily
                           font.pixelSize: Style.space(10)
                           color: Qt.darker(root.contentForeground, 1.35)
+                          font.bold: true
                         }
                       }
                     }
@@ -8238,48 +8248,6 @@ root.warnStderr("team select failed", text)
                         font.pixelSize: Style.font.caption
                         font.bold: true
                       }
-                    }
-                  }
-                }
-              }
-              Row {
-                width: parent.width
-                spacing: Style.space(8)
-
-                Button {
-                  width: (parent.width - Style.space(8)) / 2
-                  iconText: "󰐕"
-                  text: "Track in Tabs"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  iconSize: Style.font.caption
-                  horizontalPadding: Style.space(8)
-                  verticalPadding: Style.space(4)
-                  onClicked: {
-                    if (root.selectedClubProfile) {
-                      root.showSearch = false
-                      root.addFollowedTeam(root.selectedClubProfile.displayName, root.selectedClubProfile.leagueSlug, root.selectedClubProfile.id)
-                    }
-                  }
-                }
-
-                Button {
-                  width: (parent.width - Style.space(8)) / 2
-                  iconText: "󰒭"
-                  text: "Switch to Club"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  iconSize: Style.font.caption
-                  horizontalPadding: Style.space(8)
-                  verticalPadding: Style.space(4)
-                  onClicked: {
-                    if (root.selectedClubProfile) {
-                      root.showSearch = false
-                      root.switchActiveTeam(root.selectedClubProfile.displayName, root.selectedClubProfile.leagueSlug, root.selectedClubProfile.id)
                     }
                   }
                 }
