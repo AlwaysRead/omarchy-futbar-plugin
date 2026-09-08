@@ -2472,21 +2472,34 @@ readonly property var leagues: [
     var rows = root.matchRowsFromEvents(events)
     var todayKey = Qt.formatDate(new Date(), "yyyy-MM-dd")
     var live = []
-    var finished = []
-    var upcoming = []
+    var todayFinished = []
+    var todayUpcoming = []
+    var otherFinished = []
+    var otherUpcoming = []
     for (var i = 0; i < rows.length; i++) {
-      // Live matches count wherever they sit on the UTC grid; played and
-      // upcoming must belong to the user's local calendar day.
-      if (rows[i].state === "in") { live.push(rows[i]); continue }
-      if (rows[i].day !== todayKey) continue
-      if (rows[i].state === "post") finished.push(rows[i])
-      else upcoming.push(rows[i])
+      if (rows[i].state === "in") {
+        live.push(rows[i])
+        continue
+      }
+      if (rows[i].state === "post") {
+        if (rows[i].day === todayKey) todayFinished.push(rows[i])
+        else otherFinished.push(rows[i])
+      } else {
+        if (rows[i].day === todayKey) todayUpcoming.push(rows[i])
+        else otherUpcoming.push(rows[i])
+      }
     }
-    finished.sort(function(a, b) { return b.kickoff - a.kickoff })
-    upcoming.sort(function(a, b) { return a.kickoff - b.kickoff })
+    todayFinished.sort(function(a, b) { return b.kickoff - a.kickoff })
+    otherFinished.sort(function(a, b) { return b.kickoff - a.kickoff })
+    todayUpcoming.sort(function(a, b) { return a.kickoff - b.kickoff })
+    otherUpcoming.sort(function(a, b) { return a.kickoff - b.kickoff })
+
+    var recent = todayFinished.concat(otherFinished).slice(0, 10)
+    var upcoming = todayUpcoming.concat(otherUpcoming).slice(0, 10)
+
     return {
       live: live,
-      recent: finished,
+      recent: recent,
       upcoming: upcoming
     }
   }
@@ -8180,7 +8193,6 @@ root.warnStderr("team select failed", text)
                     }
                     Text {
                       id: abbrevText
-                      anchors.baseline: parent.children[0] ? parent.children[0].baseline : undefined
                       text: root.selectedClubProfile && root.selectedClubProfile.abbreviation !== "" ? root.selectedClubProfile.abbreviation : ""
                       color: root.favoriteTeamAccent
                       font.family: root.contentFontFamily
@@ -11825,9 +11837,9 @@ root.warnStderr("team select failed", text)
         // coming up — all from the same window fetch.
         Repeater {
           model: [
-            { label: "Live", rows: root.leagueLive },
-            { label: "Played Today", rows: root.leagueRecent },
-            { label: "Later Today", rows: root.leagueUpcoming }
+            { label: "Live Matches", rows: root.leagueLive },
+            { label: "Recent Results", rows: root.leagueRecent },
+            { label: "Scheduled Fixtures", rows: root.leagueUpcoming }
           ]
 
           delegate: Column {
