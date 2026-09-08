@@ -5303,6 +5303,13 @@ onStreamFinished: root.warnStderr("", text)
               teamName: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamName : "",
               teamCrest: teamCrestUrl !== "" ? teamCrestUrl : (root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""),
               leagueName: root.selectedPlayerProfile ? root.selectedPlayerProfile.leagueName : "",
+              careerAppearances: "",
+              careerGoals: "",
+              careerAssists: "",
+              careerPasses: "",
+              careerYellowCards: "",
+              careerRedCards: "",
+              careerHistory: [],
               webUrl: root.selectedPlayerProfile ? root.selectedPlayerProfile.webUrl : ""
             }
           }
@@ -5315,6 +5322,89 @@ onStreamFinished: root.warnStderr("", text)
     }
   }
 
+  Process {
+    id: searchPlayerStatsRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedPlayerProfile) return
+        try {
+          var data = JSON.parse(text)
+          var cats = data && Array.isArray(data.splits && data.splits.categories) ? data.splits.categories : []
+          var statMap = {}
+          for (var ci = 0; ci < cats.length; ci++) {
+            var stList = cats[ci].stats || []
+            for (var si = 0; si < stList.length; si++) {
+              statMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
+            }
+          }
+          var prof = root.selectedPlayerProfile
+          if (prof) {
+            prof.careerAppearances = statMap["appearances"] || ""
+            prof.careerGoals = statMap["totalGoals"] || ""
+            prof.careerAssists = statMap["shotAssists"] || statMap["goalAssists"] || ""
+            prof.careerPasses = statMap["accuratePasses"] || statMap["totalPasses"] || ""
+            prof.careerYellowCards = statMap["yellowCards"] || ""
+            prof.careerRedCards = statMap["redCards"] || ""
+            root.selectedPlayerProfile = Object.assign({}, prof)
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  Process {
+    id: searchPlayerLogRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedPlayerProfile) return
+        try {
+          var logData = JSON.parse(text)
+          var entries = logData && Array.isArray(logData.entries) ? logData.entries : []
+          var teamMap = {}
+          for (var ei = 0; ei < entries.length; ei++) {
+            var entry = entries[ei]
+            var sRef = entry.season && entry.season["$ref"] ? String(entry.season["$ref"]) : ""
+            var tRef = entry.statistics && entry.statistics[0] && entry.statistics[0].team && entry.statistics[0].team["$ref"] ? String(entry.statistics[0].team["$ref"]) : ""
+            var sMatch = sRef.match(/\/seasons\/(\d+)/)
+            var tMatch = tRef.match(/\/teams\/(\d+)/)
+            var year = sMatch ? sMatch[1] : ""
+            var teamId = tMatch ? tMatch[1] : ""
+            if (teamId !== "" && year !== "") {
+              if (!teamMap[teamId]) {
+                teamMap[teamId] = { teamId: teamId, start: parseInt(year), end: parseInt(year) }
+              } else {
+                var yInt = parseInt(year)
+                if (yInt < teamMap[teamId].start) teamMap[teamId].start = yInt
+                if (yInt > teamMap[teamId].end) teamMap[teamId].end = yInt
+              }
+            }
+          }
+          var historyList = []
+          var tKeys = Object.keys(teamMap)
+          for (var ki = 0; ki < tKeys.length; ki++) {
+            var tInfo = teamMap[tKeys[ki]]
+            historyList.push({
+              teamId: tInfo.teamId,
+              teamLogo: "https://a.espncdn.com/i/teamlogos/soccer/500/" + tInfo.teamId + ".png",
+              years: tInfo.start === tInfo.end ? String(tInfo.start) : (tInfo.start + "–" + tInfo.end)
+            })
+          }
+          historyList.sort(function(a, b) {
+            var aStart = parseInt(String(a.years).split("–")[0]) || 0
+            var bStart = parseInt(String(b.years).split("–")[0]) || 0
+            return bStart - aStart
+          })
+          var prof2 = root.selectedPlayerProfile
+          if (prof2) {
+            prof2.careerHistory = historyList.slice(0, 5)
+            root.selectedPlayerProfile = Object.assign({}, prof2)
+          }
+        } catch (e) {}
+      }
+    }
+  }
   Process {
     id: searchClubDetailRequest
     stdout: StdioCollector {
@@ -5365,6 +5455,7 @@ onStreamFinished: root.warnStderr("", text)
               color: clr,
               alternateColor: altClr,
               leagueSlug: root.selectedClubProfile ? root.selectedClubProfile.leagueSlug : "",
+              recentMatches: [],
               webUrl: root.selectedClubProfile ? root.selectedClubProfile.webUrl : ""
             }
           }
@@ -5377,6 +5468,43 @@ onStreamFinished: root.warnStderr("", text)
     }
   }
 
+  Process {
+    id: searchClubScheduleRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedClubProfile) return
+        try {
+          var sched = JSON.parse(text)
+          var evs = sched && Array.isArray(sched.events) ? sched.events : []
+          var mList = []
+          for (var mi = 0; mi < evs.length && mList.length < 3; mi++) {
+            var ev = evs[mi]
+            var comp = ev.competitions && ev.competitions[0] ? ev.competitions[0] : null
+            if (!comp) continue
+            var comps = comp.competitors || []
+            var h = comps[0] || {}
+            var a = comps[1] || {}
+            var hName = h.team && (h.team.abbreviation || h.team.shortDisplayName || h.team.displayName) ? (h.team.abbreviation || h.team.shortDisplayName || h.team.displayName) : "Home"
+            var aName = a.team && (a.team.abbreviation || a.team.shortDisplayName || a.team.displayName) ? (a.team.abbreviation || a.team.shortDisplayName || a.team.displayName) : "Away"
+            var hScore = h.score && h.score.displayValue !== undefined ? String(h.score.displayValue) : ""
+            var aScore = a.score && a.score.displayValue !== undefined ? String(a.score.displayValue) : ""
+            var statusText = comp.status && comp.status.type && comp.status.type.shortDetail ? String(comp.status.type.shortDetail) : ""
+            mList.push({
+              matchName: hName + " vs " + aName,
+              score: (hScore !== "" && aScore !== "") ? (hScore + "–" + aScore) : statusText,
+              date: ev.date ? Qt.formatDate(new Date(ev.date), "MMM d") : ""
+            })
+          }
+          var prof = root.selectedClubProfile
+          if (prof) {
+            prof.recentMatches = mList
+            root.selectedClubProfile = Object.assign({}, prof)
+          }
+        } catch (e) {}
+      }
+    }
+  }
   function triggerSearch(q) {
     root.searchQuery = q
     root.selectedPlayerProfile = null
@@ -5422,6 +5550,16 @@ onStreamFinished: root.warnStderr("", text)
       searchPlayerDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
         "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id)]
       searchPlayerDetailRequest.running = true
+
+      searchPlayerStatsRequest.running = false
+      searchPlayerStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+        "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id) + "/statistics"]
+      searchPlayerStatsRequest.running = true
+
+      searchPlayerLogRequest.running = false
+      searchPlayerLogRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+        "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id) + "/statisticslog?lang=en&region=us"]
+      searchPlayerLogRequest.running = true
     }
   }
 
@@ -5437,6 +5575,7 @@ onStreamFinished: root.warnStderr("", text)
       nextEvent: "",
       logo: item.image,
       leagueSlug: item.leagueSlug || root.league || "esp.1",
+      recentMatches: [],
       webUrl: item.webUrl
     }
     var lg = item.leagueSlug !== "" ? item.leagueSlug : (root.league !== "" ? root.league : "esp.1")
@@ -5446,6 +5585,11 @@ onStreamFinished: root.warnStderr("", text)
       searchClubDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
         "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
       searchClubDetailRequest.running = true
+
+      searchClubScheduleRequest.running = false
+      searchClubScheduleRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule"]
+      searchClubScheduleRequest.running = true
     }
   }
 
@@ -6254,32 +6398,34 @@ root.warnStderr("team select failed", text)
                 spacing: Style.space(12)
 
                 // Headshot with subtle backdrop circle
+                // Headshot with clean circular clip (no placeholder behind when valid)
                 Item {
                   width: Style.space(64)
                   height: width
 
+                  readonly property bool hasHeadshot: root.selectedPlayerProfile && root.selectedPlayerProfile.headshot && String(root.selectedPlayerProfile.headshot) !== "" && playerHeadshotImg.status === Image.Ready
+
+                  // Placeholder avatar shown ONLY when player has NO headshot or while failing
                   Rectangle {
                     anchors.fill: parent
                     radius: width / 2
                     color: Util.alpha(root.contentForeground, 0.06)
                     border.width: Style.spacing.hairline
                     border.color: Util.alpha(root.contentForeground, 0.15)
-                  }
+                    visible: !parent.hasHeadshot
 
-                  // Default player silhouette icon fallback
-                  Text {
-                    anchors.centerIn: parent
-                    text: ""
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.space(32)
-                    color: Util.alpha(root.contentForeground, 0.25)
-                    visible: !root.selectedPlayerProfile || !root.selectedPlayerProfile.headshot || String(root.selectedPlayerProfile.headshot) === "" || playerHeadshotImg.status !== Image.Ready
+                    Text {
+                      anchors.centerIn: parent
+                      text: ""
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.space(32)
+                      color: Util.alpha(root.contentForeground, 0.25)
+                    }
                   }
 
                   Image {
                     id: playerHeadshotImg
                     anchors.fill: parent
-                    anchors.margins: Style.space(2)
                     source: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
@@ -6396,29 +6542,98 @@ root.warnStderr("team select failed", text)
                   Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayWeight !== "" ? root.selectedPlayerProfile.displayWeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
               }
-
-              // Birthplace & Date of Birth Row
-              Row {
+              // Career Stats Grid
+              Column {
                 width: parent.width
-                spacing: Style.space(8)
-                visible: root.selectedPlayerProfile && (root.selectedPlayerProfile.dateOfBirth !== "" || root.selectedPlayerProfile.birthplace !== "")
+                spacing: Style.space(6)
+                visible: root.selectedPlayerProfile && (root.selectedPlayerProfile.careerAppearances !== "" || root.selectedPlayerProfile.careerGoals !== "")
 
-                Column {
-                  width: (parent.width - Style.space(8)) / 2
-                  spacing: Style.space(2)
-                  visible: root.selectedPlayerProfile && root.selectedPlayerProfile.dateOfBirth !== ""
-                  Text { text: "BORN"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: root.selectedPlayerProfile ? root.selectedPlayerProfile.dateOfBirth : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                Text {
+                  text: "CAREER TOTALS"
+                  font.pixelSize: Style.space(9)
+                  font.bold: true
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
                 }
-                Column {
-                  width: (parent.width - Style.space(8)) / 2
-                  spacing: Style.space(2)
-                  visible: root.selectedPlayerProfile && root.selectedPlayerProfile.birthplace !== ""
-                  Text { text: "BIRTHPLACE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: root.selectedPlayerProfile ? root.selectedPlayerProfile.birthplace : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
+
+                Row {
+                  width: parent.width
+                  spacing: Style.space(6)
+
+                  Column {
+                    width: (parent.width - Style.space(18)) / 4
+                    spacing: Style.space(2)
+                    Text { text: "APPS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerAppearances !== "" ? root.selectedPlayerProfile.careerAppearances : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  }
+                  Column {
+                    width: (parent.width - Style.space(18)) / 4
+                    spacing: Style.space(2)
+                    Text { text: "GOALS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerGoals !== "" ? root.selectedPlayerProfile.careerGoals : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                  }
+                  Column {
+                    width: (parent.width - Style.space(18)) / 4
+                    spacing: Style.space(2)
+                    Text { text: "ASSISTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerAssists !== "" ? root.selectedPlayerProfile.careerAssists : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  }
+                  Column {
+                    width: (parent.width - Style.space(18)) / 4
+                    spacing: Style.space(2)
+                    Text { text: "CARDS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Row {
+                      spacing: Style.space(4)
+                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerYellowCards !== "" ? root.selectedPlayerProfile.careerYellowCards + "Y" : "0Y"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily }
+                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerRedCards !== "" ? root.selectedPlayerProfile.careerRedCards + "R" : "0R"; font.pixelSize: Style.font.caption; font.bold: true; color: "#ef4444"; font.family: root.contentFontFamily }
+                    }
+                  }
                 }
               }
 
+              // Career Club Stints
+              Column {
+                width: parent.width
+                spacing: Style.space(4)
+                visible: root.selectedPlayerProfile && root.selectedPlayerProfile.careerHistory && root.selectedPlayerProfile.careerHistory.length > 0
+
+                Text {
+                  text: "CAREER CLUBS"
+                  font.pixelSize: Style.space(9)
+                  font.bold: true
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                }
+
+                Row {
+                  width: parent.width
+                  spacing: Style.space(8)
+
+                  Repeater {
+                    model: root.selectedPlayerProfile ? root.selectedPlayerProfile.careerHistory : []
+                    delegate: Row {
+                      spacing: Style.space(4)
+                      Image {
+                        width: Style.space(18)
+                        height: width
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: modelData.teamLogo
+                        fillMode: Image.PreserveAspectFit
+                        mipmap: true
+                        smooth: true
+                        visible: String(source) !== ""
+                      }
+                      Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.years
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.space(10)
+                        color: Qt.darker(root.contentForeground, 1.35)
+                      }
+                    }
+                  }
+                }
+              }
               Button {
                 width: parent.width
                 iconText: "󰖟"
@@ -6659,6 +6874,66 @@ root.warnStderr("team select failed", text)
                 }
               }
 
+              // Recent Matches List for Club
+              Column {
+                width: parent.width
+                spacing: Style.space(4)
+                visible: root.selectedClubProfile && root.selectedClubProfile.recentMatches && root.selectedClubProfile.recentMatches.length > 0
+
+                Text {
+                  text: "RECENT MATCHES"
+                  font.pixelSize: Style.space(9)
+                  font.bold: true
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                }
+
+                Repeater {
+                  model: root.selectedClubProfile ? root.selectedClubProfile.recentMatches : []
+                  delegate: Rectangle {
+                    width: parent.width
+                    height: Style.space(26)
+                    radius: Style.space(4)
+                    color: Util.alpha(root.contentForeground, 0.04)
+
+                    Row {
+                      anchors.fill: parent
+                      anchors.leftMargin: Style.space(8)
+                      anchors.rightMargin: Style.space(8)
+                      spacing: Style.space(6)
+
+                      Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Style.space(55)
+                        text: modelData.date
+                        color: Qt.darker(root.contentForeground, 1.6)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                      }
+                      Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - Style.space(55 + 50 + 12)
+                        text: modelData.matchName
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                        elide: Text.ElideRight
+                      }
+                      Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Style.space(50)
+                        horizontalAlignment: Text.AlignRight
+                        text: modelData.score
+                        color: root.favoriteTeamAccent
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                      }
+                    }
+                  }
+                }
+              }
               Row {
                 width: parent.width
                 spacing: Style.space(8)
