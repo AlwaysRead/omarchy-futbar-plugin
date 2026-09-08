@@ -5822,11 +5822,11 @@ onStreamFinished: root.warnStderr("", text)
             var lName = cat.name
             var lead = cat.leaders && cat.leaders[0] ? cat.leaders[0] : null
             if (!lead) continue
-            var lVal = lead.displayValue ? String(lead.displayValue) : (lead.value !== undefined ? String(lead.value) : "")
-            if (lName === "goals" || lName === "goalsLeaders") {
-              if (prof.topScorer === "") prof.topScorer = lVal
-            } else if (lName === "assists" || lName === "assistsLeaders") {
-              if (prof.topAssister === "") prof.topAssister = lVal
+            var lVal = lead.value !== undefined ? String(Math.round(lead.value)) : (lead.displayValue ? String(lead.displayValue).replace(/.*Goals:\s*|.*Assists:\s*/, "").trim() : "")
+            if (lName === "goals") {
+              if (prof.topScorer === "") prof.topScorer = lVal + " goals"
+            } else if (lName === "assists") {
+              if (prof.topAssister === "") prof.topAssister = lVal + " assists"
             } else if (lName === "yellowCards") {
               if (prof.topCarder === "") prof.topCarder = lVal + " YC"
             }
@@ -8179,17 +8179,29 @@ root.warnStderr("team select failed", text)
             height: Style.spacing.hairline
             color: Util.alpha(root.contentForeground, 0.12)
           }
+          // League Name and Club Record Statistics Segmented Bar
+          Column {
+            width: parent.width
+            spacing: Style.space(6)
+            visible: root.selectedClubProfile && root.selectedClubProfile.points !== ""
 
-          // Club Record Statistics Segmented Bar
-              Rectangle {
-                width: parent.width
-                height: clubStatsRow.implicitHeight + Style.space(14)
-                radius: Style.space(6)
-                color: Util.alpha(root.contentForeground, 0.04)
-                border.width: Style.spacing.hairline
-                border.color: Util.alpha(root.contentForeground, 0.08)
-                visible: root.selectedClubProfile && root.selectedClubProfile.points !== ""
+            Text {
+              width: parent.width
+              text: root.selectedClubProfile ? root.leagueLabel(root.selectedClubProfile.leagueSlug).toUpperCase() : "LEAGUE TABLE"
+              font.pixelSize: Style.space(9)
+              font.bold: true
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              elide: Text.ElideRight
+            }
 
+            Rectangle {
+              width: parent.width
+              height: clubStatsRow.implicitHeight + Style.space(14)
+              radius: Style.space(6)
+              color: Util.alpha(root.contentForeground, 0.04)
+              border.width: Style.spacing.hairline
+              border.color: Util.alpha(root.contentForeground, 0.08)
                 Row {
                   id: clubStatsRow
                   anchors.centerIn: parent
@@ -8231,9 +8243,9 @@ root.warnStderr("team select failed", text)
                     spacing: Style.space(2)
                     Text { text: "GF:GA"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                     Text { text: root.selectedClubProfile ? (root.selectedClubProfile.goalsFor + ":" + root.selectedClubProfile.goalsAgainst) : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
-                  }
                 }
               }
+            }
 
               // Home & Away Splits
               Rectangle {
@@ -8275,15 +8287,14 @@ root.warnStderr("team select failed", text)
                 border.width: Style.spacing.hairline
                 border.color: Util.alpha(root.contentForeground, 0.08)
                 visible: root.selectedClubProfile && (root.selectedClubProfile.topScorer !== "" || root.selectedClubProfile.topAssister !== "")
-
                 Column {
                   id: clubLeadersCol
+                  anchors.fill: parent
                   anchors.margins: Style.space(8)
                   spacing: Style.space(6)
 
                   Text {
                     text: "SEASON LEADERS"
-                    font.pixelSize: Style.space(9)
                     font.bold: true
                     color: Qt.darker(root.contentForeground, 1.5)
                     font.family: root.contentFontFamily
@@ -8435,10 +8446,10 @@ root.warnStderr("team select failed", text)
         }
       }
     }
-      Column {
-        id: matchDetailView
-        width: parent.width
-        spacing: Style.space(12)
+  }
+
+  Column {
+    id: matchDetailView
         visible: root.showMatchDetail
         Row {
           width: parent.width
