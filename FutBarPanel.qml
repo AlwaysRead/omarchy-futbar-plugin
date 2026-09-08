@@ -5344,8 +5344,9 @@ onStreamFinished: root.warnStderr("", text)
             prof.careerGoals = statMap["totalGoals"] || ""
             prof.careerAssists = statMap["shotAssists"] || statMap["goalAssists"] || ""
             prof.careerPasses = statMap["accuratePasses"] || statMap["totalPasses"] || ""
-            prof.careerYellowCards = statMap["yellowCards"] || ""
-            prof.careerRedCards = statMap["redCards"] || ""
+            prof.careerPassPct = statMap["passPct"] ? (Math.round(parseFloat(statMap["passPct"]) * 100) + "%") : ""
+            prof.careerFreeKicks = statMap["freeKickGoals"] || ""
+            prof.careerTackles = statMap["effectiveTackles"] || statMap["totalTackles"] || ""
             root.selectedPlayerProfile = Object.assign({}, prof)
           }
         } catch (e) {}
@@ -5446,10 +5447,11 @@ onStreamFinished: root.warnStderr("", text)
             var ties = getStat("ties")
             var losses = getStat("losses")
             var diff = getStat("pointDifferential")
-            var gf = getStat("pointsFor")
-            var ga = getStat("pointsAgainst")
             var clr = t.color ? ("#" + String(t.color).replace("#", "")) : ""
             var altClr = t.alternateColor ? ("#" + String(t.alternateColor).replace("#", "")) : ""
+            var vName = t.venue && t.venue.fullName ? String(t.venue.fullName) : (t.franchise && t.franchise.venue && t.franchise.venue.fullName ? String(t.franchise.venue.fullName) : "")
+            var vCity = t.venue && t.venue.address && t.venue.address.city ? String(t.venue.address.city) : ""
+            var venueStr = vName !== "" ? (vCity !== "" ? vName + " (" + vCity + ")" : vName) : ""
             root.selectedClubProfile = {
               id: String(t.id || ""),
               displayName: String(t.displayName || t.name || ""),
@@ -5464,6 +5466,7 @@ onStreamFinished: root.warnStderr("", text)
               diff: diff,
               goalsFor: gf,
               goalsAgainst: ga,
+              venue: venueStr,
               nextEvent: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].name ? String(t.nextEvent[0].name) : "",
               nextEventDate: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].date ? String(t.nextEvent[0].date) : "",
               logo: t.logos && t.logos[0] && t.logos[0].href ? String(t.logos[0].href) : (root.selectedClubProfile ? root.selectedClubProfile.logo : ""),
@@ -6644,12 +6647,8 @@ root.warnStderr("team select failed", text)
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "CARDS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Row {
-                        spacing: Style.space(4)
-                        Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerYellowCards !== "" ? root.selectedPlayerProfile.careerYellowCards + "Y" : "0Y"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily }
-                        Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerRedCards !== "" ? root.selectedPlayerProfile.careerRedCards + "R" : "0R"; font.pixelSize: Style.font.caption; font.bold: true; color: "#ef4444"; font.family: root.contentFontFamily }
-                      }
+                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerPassPct !== "" ? "PASS %" : "TACKLES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.careerPassPct !== "" ? root.selectedPlayerProfile.careerPassPct : (root.selectedPlayerProfile && root.selectedPlayerProfile.careerTackles !== "" ? root.selectedPlayerProfile.careerTackles : "—"); font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                   }
                 }
@@ -6861,6 +6860,23 @@ root.warnStderr("team select failed", text)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     visible: text !== ""
+                  }
+
+                  Row {
+                    spacing: Style.space(4)
+                    visible: root.selectedClubProfile && root.selectedClubProfile.venue !== ""
+                    Text {
+                      text: "🏟"
+                      font.pixelSize: Style.space(10)
+                      font.family: root.contentFontFamily
+                    }
+                    Text {
+                      text: root.selectedClubProfile ? root.selectedClubProfile.venue : ""
+                      color: Qt.darker(root.contentForeground, 1.5)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      elide: Text.ElideRight
+                    }
                   }
                 }
               }
