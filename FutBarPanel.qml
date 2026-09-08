@@ -7215,7 +7215,8 @@ root.warnStderr("team select failed", text)
                   spacing: Style.space(3)
 
                   Row {
-                    spacing: Style.space(8)
+                    width: parent.width
+                    spacing: Style.space(6)
                     Text {
                       text: root.selectedPlayerProfile ? root.selectedPlayerProfile.fullName : ""
                       color: root.contentForeground
@@ -7223,8 +7224,10 @@ root.warnStderr("team select failed", text)
                       font.pixelSize: Style.font.body
                       font.bold: true
                       elide: Text.ElideRight
+                      width: Math.min(implicitWidth, parent.width - (jerseyText.visible ? jerseyText.implicitWidth + parent.spacing : 0))
                     }
                     Text {
+                      id: jerseyText
                       text: root.selectedPlayerProfile && root.selectedPlayerProfile.jersey !== "" ? ("#" + root.selectedPlayerProfile.jersey) : ""
                       color: root.favoriteTeamAccent
                       font.family: root.contentFontFamily
@@ -7247,6 +7250,7 @@ root.warnStderr("team select failed", text)
                       visible: String(source) !== ""
                     }
                     Text {
+                      width: parent.width - Style.space(22)
                       text: root.selectedPlayerProfile ? ((root.selectedPlayerProfile.position !== "" ? root.selectedPlayerProfile.position + " · " : "") + root.selectedPlayerProfile.teamName) : ""
                       color: Qt.darker(root.contentForeground, 1.25)
                       font.family: root.contentFontFamily
@@ -8075,7 +8079,8 @@ root.warnStderr("team select failed", text)
                   spacing: Style.space(3)
 
                   Row {
-                    spacing: Style.space(8)
+                    width: parent.width
+                    spacing: Style.space(6)
                     Text {
                       text: root.selectedClubProfile ? root.selectedClubProfile.displayName : ""
                       color: root.contentForeground
@@ -8083,8 +8088,10 @@ root.warnStderr("team select failed", text)
                       font.pixelSize: Style.font.body
                       font.bold: true
                       elide: Text.ElideRight
+                      width: Math.min(implicitWidth, parent.width - (abbrevText.visible ? abbrevText.implicitWidth + parent.spacing : 0))
                     }
                     Text {
+                      id: abbrevText
                       text: root.selectedClubProfile && root.selectedClubProfile.abbreviation !== "" ? root.selectedClubProfile.abbreviation : ""
                       color: root.favoriteTeamAccent
                       font.family: root.contentFontFamily
@@ -8095,6 +8102,7 @@ root.warnStderr("team select failed", text)
                   }
 
                   Text {
+                    width: parent.width
                     text: root.selectedClubProfile ? root.selectedClubProfile.standingSummary : ""
                     color: Qt.darker(root.contentForeground, 1.25)
                     font.family: root.contentFontFamily
@@ -8105,17 +8113,25 @@ root.warnStderr("team select failed", text)
                   }
 
                   Text {
+                    width: parent.width
                     text: root.selectedClubProfile && root.selectedClubProfile.record !== "" ? ("Season Record: " + root.selectedClubProfile.record) : ""
                     color: Qt.darker(root.contentForeground, 1.45)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
                     visible: text !== ""
                   }
-
                   Row {
+                    width: parent.width
                     spacing: Style.space(4)
                     visible: root.selectedClubProfile && root.selectedClubProfile.venue !== ""
                     Text {
+                      text: "🏟"
+                      font.pixelSize: Style.space(10)
+                      font.family: root.contentFontFamily
+                    }
+                    Text {
+                      width: parent.width - Style.space(18)
                       text: root.selectedClubProfile ? root.selectedClubProfile.venue : ""
                       color: Qt.darker(root.contentForeground, 1.5)
                       font.family: root.contentFontFamily
@@ -8165,7 +8181,6 @@ root.warnStderr("team select failed", text)
           }
 
           // Club Record Statistics Segmented Bar
-              // Club Record Statistics Segmented Bar
               Rectangle {
                 width: parent.width
                 height: clubStatsRow.implicitHeight + Style.space(14)
