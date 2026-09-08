@@ -1831,11 +1831,17 @@ readonly property var leagues: [
     var mid = root.safeIdentifier(String(match.id || ""))
     if (mid === "") return
     var slug = root.safeIdentifier(String(match.competitionSlug || root.league || "eng.1"))
-    var isStarted = match.state === "in" || match.state === "post"
-    if (match.status && (match.status === "Live" || match.status === "Full Time" || match.status === "FT" || match.status === "AET" || match.status === "Final")) {
+    var rawState = match.state || (match.status && match.status.type && match.status.type.state) || ""
+    var statusObj = (match.status && typeof match.status === "object") ? match.status : {}
+    var statusType = statusObj.type || {}
+    var statusDesc = String(statusType.description || statusType.shortDetail || statusType.name || "")
+    var statusStr = (typeof match.status === "string" && match.status !== "") ? match.status : (root.statusFor ? root.statusFor(match) : statusDesc)
+
+    var isStarted = rawState === "in" || rawState === "post"
+    if (statusStr === "Live" || statusStr === "Full Time" || statusStr === "FT" || statusStr === "AET" || statusStr === "Final" || statusStr.indexOf("'") !== -1 || statusStr === "HT") {
       isStarted = true
     }
-    var isLive = match.state === "in" || (match.status && (match.status === "Live" || String(match.status).indexOf("'") !== -1 || match.status === "HT"))
+    var isLive = rawState === "in" || statusStr === "Live" || statusStr.indexOf("'") !== -1 || statusStr === "HT"
 
     root.showMatchDetail = true
     root.showSearch = false
@@ -1843,6 +1849,7 @@ readonly property var leagues: [
     root.showStats = false
     root.showMatches = false
     root.showClubFixtures = false
+    root.matchDetailLoading = true
     root.matchDetailError = ""
     root.matchDetailTab = isStarted ? "stats" : "info"
     root.matchDetailLineupTeam = "home"
@@ -1859,7 +1866,7 @@ readonly property var leagues: [
       initDateStr = (match.dateText || "") + ((match.dateText && match.timeText) ? " · " : "") + (match.timeText || "")
     }
 
-    var initStatus = match.status || (match.state === "post" ? "Full Time" : (match.state === "in" ? (match.timeText || "Live") : "Scheduled"))
+    var initStatus = statusStr || (rawState === "post" ? "Full Time" : (rawState === "in" ? (match.timeText || "Live") : "Scheduled"))
 
     var hName = match.homeName || (match.competitions ? root.teamNameFor(match, "home") : (match.home ? (match.home.name || match.home.displayName) : "Home"))
     var hLogo = match.homeLogo || (match.competitions ? root.teamLogoFor(match, "home") : (match.home ? match.home.logo : ""))
@@ -1870,6 +1877,8 @@ readonly property var leagues: [
 
     var hScore = isStarted ? (match.homeScore !== undefined ? String(match.homeScore) : root.scoreFor(match, "home")) : ""
     var aScore = isStarted ? (match.awayScore !== undefined ? String(match.awayScore) : root.scoreFor(match, "away")) : ""
+    if (hScore === "—") hScore = ""
+    if (aScore === "—") aScore = ""
 
     root.matchDetail = {
       id: mid,
@@ -8626,7 +8635,9 @@ root.warnStderr("team select failed", text)
 
   Column {
     id: matchDetailView
-        visible: root.showMatchDetail
+    visible: root.showMatchDetail
+    width: parent.width
+    spacing: Style.space(12)
         Row {
           width: parent.width
           spacing: Style.space(8)
@@ -12168,7 +12179,7 @@ root.warnStderr("team select failed", text)
       Item {
         width: parent.width
         height: Style.space(20)
-        visible: !root.customViewActive
+        visible: !root.customViewActive && !!root.nextMatch
 
         Text {
           textFormat: Text.PlainText
@@ -12197,7 +12208,7 @@ root.warnStderr("team select failed", text)
         id: nextMatchCard
         width: parent.width
         height: nextMatchCol.implicitHeight + Style.space(16)
-        visible: !root.customViewActive
+        visible: !root.customViewActive && !!root.nextMatch
 
         Rectangle {
           anchors.fill: parent
@@ -12328,13 +12339,13 @@ root.warnStderr("team select failed", text)
         height: Style.spacing.hairline
         color: root.contentForeground
         opacity: 0.15
-        visible: !root.customViewActive
+        visible: !root.customViewActive && !!root.nextMatch && !!root.previousMatch
       }
 
       Item {
         width: parent.width
         height: Style.space(20)
-        visible: !root.customViewActive
+        visible: !root.customViewActive && !!root.previousMatch
 
         Text {
           textFormat: Text.PlainText
@@ -12363,7 +12374,7 @@ root.warnStderr("team select failed", text)
         id: prevMatchCard
         width: parent.width
         height: prevMatchCol.implicitHeight + Style.space(16)
-        visible: !root.customViewActive
+        visible: !root.customViewActive && !!root.previousMatch
 
         Rectangle {
           anchors.fill: parent
