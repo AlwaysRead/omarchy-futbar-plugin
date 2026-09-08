@@ -8734,9 +8734,7 @@ root.warnStderr("team select failed", text)
         Item {
           id: heroCard
           width: parent.width
-          height: (root.matchDetailTab === "lineups")
-            ? Math.max(Style.space(48), Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + Style.space(8))
-            : Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (shootoutBottomCol.visible ? shootoutBottomCol.implicitHeight + Style.space(8) : 0) + Style.space(24))
+          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (shootoutBottomCol.visible ? shootoutBottomCol.implicitHeight + Style.space(8) : 0) + Style.space(24))
 
           Rectangle {
             anchors.fill: parent
@@ -8756,22 +8754,22 @@ root.warnStderr("team select failed", text)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
             wrapMode: Text.NoWrap
-            visible: text !== "" && root.matchDetailTab !== "lineups"
+            visible: text !== ""
           }
 
           // Center Score & Status
           Column {
             id: scoreCenterCol
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: (root.matchDetailTab !== "lineups" && dateTextHeader.visible && dateTextHeader.text !== "") ? dateTextHeader.bottom : parent.top
-            anchors.topMargin: (root.matchDetailTab === "lineups") ? Style.space(4) : ((dateTextHeader.visible && dateTextHeader.text !== "") ? Style.space(6) : Style.space(10))
+            anchors.top: (dateTextHeader.visible && dateTextHeader.text !== "") ? dateTextHeader.bottom : parent.top
+            anchors.topMargin: (dateTextHeader.visible && dateTextHeader.text !== "") ? Style.space(6) : Style.space(10)
             width: Style.space(90)
-            spacing: (root.matchDetailTab === "lineups") ? Style.space(1) : Style.space(4)
+            spacing: Style.space(4)
 
             // Upper area: Score centered between the crests (height: Style.space(50))
             Item {
               width: parent.width
-              height: (root.matchDetailTab === "lineups") ? Style.space(26) : Style.space(50)
+              height: Style.space(50)
 
               Text {
                 textFormat: Text.PlainText
@@ -8780,7 +8778,7 @@ root.warnStderr("team select failed", text)
                   ? (root.matchDetail.home.score + " – " + root.matchDetail.away.score) : "vs"
                 color: (root.matchDetail && !root.matchDetail.started) ? Qt.darker(root.contentForeground, 1.5) : root.contentForeground
                 font.family: root.contentFontFamily
-                font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.body : ((root.matchDetail && !root.matchDetail.started) ? Style.font.body : Style.font.title)
+                font.pixelSize: (root.matchDetail && !root.matchDetail.started) ? Style.font.body : Style.font.title
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
               }
@@ -8798,7 +8796,7 @@ root.warnStderr("team select failed", text)
                 text: root.matchDetail ? (root.matchDetail.status || (root.matchDetail.started ? "Full Time" : "Scheduled")) : "Full Time"
                 color: (root.matchDetail && root.matchDetail.isLive) ? "#4ade80" : Qt.darker(root.contentForeground, 1.4)
                 font.family: root.contentFontFamily
-                font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.caption - 2 : Style.font.caption
+                font.pixelSize: Style.font.caption
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
               }
@@ -8813,7 +8811,7 @@ root.warnStderr("team select failed", text)
                 font.pixelSize: Style.font.caption - 2
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
-                visible: text !== "" && root.matchDetailTab !== "lineups"
+                visible: text !== ""
               }
             }
           }
@@ -8826,12 +8824,12 @@ root.warnStderr("team select failed", text)
             anchors.top: scoreCenterCol.top
             anchors.leftMargin: Style.space(10)
             anchors.rightMargin: Style.space(6)
-            spacing: (root.matchDetailTab === "lineups") ? Style.space(2) : Style.space(4)
+            spacing: Style.space(4)
 
             Image {
               id: homeDetailCrestImg
               anchors.horizontalCenter: parent.horizontalCenter
-              width: (root.matchDetailTab === "lineups") ? Style.space(28) : Style.space(50)
+              width: Style.space(50)
               height: width
               source: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.logo : ""
               fillMode: Image.PreserveAspectFit
@@ -8855,16 +8853,16 @@ root.warnStderr("team select failed", text)
               text: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : ""
               color: root.contentForeground
               font.family: root.contentFontFamily
-              font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.caption - 1 : Style.font.caption
+              font.pixelSize: Style.font.caption
               font.bold: true
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
-              maximumLineCount: (root.matchDetailTab === "lineups") ? 1 : 2
+              maximumLineCount: 2
               elide: Text.ElideRight
             }
 
             Repeater {
-              model: (root.matchDetail && root.matchDetail.homeScorers && root.matchDetailTab !== "lineups") ? root.matchDetail.homeScorers : []
+              model: (root.matchDetail && root.matchDetail.homeScorers) ? root.matchDetail.homeScorers : []
               Text {
                 textFormat: Text.PlainText
                 width: parent.width
@@ -8886,12 +8884,12 @@ root.warnStderr("team select failed", text)
             anchors.top: scoreCenterCol.top
             anchors.leftMargin: Style.space(6)
             anchors.rightMargin: Style.space(10)
-            spacing: (root.matchDetailTab === "lineups") ? Style.space(2) : Style.space(4)
+            spacing: Style.space(4)
 
             Image {
               id: awayDetailCrestImg
               anchors.horizontalCenter: parent.horizontalCenter
-              width: (root.matchDetailTab === "lineups") ? Style.space(28) : Style.space(50)
+              width: Style.space(50)
               height: width
               source: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.logo : ""
               fillMode: Image.PreserveAspectFit
@@ -8915,16 +8913,16 @@ root.warnStderr("team select failed", text)
               text: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : ""
               color: root.contentForeground
               font.family: root.contentFontFamily
-              font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.caption - 1 : Style.font.caption
+              font.pixelSize: Style.font.caption
               font.bold: true
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
-              maximumLineCount: (root.matchDetailTab === "lineups") ? 1 : 2
+              maximumLineCount: 2
               elide: Text.ElideRight
             }
 
             Repeater {
-              model: (root.matchDetail && root.matchDetail.awayScorers && root.matchDetailTab !== "lineups") ? root.matchDetail.awayScorers : []
+              model: (root.matchDetail && root.matchDetail.awayScorers) ? root.matchDetail.awayScorers : []
               Text {
                 textFormat: Text.PlainText
                 width: parent.width
@@ -8945,7 +8943,7 @@ root.warnStderr("team select failed", text)
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Style.space(8)
             spacing: Style.space(1)
-            visible: root.matchDetailTab !== "lineups" && !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
+            visible: !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
 
             Text {
               textFormat: Text.PlainText
