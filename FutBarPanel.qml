@@ -5273,6 +5273,20 @@ onStreamFinished: root.warnStderr("", text)
         try {
           var p = JSON.parse(text)
           if (p) {
+            var teamRef = p.defaultTeam && p.defaultTeam["$ref"] ? String(p.defaultTeam["$ref"]) : ""
+            var teamIdMatch = teamRef.match(/\/teams\/(\d+)/)
+            var resolvedTeamId = teamIdMatch ? teamIdMatch[1] : ""
+            var teamCrestUrl = resolvedTeamId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + resolvedTeamId + ".png") : ""
+            var dobStr = ""
+            if (p.dateOfBirth) {
+              try {
+                var d = new Date(p.dateOfBirth)
+                dobStr = Qt.formatDate(d, "MMM d, yyyy")
+              } catch (ed) { dobStr = String(p.dateOfBirth) }
+            }
+            var bCity = p.birthPlace && p.birthPlace.city ? String(p.birthPlace.city) : ""
+            var bCountry = p.birthPlace && p.birthPlace.country ? String(p.birthPlace.country) : ""
+            var birthplace = bCity !== "" ? (bCountry !== "" ? bCity + ", " + bCountry : bCity) : bCountry
             root.selectedPlayerProfile = {
               fullName: String(p.fullName || p.displayName || ""),
               jersey: p.jersey ? String(p.jersey) : "",
@@ -5281,9 +5295,13 @@ onStreamFinished: root.warnStderr("", text)
               displayHeight: p.displayHeight ? String(p.displayHeight) : "",
               displayWeight: p.displayWeight ? String(p.displayWeight) : "",
               citizenship: p.citizenship ? String(p.citizenship) : (p.citizenshipCountry ? String(p.citizenshipCountry) : ""),
+              birthplace: birthplace,
+              dateOfBirth: dobStr,
+              status: p.status && p.status.name ? String(p.status.name) : "Active",
               headshot: p.headshot && p.headshot.href ? String(p.headshot.href) : (root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""),
               flag: p.flag && p.flag.href ? String(p.flag.href) : "",
               teamName: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamName : "",
+              teamCrest: teamCrestUrl !== "" ? teamCrestUrl : (root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""),
               leagueName: root.selectedPlayerProfile ? root.selectedPlayerProfile.leagueName : "",
               webUrl: root.selectedPlayerProfile ? root.selectedPlayerProfile.webUrl : ""
             }
@@ -5310,15 +5328,42 @@ onStreamFinished: root.warnStderr("", text)
           var res = JSON.parse(text)
           var t = res && res.team ? res.team : null
           if (t) {
+            var rec = t.record && t.record.items && t.record.items[0] ? t.record.items[0] : null
+            var statsList = rec && Array.isArray(rec.stats) ? rec.stats : []
+            var getStat = function(name) {
+              for (var si = 0; si < statsList.length; si++) {
+                if (statsList[si].name === name) return String(statsList[si].value)
+              }
+              return ""
+            }
+            var pts = getStat("points")
+            var wins = getStat("wins")
+            var ties = getStat("ties")
+            var losses = getStat("losses")
+            var diff = getStat("pointDifferential")
+            var gf = getStat("pointsFor")
+            var ga = getStat("pointsAgainst")
+            var clr = t.color ? ("#" + String(t.color).replace("#", "")) : ""
+            var altClr = t.alternateColor ? ("#" + String(t.alternateColor).replace("#", "")) : ""
             root.selectedClubProfile = {
               id: String(t.id || ""),
               displayName: String(t.displayName || t.name || ""),
               abbreviation: String(t.abbreviation || ""),
               location: String(t.location || ""),
               standingSummary: String(t.standingSummary || ""),
-              record: t.record && t.record.items && t.record.items[0] && t.record.items[0].summary ? String(t.record.items[0].summary) : "",
+              record: rec && rec.summary ? String(rec.summary) : "",
+              points: pts,
+              wins: wins,
+              ties: ties,
+              losses: losses,
+              diff: diff,
+              goalsFor: gf,
+              goalsAgainst: ga,
               nextEvent: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].name ? String(t.nextEvent[0].name) : "",
+              nextEventDate: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].date ? String(t.nextEvent[0].date) : "",
               logo: t.logos && t.logos[0] && t.logos[0].href ? String(t.logos[0].href) : (root.selectedClubProfile ? root.selectedClubProfile.logo : ""),
+              color: clr,
+              alternateColor: altClr,
               leagueSlug: root.selectedClubProfile ? root.selectedClubProfile.leagueSlug : "",
               webUrl: root.selectedClubProfile ? root.selectedClubProfile.webUrl : ""
             }
@@ -5366,6 +5411,7 @@ onStreamFinished: root.warnStderr("", text)
       headshot: item.image,
       flag: "",
       teamName: item.subtitle,
+      teamCrest: "",
       leagueName: item.description,
       webUrl: item.webUrl
     }
@@ -6170,9 +6216,39 @@ root.warnStderr("team select failed", text)
             width: parent.width
             height: playerProfileInnerCol.implicitHeight + Style.space(24)
             radius: Style.cornerRadius
-            color: Util.alpha(root.contentForeground, 0.04)
+            color: Util.alpha(root.contentForeground, 0.03)
+            clip: true
             border.width: Style.spacing.hairline
             border.color: Util.alpha(root.contentForeground, 0.12)
+
+            // Dynamic club color top-glow gradient
+            Rectangle {
+              anchors.top: parent.top
+              anchors.left: parent.left
+              anchors.right: parent.right
+              height: Style.space(90)
+              opacity: 0.18
+              gradient: Gradient {
+                GradientStop { position: 0.0; color: root.favoriteTeamAccent }
+                GradientStop { position: 1.0; color: "transparent" }
+              }
+            }
+
+            // Subdued Club Crest Watermark (Faded in the background like ESPN)
+            Image {
+              anchors.right: parent.right
+              anchors.rightMargin: -Style.space(20)
+              anchors.top: parent.top
+              anchors.topMargin: -Style.space(10)
+              width: Style.space(140)
+              height: width
+              source: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
+              fillMode: Image.PreserveAspectFit
+              opacity: 0.07
+              mipmap: true
+              smooth: true
+              visible: String(source) !== ""
+            }
 
             Column {
               id: playerProfileInnerCol
@@ -6184,19 +6260,33 @@ root.warnStderr("team select failed", text)
                 width: parent.width
                 spacing: Style.space(12)
 
-                Image {
-                  width: Style.space(56)
+                // Headshot with subtle backdrop circle
+                Item {
+                  width: Style.space(64)
                   height: width
-                  source: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
-                  fillMode: Image.PreserveAspectFit
-                  mipmap: true
-                  smooth: true
-                  visible: String(source) !== ""
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: Util.alpha(root.contentForeground, 0.06)
+                    border.width: Style.spacing.hairline
+                    border.color: Util.alpha(root.contentForeground, 0.15)
+                  }
+
+                  Image {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(2)
+                    source: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
+                    fillMode: Image.PreserveAspectFit
+                    mipmap: true
+                    smooth: true
+                    visible: String(source) !== ""
+                  }
                 }
 
                 Column {
                   anchors.verticalCenter: parent.verticalCenter
-                  width: parent.width - Style.space(70)
+                  width: parent.width - Style.space(78)
                   spacing: Style.space(3)
 
                   Row {
@@ -6207,6 +6297,7 @@ root.warnStderr("team select failed", text)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
                       font.bold: true
+                      elide: Text.ElideRight
                     }
                     Text {
                       text: root.selectedPlayerProfile && root.selectedPlayerProfile.jersey !== "" ? ("#" + root.selectedPlayerProfile.jersey) : ""
@@ -6218,13 +6309,27 @@ root.warnStderr("team select failed", text)
                     }
                   }
 
-                  Text {
-                    text: root.selectedPlayerProfile ? ((root.selectedPlayerProfile.position !== "" ? root.selectedPlayerProfile.position + " · " : "") + root.selectedPlayerProfile.teamName) : ""
-                    color: Qt.darker(root.contentForeground, 1.3)
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    visible: text !== ""
+                  Row {
+                    spacing: Style.space(6)
+                    Image {
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(16)
+                      height: width
+                      source: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
+                      fillMode: Image.PreserveAspectFit
+                      mipmap: true
+                      smooth: true
+                      visible: String(source) !== ""
+                    }
+                    Text {
+                      text: root.selectedPlayerProfile ? ((root.selectedPlayerProfile.position !== "" ? root.selectedPlayerProfile.position + " · " : "") + root.selectedPlayerProfile.teamName) : ""
+                      color: Qt.darker(root.contentForeground, 1.25)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      elide: Text.ElideRight
+                      visible: text !== ""
+                    }
                   }
 
                   Row {
@@ -6244,6 +6349,23 @@ root.warnStderr("team select failed", text)
                       font.pixelSize: Style.font.caption
                       visible: text !== ""
                     }
+                    Rectangle {
+                      anchors.verticalCenter: parent.verticalCenter
+                      height: Style.space(14)
+                      width: playerStatusText.implicitWidth + Style.space(8)
+                      radius: Style.space(3)
+                      color: Util.alpha("#22c55e", 0.15)
+                      visible: root.selectedPlayerProfile && root.selectedPlayerProfile.status !== ""
+                      Text {
+                        id: playerStatusText
+                        anchors.centerIn: parent
+                        text: root.selectedPlayerProfile ? root.selectedPlayerProfile.status : ""
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.space(9)
+                        font.bold: true
+                        color: "#4ade80"
+                      }
+                    }
                   }
                 }
               }
@@ -6254,7 +6376,7 @@ root.warnStderr("team select failed", text)
                 color: Util.alpha(root.contentForeground, 0.12)
               }
 
-              // Player Bio Stats Grid
+              // Player Physical & Bio Grid
               Row {
                 width: parent.width
                 spacing: Style.space(8)
@@ -6262,20 +6384,42 @@ root.warnStderr("team select failed", text)
                 Column {
                   width: (parent.width - Style.space(16)) / 3
                   spacing: Style.space(2)
-                  Text { text: "AGE"; font.pixelSize: Style.space(10); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: "AGE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.age !== "" ? root.selectedPlayerProfile.age : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(16)) / 3
                   spacing: Style.space(2)
-                  Text { text: "HEIGHT"; font.pixelSize: Style.space(10); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: "HEIGHT"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayHeight !== "" ? root.selectedPlayerProfile.displayHeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(16)) / 3
                   spacing: Style.space(2)
-                  Text { text: "WEIGHT"; font.pixelSize: Style.space(10); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: "WEIGHT"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayWeight !== "" ? root.selectedPlayerProfile.displayWeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+              }
+
+              // Birthplace & Date of Birth Row
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+                visible: root.selectedPlayerProfile && (root.selectedPlayerProfile.dateOfBirth !== "" || root.selectedPlayerProfile.birthplace !== "")
+
+                Column {
+                  width: (parent.width - Style.space(8)) / 2
+                  spacing: Style.space(2)
+                  visible: root.selectedPlayerProfile && root.selectedPlayerProfile.dateOfBirth !== ""
+                  Text { text: "BORN"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedPlayerProfile ? root.selectedPlayerProfile.dateOfBirth : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                }
+                Column {
+                  width: (parent.width - Style.space(8)) / 2
+                  spacing: Style.space(2)
+                  visible: root.selectedPlayerProfile && root.selectedPlayerProfile.birthplace !== ""
+                  Text { text: "BIRTHPLACE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedPlayerProfile ? root.selectedPlayerProfile.birthplace : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
                 }
               }
 
@@ -6324,9 +6468,40 @@ root.warnStderr("team select failed", text)
             width: parent.width
             height: clubProfileInnerCol.implicitHeight + Style.space(24)
             radius: Style.cornerRadius
-            color: Util.alpha(root.contentForeground, 0.04)
+            color: Util.alpha(root.contentForeground, 0.03)
+            clip: true
             border.width: Style.spacing.hairline
             border.color: Util.alpha(root.contentForeground, 0.12)
+
+            // Dynamic club primary/alternate color gradient banner
+            Rectangle {
+              anchors.top: parent.top
+              anchors.left: parent.left
+              anchors.right: parent.right
+              height: Style.space(110)
+              opacity: 0.22
+              gradient: Gradient {
+                GradientStop { position: 0.0; color: root.selectedClubProfile && root.selectedClubProfile.color !== "" ? root.selectedClubProfile.color : root.favoriteTeamAccent }
+                GradientStop { position: 0.7; color: root.selectedClubProfile && root.selectedClubProfile.alternateColor !== "" ? root.selectedClubProfile.alternateColor : "transparent" }
+                GradientStop { position: 1.0; color: "transparent" }
+              }
+            }
+
+            // Subdued Club Crest Watermark in Background
+            Image {
+              anchors.right: parent.right
+              anchors.rightMargin: -Style.space(24)
+              anchors.top: parent.top
+              anchors.topMargin: -Style.space(14)
+              width: Style.space(150)
+              height: width
+              source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
+              fillMode: Image.PreserveAspectFit
+              opacity: 0.08
+              mipmap: true
+              smooth: true
+              visible: String(source) !== ""
+            }
 
             Column {
               id: clubProfileInnerCol
@@ -6338,41 +6513,67 @@ root.warnStderr("team select failed", text)
                 width: parent.width
                 spacing: Style.space(12)
 
-                Image {
-                  width: Style.space(52)
+                Item {
+                  width: Style.space(56)
                   height: width
-                  source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
-                  fillMode: Image.PreserveAspectFit
-                  mipmap: true
-                  smooth: true
-                  visible: String(source) !== ""
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(8)
+                    color: Util.alpha(root.contentForeground, 0.06)
+                    border.width: Style.spacing.hairline
+                    border.color: Util.alpha(root.contentForeground, 0.15)
+                  }
+
+                  Image {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(4)
+                    source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
+                    fillMode: Image.PreserveAspectFit
+                    mipmap: true
+                    smooth: true
+                    visible: String(source) !== ""
+                  }
                 }
 
                 Column {
                   anchors.verticalCenter: parent.verticalCenter
-                  width: parent.width - Style.space(66)
+                  width: parent.width - Style.space(70)
                   spacing: Style.space(3)
 
-                  Text {
-                    text: root.selectedClubProfile ? root.selectedClubProfile.displayName : ""
-                    color: root.contentForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.body
-                    font.bold: true
+                  Row {
+                    spacing: Style.space(8)
+                    Text {
+                      text: root.selectedClubProfile ? root.selectedClubProfile.displayName : ""
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+                    Text {
+                      text: root.selectedClubProfile && root.selectedClubProfile.abbreviation !== "" ? root.selectedClubProfile.abbreviation : ""
+                      color: root.favoriteTeamAccent
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                      visible: text !== ""
+                    }
                   }
 
                   Text {
                     text: root.selectedClubProfile ? root.selectedClubProfile.standingSummary : ""
-                    color: Qt.darker(root.contentForeground, 1.3)
+                    color: Qt.darker(root.contentForeground, 1.25)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
+                    elide: Text.ElideRight
                     visible: text !== ""
                   }
 
                   Text {
-                    text: root.selectedClubProfile && root.selectedClubProfile.record !== "" ? ("Record: " + root.selectedClubProfile.record) : ""
-                    color: Qt.darker(root.contentForeground, 1.5)
+                    text: root.selectedClubProfile && root.selectedClubProfile.record !== "" ? ("Season Record: " + root.selectedClubProfile.record) : ""
+                    color: Qt.darker(root.contentForeground, 1.45)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     visible: text !== ""
@@ -6380,26 +6581,86 @@ root.warnStderr("team select failed", text)
                 }
               }
 
+              Rectangle {
+                width: parent.width
+                height: Style.spacing.hairline
+                color: Util.alpha(root.contentForeground, 0.12)
+              }
+
+              // Club Record Statistics Bar
+              Row {
+                width: parent.width
+                spacing: Style.space(6)
+                visible: root.selectedClubProfile && root.selectedClubProfile.points !== ""
+
+                Column {
+                  width: (parent.width - Style.space(24)) / 5
+                  spacing: Style.space(2)
+                  Text { text: "PTS"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedClubProfile ? root.selectedClubProfile.points : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                }
+                Column {
+                  width: (parent.width - Style.space(24)) / 5
+                  spacing: Style.space(2)
+                  Text { text: "W"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedClubProfile ? root.selectedClubProfile.wins : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+                Column {
+                  width: (parent.width - Style.space(24)) / 5
+                  spacing: Style.space(2)
+                  Text { text: "D"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedClubProfile ? root.selectedClubProfile.ties : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+                Column {
+                  width: (parent.width - Style.space(24)) / 5
+                  spacing: Style.space(2)
+                  Text { text: "L"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedClubProfile ? root.selectedClubProfile.losses : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+                Column {
+                  width: (parent.width - Style.space(24)) / 5
+                  spacing: Style.space(2)
+                  Text { text: "DIFF"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedClubProfile ? root.selectedClubProfile.diff : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+              }
+
+              // Next Event Card
               Item {
                 width: parent.width
-                height: Style.space(32)
+                height: Style.space(34)
                 visible: root.selectedClubProfile && root.selectedClubProfile.nextEvent !== ""
 
                 Rectangle {
                   anchors.fill: parent
-                  radius: Style.space(4)
+                  radius: Style.space(6)
                   color: Util.alpha(root.contentForeground, 0.05)
+                  border.width: Style.spacing.hairline
+                  border.color: Util.alpha(root.contentForeground, 0.1)
                 }
 
                 Row {
-                  anchors.centerIn: parent
+                  anchors.fill: parent
+                  anchors.leftMargin: Style.space(10)
+                  anchors.rightMargin: Style.space(10)
                   spacing: Style.space(6)
+
                   Text {
-                    text: "Next: " + (root.selectedClubProfile ? root.selectedClubProfile.nextEvent : "")
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰕲"
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    color: root.favoriteTeamAccent
+                  }
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - Style.space(24)
+                    text: (root.selectedClubProfile ? root.selectedClubProfile.nextEvent : "")
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
                     color: root.contentForeground
+                    elide: Text.ElideRight
                   }
                 }
               }
@@ -9444,7 +9705,7 @@ root.warnStderr("team select failed", text)
         }
 
         // Navigation arrows below the 5 fixtures
-        Row {
+        Item {
           width: parent.width
           height: Style.space(32)
           visible: root.clubPageCount > 1
