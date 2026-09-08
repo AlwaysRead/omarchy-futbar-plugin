@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -5893,30 +5894,48 @@ onStreamFinished: root.warnStderr("", text)
   }
 
   // Dynamic 4th stat cell: first available metric for the active tab.
-  // Priority: PASS % -> TACKLES -> SAVES -> SHOTS -> KEY PASSES -> CLEAN SHEETS -> CHANCES -> INTERCEPTIONS.
+  function isPlayerGoalkeeper() {
+    var p = root.selectedPlayerProfile
+    if (!p) return false
+    var pos = String(p.position || "").toLowerCase()
+    return pos.indexOf("goalkeeper") !== -1 || pos.indexOf("keeper") !== -1 || pos === "gk" || pos === "g"
+  }
+
+  // Dynamic 4th stat cell: contextual to position.
+  // Goalkeepers show SAVES; outfield players show PASS % -> TACKLES -> SHOTS -> KEY PASSES -> CHANCES -> INTERCEPTIONS.
   function stat4Active() {
     var p = root.selectedPlayerProfile
     var season = root.searchPlayerStatsTab === "season"
-    if (!p) return { label: "TACKLES", value: "" }
+    if (!p) return { label: "PASS %", value: "" }
     var get = function(c, s) { var v = season ? p[s] : p[c]; return v ? String(v) : "" }
+    if (root.isPlayerGoalkeeper()) {
+      var sv = get("careerSaves", "seasonSaves")
+      if (sv !== "") return { label: "SAVES", value: sv }
+      var cs = get("careerCleanSheets", "seasonCleanSheets")
+      if (cs !== "") return { label: "CLEAN SHEETS", value: cs }
+      return { label: "SAVES", value: "—" }
+    }
     var v = get("careerPassPct", "seasonPassPct")
     if (v !== "") return { label: "PASS %", value: v }
     v = get("careerTackles", "seasonTackles")
     if (v !== "") return { label: "TACKLES", value: v }
-    v = get("careerSaves", "seasonSaves")
-    if (v !== "") return { label: "SAVES", value: v }
     v = get("careerShots", "seasonShots")
     if (v !== "") return { label: "SHOTS", value: v }
     v = get("careerKeyPasses", "seasonKeyPasses")
     if (v !== "") return { label: "KEY PASSES", value: v }
-    v = get("careerCleanSheets", "seasonCleanSheets")
-    if (v !== "") return { label: "CLEAN SHEETS", value: v }
     if (season && p.seasonChances) return { label: "CHANCES", value: String(p.seasonChances) }
     v = get("careerInterceptions", "seasonInterceptions")
     if (v !== "") return { label: "INTERCEPTIONS", value: v }
-    return { label: "TACKLES", value: "" }
+    return { label: "PASS %", value: "" }
   }
 
+  // Dynamic stat group categories: outfield players NEVER show goalkeeper stats.
+  function playerStatGroups() {
+    if (root.isPlayerGoalkeeper()) {
+      return ["keeper", "passing", "general"]
+    }
+    return ["scoring", "passing", "defending", "general"]
+  }
   function isIntlLeagueSlug(lg) {
     return lg.indexOf("fifa.world") === 0 || lg.indexOf("fifa.friendly") === 0 || lg.indexOf("fifa.olympics") === 0
       || lg.indexOf("uefa.euro") === 0 || lg.indexOf("uefa.nations") === 0 || lg.indexOf("conmebol.america") === 0
@@ -6997,7 +7016,9 @@ root.warnStderr("team select failed", text)
 
           Button {
             iconText: ""
-            text: "Back to search results"
+            text: (root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId && root.selectedPlayerProfile.clubFilterId !== "all")
+              ? "Back to player stats"
+              : (root.searchPlayerCardTab !== "info" ? "Back to player info" : "Back to search results")
             fontFamily: root.contentFontFamily
             foreground: root.contentForeground
             accent: root.contentForeground
@@ -7005,7 +7026,15 @@ root.warnStderr("team select failed", text)
             iconSize: Style.font.caption
             horizontalPadding: Style.space(8)
             verticalPadding: Style.space(4)
-            onClicked: root.selectedPlayerProfile = null
+            onClicked: {
+              if (root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId && root.selectedPlayerProfile.clubFilterId !== "all") {
+                root.selectClubFilter("all")
+              } else if (root.searchPlayerCardTab !== "info") {
+                root.searchPlayerCardTab = "info"
+              } else {
+                root.selectedPlayerProfile = null
+              }
+            }
           }
 
           Rectangle {
@@ -7030,20 +7059,35 @@ root.warnStderr("team select failed", text)
               }
             }
 
-            // Subdued Club Crest Watermark (Faded in the background like ESPN)
-            Image {
+            // High-depth blurred club crest watermark
+            Item {
               anchors.right: parent.right
-              anchors.rightMargin: -Style.space(20)
+              anchors.rightMargin: -Style.space(16)
               anchors.top: parent.top
-              anchors.topMargin: -Style.space(10)
-              width: Style.space(140)
+              anchors.topMargin: -Style.space(6)
+              width: Style.space(150)
               height: width
-              source: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
-              fillMode: Image.PreserveAspectFit
-              opacity: 0.07
-              mipmap: true
-              smooth: true
-              visible: String(source) !== ""
+              opacity: 0.18
+              visible: root.selectedPlayerProfile && root.selectedPlayerProfile.teamCrest !== ""
+
+              Image {
+                id: playerWatermarkImg
+                anchors.fill: parent
+                source: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
+                fillMode: Image.PreserveAspectFit
+                mipmap: true
+                smooth: true
+                visible: false
+              }
+
+              MultiEffect {
+                anchors.fill: parent
+                source: playerWatermarkImg
+                blurEnabled: true
+                blur: 0.45
+                blurMax: 32
+                autoPaddingEnabled: false
+              }
             }
 
             Column {
@@ -7610,7 +7654,7 @@ root.warnStderr("team select failed", text)
                   visible: root.searchPlayerCardTab === "stats" && root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId !== "all"
 
                   Button {
-                    iconText: ""
+                    iconText: ""
                     text: "Back to player stats"
                     fontFamily: root.contentFontFamily
                     foreground: root.contentForeground
@@ -7730,7 +7774,7 @@ root.warnStderr("team select failed", text)
 
                 // Extended stat group cards
                 Repeater {
-                  model: ["scoring", "passing", "defending", "keeper", "general"]
+                  model: root.playerStatGroups()
                   delegate: Rectangle {
                     width: parent.width
                     height: moreGroupCol.implicitHeight + Style.space(16)
@@ -7908,20 +7952,35 @@ root.warnStderr("team select failed", text)
               }
             }
 
-            // Subdued Club Crest Watermark in Background
-            Image {
+            // High-depth blurred club crest watermark
+            Item {
               anchors.right: parent.right
-              anchors.rightMargin: -Style.space(24)
+              anchors.rightMargin: -Style.space(20)
               anchors.top: parent.top
-              anchors.topMargin: -Style.space(14)
-              width: Style.space(150)
+              anchors.topMargin: -Style.space(10)
+              width: Style.space(160)
               height: width
-              source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
-              fillMode: Image.PreserveAspectFit
-              opacity: 0.25
-              mipmap: true
-              smooth: true
-              visible: String(source) !== ""
+              opacity: 0.28
+              visible: root.selectedClubProfile && root.selectedClubProfile.logo !== ""
+
+              Image {
+                id: clubWatermarkImg
+                anchors.fill: parent
+                source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
+                fillMode: Image.PreserveAspectFit
+                mipmap: true
+                smooth: true
+                visible: false
+              }
+
+              MultiEffect {
+                anchors.fill: parent
+                source: clubWatermarkImg
+                blurEnabled: true
+                blur: 0.45
+                blurMax: 32
+                autoPaddingEnabled: false
+              }
             }
             Column {
               id: clubProfileInnerCol
