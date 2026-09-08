@@ -240,6 +240,8 @@ BarWidget {
       p.previousMatchChanged.connect(function() { root.updateTooltip() })
       p.requestErrorChanged.connect(function() { root.updateTooltip() })
       p.activityPulse.connect(eventBlink.restart)
+      if (p.leagueLiveChanged) p.leagueLiveChanged.connect(function() { root.updateTooltip() })
+      if (p.leagueBoardSummaryChanged) p.leagueBoardSummaryChanged.connect(function() { root.updateTooltip() })
       root.updateTooltip()
     }
   }

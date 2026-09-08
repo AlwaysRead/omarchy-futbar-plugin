@@ -309,19 +309,24 @@ Panel {
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
-  // Teams you're tracking besides the active one -- rendered as tabs in the
-  // panel header. The active team is never stored here; it's implicit (it's
-  // whatever teamName/league/teamId currently resolve to), so a single-team
+  // Items you're tracking besides the active one -- rendered as tabs in the
+  // panel header. Can be either a club ({ teamName, league, teamId, followLeague: false })
+  // or an entire league ({ teamName: "", league, teamId: "", followLeague: true }).
+  // The active item is never stored here; it's implicit (it's whatever
+  // teamName/league/teamId/followLeague currently resolve to), so an existing
   // user's favorite file needs no migration at all.
-  function teamKey(name, league) {
-    return String(name || "").trim().toLowerCase() + "|" + String(league || "").trim().toLowerCase()
+  function itemKey(name, league, followLeague) {
+    var lg = String(league || "").trim().toLowerCase()
+    if (followLeague === true || (String(name || "").trim() === "" && lg !== "")) {
+      return "league|" + lg
+    }
+    return "team|" + String(name || "").trim().toLowerCase() + "|" + lg
   }
-  // Normalizes to well-formed { teamName, league, teamId } objects (all
-  // strings) so every consumer -- switchActiveTeam, the tab Repeater -- can
-  // trust entry.teamName/.league without a null-check of its own. A
-  // hand-edited or otherwise malformed favorite file (nulls, strings,
-  // missing keys in followedTeams) would otherwise throw at runtime the
-  // first time something reads a field off a bad entry.
+  function teamKey(name, league) {
+    return root.itemKey(name, league, false)
+  }
+  // Normalizes to well-formed { teamName, league, teamId, followLeague } objects
+  // so every consumer -- switchActiveItem, the tab Repeater -- can trust entry fields.
   function followedTeamsList() {
     var raw = Array.isArray(root.savedFavorite.followedTeams) ? root.savedFavorite.followedTeams : []
     var out = []
@@ -330,8 +335,14 @@ Panel {
       if (!entry || typeof entry !== "object") continue
       var name = typeof entry.teamName === "string" ? entry.teamName : ""
       var lg = typeof entry.league === "string" ? entry.league : ""
+      var isLg = entry.followLeague === true || (name === "" && lg !== "")
       if (name === "" && lg === "") continue
-      out.push({ teamName: name, league: lg, teamId: typeof entry.teamId === "string" ? entry.teamId : "" })
+      out.push({
+        teamName: isLg ? "" : name,
+        league: lg,
+        teamId: typeof entry.teamId === "string" ? entry.teamId : "",
+        followLeague: isLg
+      })
     }
     return out
   }
@@ -341,56 +352,76 @@ Panel {
       for (var k in root.savedFavorite) payload[k] = root.savedFavorite[k]
     }
     payload.followedTeams = list
-    if (payload.teamName === undefined || payload.teamName === null) payload.teamName = root.teamName
-    if (payload.league === undefined || payload.league === null || payload.league === "") payload.league = root.league
-    if (payload.teamId === undefined || payload.teamId === null) payload.teamId = (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
+    if (root.leagueMode) {
+      payload.teamName = ""
+      payload.teamId = ""
+      payload.league = root.league
+      payload.followLeague = true
+    } else {
+      if (payload.teamName === undefined || payload.teamName === null) payload.teamName = root.teamName
+      if (payload.league === undefined || payload.league === null || payload.league === "") payload.league = root.league
+      if (payload.teamId === undefined || payload.teamId === null) payload.teamId = (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
+      if (payload.followLeague) delete payload.followLeague
+    }
     root.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
   }
-  // The one place that changes which club is active. The active club is
-  // never itself stored in followedTeams (it's implicit -- whatever
-  // teamName/league/teamId currently resolve to), which means every switch
-  // has to do two things to the *explicit* list, not just one:
-  //   1. drop the destination club from it (it's about to become the
-  //      implicit active club, so leaving it in the list too would render
-  //      as a duplicate tab of itself)
-  //   2. add the club we're switching AWAY from, if it isn't already there
-  //      (otherwise it just vanishes -- it was only ever "remembered" by
-  //      virtue of being active, and it's about to stop being that)
-  // A plain tab click used to call activateTeam directly and only do
-  // neither, which is exactly what made switching away from a freshly
-  // added club discard that club and re-duplicate whatever you switched to.
-  function switchActiveTeam(teamName, league, teamId) {
-    var destKey = root.teamKey(teamName, league)
-    var activeKey = root.teamKey(root.teamName, root.league)
+  // Switches the active item (either club or whole league).
+  function switchActiveItem(teamName, league, teamId, followLeague) {
+    var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
+    var destKey = root.itemKey(isLg ? "" : teamName, league, isLg)
+    var activeKey = root.itemKey(root.leagueMode ? "" : root.teamName, root.league, root.leagueMode)
     var list = root.followedTeamsList().slice()
     for (var i = list.length - 1; i >= 0; i--) {
-      if (root.teamKey(list[i].teamName, list[i].league) === destKey) list.splice(i, 1)
+      if (root.itemKey(list[i].teamName, list[i].league, list[i].followLeague) === destKey) list.splice(i, 1)
     }
-    if (destKey !== activeKey && root.teamName !== "") {
+    if (destKey !== activeKey && (root.teamName !== "" || root.leagueMode)) {
       var already = false
       for (var j = 0; j < list.length; j++) {
-        if (root.teamKey(list[j].teamName, list[j].league) === activeKey) { already = true; break }
+        if (root.itemKey(list[j].teamName, list[j].league, list[j].followLeague) === activeKey) { already = true; break }
       }
-      if (!already) list.push({ teamName: root.teamName, league: root.league, teamId: (root.teamId !== "" ? root.teamId : root.resolvedTeamId) })
+      if (!already) {
+        list.push({
+          teamName: root.leagueMode ? "" : root.teamName,
+          league: root.league,
+          teamId: root.leagueMode ? "" : (root.teamId !== "" ? root.teamId : root.resolvedTeamId),
+          followLeague: root.leagueMode
+        })
+      }
     }
-    root.activateTeam(teamName, league, teamId, list)
+    if (isLg) {
+      root.activateLeague(league, list)
+    } else {
+      root.activateTeam(teamName, league, teamId, list)
+    }
   }
-  // "+" flow: adding a club is just switching to one that (typically) isn't
-  // followed yet, so it reuses the exact same bookkeeping.
+  function switchActiveTeam(teamName, league, teamId) {
+    root.switchActiveItem(teamName, league, teamId, false)
+  }
+  function switchActiveLeague(league) {
+    root.switchActiveItem("", league, "", true)
+  }
   function addFollowedTeam(teamName, league, teamId) {
     root.switchActiveTeam(teamName, league, teamId)
   }
-  function removeFollowedTeam(teamName, league) {
-    var key = root.teamKey(teamName, league)
+  function addFollowedLeague(league) {
+    root.switchActiveLeague(league)
+  }
+  function removeFollowedItem(teamName, league, followLeague) {
+    var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
+    var key = root.itemKey(isLg ? "" : teamName, league, isLg)
     var list = root.followedTeamsList().slice()
     for (var i = list.length - 1; i >= 0; i--) {
-      if (root.teamKey(list[i].teamName, list[i].league) === key) list.splice(i, 1)
+      if (root.itemKey(list[i].teamName, list[i].league, list[i].followLeague) === key) list.splice(i, 1)
     }
     root.persistFollowedTeams(list)
-    // Unfollowed clubs don't need their fetched state kept around for a
-    // switch that can no longer happen.
     delete root._teamStateCache[key]
+  }
+  function removeFollowedTeam(teamName, league) {
+    root.removeFollowedItem(teamName, league, false)
+  }
+  function removeFollowedLeague(league) {
+    root.removeFollowedItem("", league, true)
   }
   onSettingsChanged: root.ensureStarted()
 
@@ -3603,11 +3634,31 @@ readonly property var leagues: [
   function confirmLeague() {
     var leagueVal = root.safeIdentifier(String(selectedLeague || ""))
     if (leagueVal === "") return
+    if (root.addingTeam) {
+      root.addingTeam = false
+      root.addFollowedLeague(leagueVal)
+    } else {
+      root.switchActiveLeague(leagueVal)
+    }
+  }
+
+  // Switches the active view to whole-league tracking and refreshes matches.
+  function activateLeague(league, followedTeamsOverride) {
     root.editingTeam = false
-    root.saveFavorite("", leagueVal, "", undefined, true)
+    var leagueVal = root.safeIdentifier(String(league || ""))
+    if (leagueVal === "") return
+
+    // Snapshot outgoing state if switching away
+    var activeKey = root.itemKey(root.leagueMode ? "" : root.teamName, root.league, root.leagueMode)
+    var destKey = root.itemKey("", leagueVal, true)
+    if (activeKey !== destKey) {
+      if (!root.leagueMode && root.teamName !== "") {
+        root._teamStateCache[activeKey] = root.snapshotTeamState()
+      }
+    }
+
+    root.saveFavorite("", leagueVal, "", followedTeamsOverride, true)
     root._queueSetBarWidget("league", leagueVal)
-    // Wipe the previous club from widget settings so a reload cannot
-    // resurrect it alongside the league-follow.
     root._queueSetBarWidget("teamName", "")
     root._queueSetBarWidget("teamId", "")
 
@@ -3633,7 +3684,6 @@ readonly property var leagues: [
 
     root.loadMatchList(true)
   }
-
   // Stores a team id resolved from the /teams list when the team was set
   // through the generic settings UI rather than the picker.
   function persistTeamId(id) {
@@ -3643,11 +3693,16 @@ readonly property var leagues: [
     root._queueSetBarWidget("teamId", cleanId)
   }
 
-  function leagueLabel() {
+  function leagueLabel(code) {
+    var target = code !== undefined ? String(code) : root.league
     for (var i = 0; i < leagues.length; i++) {
-      if (leagues[i].value === root.league) return String(leagues[i].label)
+      if (leagues[i].value === target) return String(leagues[i].label)
     }
-    return root.league
+    return target
+  }
+  function leagueShortLabel(code) {
+    var lbl = root.leagueLabel(code)
+    return lbl.replace(/\s*\([^)]*\)\s*$/, "").trim()
   }
 
   function showAllFixtures() {
@@ -5186,7 +5241,7 @@ root.warnStderr("team select failed", text)
 
         Text {
           textFormat: Text.PlainText
-          text: root.addingTeam ? "Add a club to follow" : (root.editingTeam ? "Change your club" : "Choose your club")
+          text: root.addingTeam ? (root.pickerLeagueOnly ? "Add a league to follow" : "Add a club or league to follow") : (root.editingTeam ? "Change what you follow" : "Choose what to follow")
           color: root.contentForeground
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.body
@@ -5311,23 +5366,37 @@ root.warnStderr("team select failed", text)
         // exactly as before. Click switches; right-click removes (the active
         // club has no remove -- it isn't stored in followedTeams to begin
         // with, so there's nothing to remove it from).
+        // Follow tabs: lets you track multiple clubs and whole leagues.
+        // Click switches; right-click removes (the active item cannot be removed).
         Flow {
-          // Always visible (once a club is active, outside league-follow mode)
-          // so the "add" button is reachable even before a second club has
-          // ever been followed -- not gated on followedTeamsList() being
-          // non-empty, or there'd be no way to add the very first extra club.
-          visible: !root.leagueMode
+          visible: !root.needsTeam && !root.editingTeam
           width: parent.width
           spacing: Style.space(6)
 
           Repeater {
-            model: [{ teamName: root.teamName, league: root.league, teamId: root.teamId, active: true }]
-              .concat(root.followedTeamsList().map(function(t) {
-                return { teamName: t.teamName, league: t.league, teamId: t.teamId, active: false }
-              }))
+            model: [{
+              teamName: root.leagueMode ? "" : root.teamName,
+              league: root.league,
+              teamId: root.leagueMode ? "" : root.teamId,
+              followLeague: root.leagueMode,
+              active: true
+            }].concat(root.followedTeamsList().map(function(t) {
+              return {
+                teamName: t.followLeague ? "" : t.teamName,
+                league: t.league,
+                teamId: t.followLeague ? "" : t.teamId,
+                followLeague: t.followLeague === true,
+                active: false
+              }
+            }))
             delegate: Button {
-              text: modelData.teamName
-              tooltipText: modelData.active ? modelData.teamName : ("Switch to " + modelData.teamName + " · right-click to remove")
+              readonly property bool isLeagueTab: modelData.followLeague === true
+              readonly property string displayName: isLeagueTab ? root.leagueShortLabel(modelData.league) : modelData.teamName
+              readonly property string fullLabel: isLeagueTab ? root.leagueLabel(modelData.league) : (modelData.teamName + " (" + root.leagueLabel(modelData.league) + ")")
+              iconText: isLeagueTab ? "󰴆" : ""
+              iconSize: Style.font.caption
+              text: displayName
+              tooltipText: modelData.active ? fullLabel : ("Switch to " + fullLabel + " · right-click to remove")
               selected: modelData.active
               fontFamily: root.contentFontFamily
               foreground: root.contentForeground
@@ -5335,14 +5404,22 @@ root.warnStderr("team select failed", text)
               fontSize: Style.font.caption
               horizontalPadding: Style.space(10)
               verticalPadding: Style.space(4)
-              onClicked: if (!modelData.active) root.switchActiveTeam(modelData.teamName, modelData.league, modelData.teamId)
-              onRightClicked: if (!modelData.active) root.removeFollowedTeam(modelData.teamName, modelData.league)
+              onClicked: {
+                if (!modelData.active) {
+                  root.switchActiveItem(modelData.teamName, modelData.league, modelData.teamId, modelData.followLeague)
+                }
+              }
+              onRightClicked: {
+                if (!modelData.active) {
+                  root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
+                }
+              }
             }
           }
 
           Button {
             iconText: "󰐕"
-            tooltipText: "Add another club to follow"
+            tooltipText: "Add another club or league to follow"
             fontFamily: root.contentFontFamily
             foreground: root.contentForeground
             accent: root.contentForeground
@@ -5352,7 +5429,6 @@ root.warnStderr("team select failed", text)
             onClicked: root.openAddTeamPicker()
           }
         }
-
         Row {
           width: parent.width
           spacing: Style.space(10)
@@ -5560,7 +5636,7 @@ root.warnStderr("team select failed", text)
           width: Style.space(32)
           height: Style.space(32)
           iconText: "󰒓"
-          tooltipText: "Change Team"
+          tooltipText: root.leagueMode ? "Change League" : "Change Team"
           fontFamily: root.contentFontFamily
           foreground: root.contentForeground
           accent: root.contentForeground
@@ -5628,7 +5704,7 @@ root.warnStderr("team select failed", text)
             id: matchDetailInnerCol
             width: parent.width
             spacing: Style.space(12)
-            opacity: root.matchDetailLoading ? 0.15 : 1.0
+            opacity: (root.matchDetailLoading && !root.matchDetail) ? 0.15 : (root.matchDetailLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
             // Scoreboard Hero Card
@@ -5977,7 +6053,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: Style.space(8)
-          visible: root.matchDetail && root.matchDetail.started && root.matchDetailTab === "stats" && !root.matchDetailLoading
+          visible: root.matchDetail && root.matchDetail.started && root.matchDetailTab === "stats"
 
           Text {
             textFormat: Text.PlainText
@@ -6238,7 +6314,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: Style.space(6)
-          visible: root.matchDetail && root.matchDetail.started && !root.matchDetail.isLive && root.matchDetailTab === "events" && !root.matchDetailLoading
+          visible: root.matchDetail && root.matchDetail.started && !root.matchDetail.isLive && root.matchDetailTab === "events"
 
           Text {
             textFormat: Text.PlainText
@@ -6365,7 +6441,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: Style.space(6)
-          visible: root.matchDetail && root.matchDetail.isLive && root.matchDetailTab === "commentary" && !root.matchDetailLoading
+          visible: root.matchDetail && root.matchDetail.isLive && root.matchDetailTab === "commentary"
 
           Text {
             textFormat: Text.PlainText
@@ -6448,7 +6524,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: Style.space(8)
-          visible: root.matchDetail && root.matchDetailTab === "lineups" && !root.matchDetailLoading
+          visible: root.matchDetail && root.matchDetailTab === "lineups"
 
           // Team Selector Bar (Home Team vs Away Team)
           Row {
@@ -7193,7 +7269,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: Style.space(12)
-          visible: root.matchDetail && root.matchDetailTab === "h2h" && !root.matchDetailLoading
+          visible: root.matchDetail && root.matchDetailTab === "h2h"
 
           // 1. RECENT FORM CARD
           Rectangle {
@@ -7489,7 +7565,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: Style.space(10)
-          visible: (root.matchDetailTab === "info") && !root.matchDetailLoading
+          visible: (root.matchDetailTab === "info")
 
           // Venue
           Row {
@@ -7689,7 +7765,7 @@ root.warnStderr("team select failed", text)
           }
 
           LoadingOverlay {
-            active: root.matchDetailLoading
+            active: root.matchDetailLoading && !root.matchDetail
             text: "Fetching match details…"
           }
         }
@@ -7709,7 +7785,7 @@ root.warnStderr("team select failed", text)
             id: standingsInnerCol
             width: parent.width
             spacing: Style.space(12)
-            opacity: root.standingsLoading ? 0.15 : 1.0
+            opacity: (root.standingsLoading && root.standings.length === 0) ? 0.15 : (root.standingsLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
             Row {
@@ -7983,7 +8059,7 @@ root.warnStderr("team select failed", text)
           }
 
           LoadingOverlay {
-            active: root.standingsLoading
+            active: root.standingsLoading && root.standings.length === 0
             text: "Fetching standings…"
           }
         }
@@ -8203,7 +8279,7 @@ root.warnStderr("team select failed", text)
             id: statsInnerCol
             width: parent.width
             spacing: Style.space(12)
-            opacity: root.statsLoading ? 0.15 : 1.0
+            opacity: (root.statsLoading && root.statsGoals.length === 0 && root.statsAssists.length === 0 && root.statsYellow.length === 0) ? 0.15 : (root.statsLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
             Row {
@@ -8519,7 +8595,7 @@ root.warnStderr("team select failed", text)
           }
 
           LoadingOverlay {
-            active: root.statsLoading
+            active: root.statsLoading && root.statsGoals.length === 0 && root.statsAssists.length === 0 && root.statsYellow.length === 0
             text: "Fetching statistics…"
           }
         }
@@ -8540,7 +8616,7 @@ root.warnStderr("team select failed", text)
             id: clubFixturesInnerCol
             width: parent.width
             spacing: Style.space(12)
-            opacity: (root.loading && root.teamFixtureRows.length === 0) ? 0.15 : 1.0
+            opacity: (root.loading && root.teamFixtureRows.length === 0) ? 0.15 : (root.loading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
             Item {
@@ -8660,7 +8736,7 @@ root.warnStderr("team select failed", text)
             id: leagueMatchesInnerCol
             width: parent.width
             spacing: Style.space(12)
-            opacity: root.matchListLoading ? 0.15 : 1.0
+            opacity: (root.matchListLoading && root.matchWeekRows.length === 0 && (root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) === 0) ? 0.15 : (root.matchListLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
             // League name on the left; on the right, chevrons page between the
@@ -8806,7 +8882,7 @@ root.warnStderr("team select failed", text)
 
           delegate: Column {
             required property var modelData
-            readonly property bool listIdle: !root.matchListLoading && root.matchListError === ""
+            readonly property bool listIdle: root.matchListError === ""
             width: parent ? parent.width : 0
             spacing: Style.space(4)
             visible: root.leagueMode && !root.leagueBrowseAll && listIdle && modelData.rows.length > 0
@@ -8902,7 +8978,7 @@ root.warnStderr("team select failed", text)
           }
 
           LoadingOverlay {
-            active: root.matchListLoading
+            active: root.matchListLoading && root.matchWeekRows.length === 0 && (root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) === 0
             text: "Fetching fixtures…"
           }
         }
@@ -8918,7 +8994,7 @@ root.warnStderr("team select failed", text)
           id: overviewInnerCol
           width: parent.width
           spacing: Style.space(14)
-          opacity: (root.loading && !root.liveMatch && !root.nextMatch && !root.previousMatch) ? 0.15 : 1.0
+          opacity: (root.loading && !root.liveMatch && !root.nextMatch && !root.previousMatch) ? 0.15 : (root.loading ? 0.85 : 1.0)
           Behavior on opacity { NumberAnimation { duration: 180 } }
 
           Item {
