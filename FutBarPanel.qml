@@ -570,6 +570,7 @@ Panel {
   property string careerAggTarget: ""
   property var selectedClubProfile: null
   property bool searchClubLoading: false
+  property var clubLeaderQueue: []
   property var matchDetailJerseyUrls: []
   readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.leagueMode
   // Per-match league tracking: each followed live fixture notifies its own
@@ -5817,24 +5818,71 @@ onStreamFinished: root.warnStderr("", text)
           var cats = lData && Array.isArray(lData.categories) ? lData.categories : []
           var prof = root.selectedClubProfile
           if (!prof) return
+          root.clubLeaderQueue = []
           for (var ci = 0; ci < cats.length; ci++) {
             var cat = cats[ci]
             var lName = cat.name
             var lead = cat.leaders && cat.leaders[0] ? cat.leaders[0] : null
             if (!lead) continue
             var lVal = lead.value !== undefined ? String(Math.round(lead.value)) : (lead.displayValue ? String(lead.displayValue).replace(/.*Goals:\s*|.*Assists:\s*/, "").trim() : "")
+            var athRef = lead.athlete && lead.athlete["$ref"] ? String(lead.athlete["$ref"]) : ""
+            var idMatch = athRef.match(/\/athletes\/(\d+)/)
+            var athId = idMatch ? idMatch[1] : ""
             if (lName === "goals") {
-              if (prof.topScorer === "") prof.topScorer = lVal + " goals"
+              if (prof.topScorer === "") {
+                prof.topScorer = "(" + lVal + ")"
+                if (athId !== "") root.clubLeaderQueue.push({ type: "topScorer", id: athId, val: lVal })
+              }
             } else if (lName === "assists") {
-              if (prof.topAssister === "") prof.topAssister = lVal + " assists"
+              if (prof.topAssister === "") {
+                prof.topAssister = "(" + lVal + ")"
+                if (athId !== "") root.clubLeaderQueue.push({ type: "topAssister", id: athId, val: lVal })
+              }
             } else if (lName === "yellowCards") {
-              if (prof.topCarder === "") prof.topCarder = lVal + " YC"
+              if (prof.topCarder === "") {
+                prof.topCarder = "(" + lVal + " YC)"
+                if (athId !== "") root.clubLeaderQueue.push({ type: "topCarder", id: athId, val: lVal + " YC" })
+              }
             }
           }
           root.selectedClubProfile = Object.assign({}, prof)
+          root._fetchNextClubLeaderName()
         } catch (e) {}
       }
     }
+  }
+
+  Process {
+    id: searchClubLeaderAthleteRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          if (root.clubLeaderQueue.length > 0) {
+            var item = root.clubLeaderQueue.shift()
+            if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && root.selectedClubProfile) {
+              var aData = JSON.parse(text)
+              var name = String(aData.shortDisplayName || aData.displayName || aData.fullName || aData.name || "")
+              var prof = root.selectedClubProfile
+              if (prof && name !== "") {
+                prof[item.type] = name + " (" + item.val + ")"
+                root.selectedClubProfile = Object.assign({}, prof)
+              }
+            }
+          }
+        } catch (e) {}
+        root._fetchNextClubLeaderName()
+      }
+    }
+  }
+
+  function _fetchNextClubLeaderName() {
+    if (root.clubLeaderQueue.length === 0 || !root.selectedClubProfile) return
+    var next = root.clubLeaderQueue[0]
+    searchClubLeaderAthleteRequest.running = false
+    searchClubLeaderAthleteRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(next.id)]
+    searchClubLeaderAthleteRequest.running = true
   }
   function triggerSearch(q) {
     root.searchQuery = q
