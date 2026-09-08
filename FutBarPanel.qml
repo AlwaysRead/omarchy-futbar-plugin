@@ -5746,6 +5746,13 @@ onStreamFinished: root.warnStderr("", text)
               homeRecord: homeRec,
               awayRecord: awayRec,
               venue: venueStr,
+              possession: "",
+              shotsPerGame: "",
+              shotsOnTarget: "",
+              passPct: "",
+              cleanSheets: "",
+              tackles: "",
+              interceptions: "",
               topScorer: "",
               topAssister: "",
               topCarder: "",
@@ -5884,6 +5891,38 @@ onStreamFinished: root.warnStderr("", text)
       "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(next.id)]
     searchClubLeaderAthleteRequest.running = true
   }
+
+  Process {
+    id: searchClubStatsRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedClubProfile) return
+        try {
+          var sData = JSON.parse(text)
+          var cats = sData && Array.isArray(sData.splits && sData.splits.categories) ? sData.splits.categories : []
+          var sMap = {}
+          for (var ci = 0; ci < cats.length; ci++) {
+            var stList = cats[ci].stats || []
+            for (var si = 0; si < stList.length; si++) {
+              sMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
+            }
+          }
+          var prof = root.selectedClubProfile
+          if (!prof) return
+          if (sMap["possessionPct"]) prof.possession = sMap["possessionPct"] + "%"
+          if (sMap["totalShots"]) prof.shotsPerGame = sMap["totalShots"]
+          if (sMap["shotsOnTarget"]) prof.shotsOnTarget = sMap["shotsOnTarget"]
+          if (sMap["passPct"]) prof.passPct = Math.round(parseFloat(sMap["passPct"]) * 100) + "%"
+          if (sMap["cleanSheet"]) prof.cleanSheets = sMap["cleanSheet"]
+          if (sMap["totalTackles"]) prof.tackles = sMap["totalTackles"]
+          if (sMap["interceptions"]) prof.interceptions = sMap["interceptions"]
+          root.selectedClubProfile = Object.assign({}, prof)
+        } catch (e) {}
+      }
+    }
+  }
+
   function triggerSearch(q) {
     root.searchQuery = q
     root.selectedPlayerProfile = null
@@ -6345,12 +6384,14 @@ onStreamFinished: root.warnStderr("", text)
       leagueName: item.subtitle,
       abbreviation: "",
       location: "",
-      standingSummary: "",
-      record: "",
-      form: "",
-      nextEvent: "",
-      logo: item.image,
       leagueSlug: item.leagueSlug || root.league || "esp.1",
+      possession: "",
+      shotsPerGame: "",
+      shotsOnTarget: "",
+      passPct: "",
+      cleanSheets: "",
+      tackles: "",
+      interceptions: "",
       topScorer: "",
       topAssister: "",
       topCarder: "",
@@ -6375,6 +6416,11 @@ onStreamFinished: root.warnStderr("", text)
       searchClubLeadersRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
         "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/leaders?lang=en&region=us"]
       searchClubLeadersRequest.running = true
+
+      searchClubStatsRequest.running = false
+      searchClubStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/statistics"]
+      searchClubStatsRequest.running = true
     }
   }
 
@@ -8372,6 +8418,81 @@ root.warnStderr("team select failed", text)
                       visible: root.selectedClubProfile && root.selectedClubProfile.topCarder !== ""
                       Text { text: "DISCIPLINE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text { text: root.selectedClubProfile ? root.selectedClubProfile.topCarder : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                    }
+                  }
+                }
+              }
+              // Team Season Statistics
+              Rectangle {
+                width: parent.width
+                height: teamStatsCol.implicitHeight + Style.space(16)
+                radius: Style.space(6)
+                color: Util.alpha(root.contentForeground, 0.04)
+                border.width: Style.spacing.hairline
+                border.color: Util.alpha(root.contentForeground, 0.08)
+                visible: root.selectedClubProfile && (root.selectedClubProfile.possession !== "" || root.selectedClubProfile.shotsPerGame !== "")
+
+                Column {
+                  id: teamStatsCol
+                  anchors.fill: parent
+                  anchors.margins: Style.space(8)
+                  spacing: Style.space(8)
+
+                  Text {
+                    text: "TEAM PERFORMANCE & METRICS"
+                    font.bold: true
+                    font.pixelSize: Style.space(9)
+                    color: Qt.darker(root.contentForeground, 1.5)
+                    font.family: root.contentFontFamily
+                  }
+
+                  // Attack Row
+                  Row {
+                    width: parent.width
+                    spacing: Style.space(6)
+
+                    Column {
+                      width: (parent.width - Style.space(12)) / 3
+                      spacing: Style.space(2)
+                      Text { text: "POSSESSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedClubProfile && root.selectedClubProfile.possession !== "" ? root.selectedClubProfile.possession : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                    }
+                    Column {
+                      width: (parent.width - Style.space(12)) / 3
+                      spacing: Style.space(2)
+                      Text { text: "TOTAL SHOTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedClubProfile && root.selectedClubProfile.shotsPerGame !== "" ? root.selectedClubProfile.shotsPerGame : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    }
+                    Column {
+                      width: (parent.width - Style.space(12)) / 3
+                      spacing: Style.space(2)
+                      Text { text: "SHOTS ON TARGET"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedClubProfile && root.selectedClubProfile.shotsOnTarget !== "" ? root.selectedClubProfile.shotsOnTarget : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    }
+                  }
+
+                  // Distribution & Defense Row
+                  Row {
+                    width: parent.width
+                    spacing: Style.space(6)
+
+                    Column {
+                      width: (parent.width - Style.space(12)) / 3
+                      spacing: Style.space(2)
+                      Text { text: "PASS ACCURACY"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedClubProfile && root.selectedClubProfile.passPct !== "" ? root.selectedClubProfile.passPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    }
+                    Column {
+                      width: (parent.width - Style.space(12)) / 3
+                      spacing: Style.space(2)
+                      Text { text: "CLEAN SHEETS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedClubProfile && root.selectedClubProfile.cleanSheets !== "" ? root.selectedClubProfile.cleanSheets : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    }
+                    Column {
+                      width: (parent.width - Style.space(12)) / 3
+                      spacing: Style.space(2)
+                      Text { text: "TACKLES WON"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { text: root.selectedClubProfile && root.selectedClubProfile.tackles !== "" ? root.selectedClubProfile.tackles : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                   }
                 }
