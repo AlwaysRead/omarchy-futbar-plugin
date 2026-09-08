@@ -69,7 +69,7 @@ Panel {
     ? (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta)
     : Color.urgent
 
-  readonly property bool anyLoading: root.loading || root.matchListLoading || root.standingsLoading || root.statsLoading || root.matchDetailLoading || root.teamsLoading
+  readonly property bool anyLoading: root.loading || root.matchListLoading || root.standingsLoading || root.statsLoading || root.matchDetailLoading || root.teamsLoading || root.searchLoading || root.searchPlayerLoading || root.searchClubLoading
 
   SequentialAnimation on _pulse {
     running: root.anyLoading
@@ -547,8 +547,17 @@ Panel {
   property string matchDetailLineupTeam: "home"
   property string matchDetailLineupView: "pitch"
   property bool matchDetailCrestsLoaded: false
+  property bool showSearch: false
+  property string searchQuery: ""
+  property bool searchLoading: false
+  property var searchResults: []
+  property string searchError: ""
+  property var selectedPlayerProfile: null
+  property bool searchPlayerLoading: false
+  property var selectedClubProfile: null
+  property bool searchClubLoading: false
   property var matchDetailJerseyUrls: []
-  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.leagueMode
+  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.leagueMode
   // Per-match league tracking: each followed live fixture notifies its own
   // goals and cards independently (no phase notifications).
   property var followedLeagueMatches: []
@@ -1145,12 +1154,12 @@ readonly property var leagues: [
   function open() {
     // Always start on the fixtures view; standings, stats and league matches are
     // toggles.
+    root.showSearch = false
     root.showStandings = false
     root.showStats = false
     root.showClubFixtures = false
     root.leagueBrowseAll = false
     root.showMatches = root.leagueMode
-    root.matchWindowOffset = 0
     root.pendingEdge = ""
     root.navAnchorDay = ""
     if (root.matchClusters && root.matchClusters.length > 0) {
@@ -1814,11 +1823,11 @@ readonly property var leagues: [
     var isLive = match.state === "in" || (match.status && (match.status === "Live" || String(match.status).indexOf("'") !== -1 || match.status === "HT"))
 
     root.showMatchDetail = true
+    root.showSearch = false
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
     root.showClubFixtures = false
-    root.matchDetailLoading = true
     root.matchDetailError = ""
     root.matchDetailTab = isStarted ? "stats" : "info"
     root.matchDetailLineupTeam = "home"
@@ -5179,6 +5188,219 @@ onStreamFinished: root.warnStderr("", text)
       }
     }
   }
+  Timer {
+    id: searchDebounceTimer
+    interval: 350
+    repeat: false
+    onTriggered: root.performSearch()
+  }
+
+  Process {
+    id: searchRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.searchLoading = false
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          return
+        }
+        try {
+          var data = JSON.parse(text)
+          var list = []
+          var res = Array.isArray(data.results) ? data.results : []
+          for (var i = 0; i < res.length; i++) {
+            var group = res[i]
+            var contents = Array.isArray(group.contents) ? group.contents : []
+            for (var j = 0; j < contents.length; j++) {
+              var item = contents[j]
+              if (!item) continue
+              var sport = String(item.sport || "").toLowerCase()
+              if (sport !== "" && sport !== "soccer") continue
+              var itemType = String(item.type || group.type || "").toLowerCase()
+              if (itemType !== "player" && itemType !== "team") continue
+              var rawId = ""
+              var rawUid = String(item.uid || "")
+              if (rawUid.indexOf("~a:") !== -1) {
+                rawId = rawUid.substring(rawUid.indexOf("~a:") + 3)
+              } else if (rawUid.indexOf("~t:") !== -1) {
+                rawId = rawUid.substring(rawUid.indexOf("~t:") + 3)
+              } else if (item.id) {
+                rawId = String(item.id)
+              }
+              var img = ""
+              if (item.image && typeof item.image === "object") {
+                img = item.image.default || item.image.defaultDark || ""
+              } else if (typeof item.image === "string") {
+                img = item.image
+              }
+              list.push({
+                type: itemType,
+                id: rawId,
+                uid: rawUid,
+                displayName: String(item.displayName || ""),
+                subtitle: String(item.subtitle || item.description || ""),
+                description: String(item.description || ""),
+                leagueSlug: String(item.defaultLeagueSlug || ""),
+                image: img,
+                webUrl: item.link && item.link.web ? String(item.link.web) : ""
+              })
+            }
+          }
+          root.searchResults = list
+          root.searchError = list.length === 0 ? "No players or clubs found" : ""
+        } catch (e) {
+          root.searchError = "Could not parse search results"
+        }
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.searchLoading = false
+      }
+    }
+  }
+
+  Process {
+    id: searchPlayerDetailRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.searchPlayerLoading = false
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          return
+        }
+        try {
+          var p = JSON.parse(text)
+          if (p) {
+            root.selectedPlayerProfile = {
+              fullName: String(p.fullName || p.displayName || ""),
+              jersey: p.jersey ? String(p.jersey) : "",
+              age: p.age ? String(p.age) : "",
+              position: p.position && p.position.displayName ? String(p.position.displayName) : (p.position && p.position.name ? String(p.position.name) : ""),
+              displayHeight: p.displayHeight ? String(p.displayHeight) : "",
+              displayWeight: p.displayWeight ? String(p.displayWeight) : "",
+              citizenship: p.citizenship ? String(p.citizenship) : (p.citizenshipCountry ? String(p.citizenshipCountry) : ""),
+              headshot: p.headshot && p.headshot.href ? String(p.headshot.href) : (root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""),
+              flag: p.flag && p.flag.href ? String(p.flag.href) : "",
+              teamName: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamName : "",
+              leagueName: root.selectedPlayerProfile ? root.selectedPlayerProfile.leagueName : "",
+              webUrl: root.selectedPlayerProfile ? root.selectedPlayerProfile.webUrl : ""
+            }
+          }
+        } catch (e) {}
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: { root.searchPlayerLoading = false }
+    }
+  }
+
+  Process {
+    id: searchClubDetailRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.searchClubLoading = false
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
+          return
+        }
+        try {
+          var res = JSON.parse(text)
+          var t = res && res.team ? res.team : null
+          if (t) {
+            root.selectedClubProfile = {
+              id: String(t.id || ""),
+              displayName: String(t.displayName || t.name || ""),
+              abbreviation: String(t.abbreviation || ""),
+              location: String(t.location || ""),
+              standingSummary: String(t.standingSummary || ""),
+              record: t.record && t.record.items && t.record.items[0] && t.record.items[0].summary ? String(t.record.items[0].summary) : "",
+              nextEvent: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].name ? String(t.nextEvent[0].name) : "",
+              logo: t.logos && t.logos[0] && t.logos[0].href ? String(t.logos[0].href) : (root.selectedClubProfile ? root.selectedClubProfile.logo : ""),
+              leagueSlug: root.selectedClubProfile ? root.selectedClubProfile.leagueSlug : "",
+              webUrl: root.selectedClubProfile ? root.selectedClubProfile.webUrl : ""
+            }
+          }
+        } catch (e) {}
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: { root.searchClubLoading = false }
+    }
+  }
+
+  function triggerSearch(q) {
+    root.searchQuery = q
+    searchDebounceTimer.restart()
+  }
+
+  function performSearch() {
+    var q = root.searchQuery.trim()
+    if (q.length < 2) {
+      root.searchResults = []
+      root.searchError = ""
+      root.searchLoading = false
+      return
+    }
+    root.searchLoading = true
+    root.searchError = ""
+    searchRequest.running = false
+    searchRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/search/v2?query=" + encodeURIComponent(q) + "&limit=12"]
+    searchRequest.running = true
+  }
+
+  function openPlayerSearchDetail(item) {
+    root.selectedClubProfile = null
+    root.selectedPlayerProfile = {
+      fullName: item.displayName,
+      jersey: "",
+      age: "",
+      position: "",
+      displayHeight: "",
+      displayWeight: "",
+      citizenship: "",
+      headshot: item.image,
+      flag: "",
+      teamName: item.subtitle,
+      leagueName: item.description,
+      webUrl: item.webUrl
+    }
+    if (item.id !== "") {
+      root.searchPlayerLoading = true
+      searchPlayerDetailRequest.running = false
+      searchPlayerDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+        "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id)]
+      searchPlayerDetailRequest.running = true
+    }
+  }
+
+  function openClubSearchDetail(item) {
+    root.selectedPlayerProfile = null
+    root.selectedClubProfile = {
+      id: item.id,
+      displayName: item.displayName,
+      abbreviation: "",
+      location: "",
+      standingSummary: "",
+      record: "",
+      nextEvent: "",
+      logo: item.image,
+      leagueSlug: item.leagueSlug || root.league || "esp.1",
+      webUrl: item.webUrl
+    }
+    var lg = item.leagueSlug !== "" ? item.leagueSlug : (root.league !== "" ? root.league : "esp.1")
+    if (item.id !== "") {
+      root.searchClubLoading = true
+      searchClubDetailRequest.running = false
+      searchClubDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
+      searchClubDetailRequest.running = true
+    }
+  }
 
   Process {
     id: setTeamRequest
@@ -5211,9 +5433,11 @@ root.warnStderr("team select failed", text)
       id: keyCatcher
       anchors.fill: parent
       // While a club-picker dropdown is open or focused, let it handle the
+      // While a club-picker dropdown or search field is open/focused, let it handle the
       // keys (Escape/arrows/Enter) instead of the panel's close/switch keys.
       blocked: (leagueDropdown && (leagueDropdown.popupOpen || leagueDropdown.activeFocus))
         || (teamDropdown && (teamDropdown.popupOpen || teamDropdown.activeFocus))
+        || (searchBarInput && searchBarInput.activeFocus)
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -5456,6 +5680,7 @@ root.warnStderr("team select failed", text)
         Column {
           anchors.verticalCenter: parent.verticalCenter
           width: parent.width - (tournamentLogoImage.visible ? tournamentLogoImage.width + parent.spacing : 0)
+            - (searchButton.visible ? searchButton.width + parent.spacing : 0)
             - (standingsButton.visible ? standingsButton.width + parent.spacing : 0)
             - (statsButton.visible ? statsButton.width + parent.spacing : 0)
             - (matchesButton.visible ? matchesButton.width + parent.spacing : 0)
@@ -5497,6 +5722,34 @@ root.warnStderr("team select failed", text)
             visible: text !== ""
           }
         }
+        Button {
+          id: searchButton
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(32)
+          height: Style.space(32)
+          iconText: "󰍉"
+          tooltipText: "Search Players & Clubs"
+          fontFamily: root.contentFontFamily
+          foreground: root.contentForeground
+          accent: root.contentForeground
+          iconSize: Style.font.body
+          horizontalPadding: 0
+          verticalPadding: 0
+          selected: root.showSearch
+          onClicked: {
+            root.showMatchDetail = false
+            root.showClubFixtures = false
+            root.showSearch = !root.showSearch
+            if (root.showSearch) {
+              root.showMatches = false
+              root.showStandings = false
+              root.showStats = false
+              Qt.callLater(function() {
+                if (searchBarInput) searchBarInput.forceActiveFocus()
+              })
+            }
+          }
+        }
 
         Button {
           id: matchesButton
@@ -5515,6 +5768,7 @@ root.warnStderr("team select failed", text)
           onClicked: {
             root.showMatchDetail = false
             root.showClubFixtures = false
+            root.showSearch = false
             if (root.leagueMode) {
               if (root.showStandings || root.showStats) {
                 root.showStandings = false
@@ -5574,7 +5828,7 @@ root.warnStderr("team select failed", text)
           onClicked: {
             root.showMatchDetail = false
             root.showClubFixtures = false
-            root.showStandings = !root.showStandings
+            root.showSearch = false
             if (root.showStandings) {
               root.showMatches = false
               root.showStats = false
@@ -5610,7 +5864,7 @@ root.warnStderr("team select failed", text)
           onClicked: {
             root.showMatchDetail = false
             root.showClubFixtures = false
-            root.showStats = !root.showStats
+            root.showSearch = false
             if (root.showStats) {
               root.showMatches = false
               root.showStandings = false
@@ -5644,6 +5898,7 @@ root.warnStderr("team select failed", text)
           horizontalPadding: 0
           verticalPadding: 0
           onClicked: {
+            root.showSearch = false
             root.showClubFixtures = false
             root.openTeamPicker()
           }
@@ -5658,13 +5913,549 @@ root.warnStderr("team select failed", text)
       }
 
       // Match Details View: In-depth information for finished matches
+      // Unified Search & Info View: Player profile & Club search center
+      Column {
+        id: unifiedSearchView
+        width: parent.width
+        spacing: Style.space(12)
+        visible: root.showSearch && !root.showMatchDetail
+
+        // Search Bar Input Field
+        Rectangle {
+          width: parent.width
+          height: Style.space(38)
+          radius: Style.cornerRadius
+          color: Util.alpha(root.contentForeground, 0.07)
+          border.width: Style.spacing.hairline
+          border.color: searchBarInput.activeFocus ? root.favoriteTeamAccent : Util.alpha(root.contentForeground, 0.15)
+
+          Row {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(10)
+            anchors.rightMargin: Style.space(10)
+            spacing: Style.space(8)
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              text: "󰍉"
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              color: Qt.darker(root.contentForeground, 1.4)
+            }
+
+            TextField {
+              id: searchBarInput
+              anchors.verticalCenter: parent.verticalCenter
+              width: parent.width - Style.space(30) - (clearSearchBtn.visible ? clearSearchBtn.width + parent.spacing : 0)
+              height: parent.height
+              verticalPadding: 0
+              horizontalPadding: 0
+              placeholderText: "Search players (e.g. Messi, Yamal) or clubs..."
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              foreground: root.contentForeground
+              background: null
+              text: root.searchQuery
+              onTextChanged: root.triggerSearch(text)
+            }
+
+            Button {
+              id: clearSearchBtn
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(22)
+              height: Style.space(22)
+              iconText: "󰅖"
+              iconSize: Style.font.caption
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              horizontalPadding: 0
+              verticalPadding: 0
+              visible: searchBarInput.text.length > 0
+              onClicked: {
+                searchBarInput.text = ""
+                root.searchQuery = ""
+                root.searchResults = []
+                root.selectedPlayerProfile = null
+                root.selectedClubProfile = null
+                searchBarInput.forceActiveFocus()
+              }
+            }
+          }
+        }
+
+        // Active Search Loading Indicator
+        Item {
+          width: parent.width
+          height: Style.space(28)
+          visible: root.searchLoading
+          Row {
+            anchors.centerIn: parent
+            spacing: Style.space(8)
+            Text {
+              text: "󰑮"
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              color: root.favoriteTeamAccent
+              opacity: 0.5 + 0.5 * root._pulse
+            }
+            Text {
+              text: "Searching ESPN database…"
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              color: Qt.darker(root.contentForeground, 1.4)
+            }
+          }
+        }
+
+        // Search Error or Empty Text
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          text: root.searchError
+          color: Qt.darker(root.contentForeground, 1.5)
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+          visible: !root.searchLoading && root.searchError !== "" && !root.selectedPlayerProfile && !root.selectedClubProfile
+        }
+
+        // Search Results List (Shown when neither player nor club is selected)
+        Column {
+          width: parent.width
+          spacing: Style.space(4)
+          visible: !root.selectedPlayerProfile && !root.selectedClubProfile && root.searchResults.length > 0
+
+          Text {
+            textFormat: Text.PlainText
+            text: "Results (" + root.searchResults.length + ")"
+            color: Qt.darker(root.contentForeground, 1.4)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(4)
+          }
+
+          Repeater {
+            model: root.searchResults
+            delegate: Rectangle {
+              id: searchResultRow
+              width: parent.width
+              height: Style.space(46)
+              radius: Style.cornerRadius
+              color: searchResultArea.containsMouse ? Util.alpha(root.contentForeground, 0.08) : Util.alpha(root.contentForeground, 0.03)
+
+              Row {
+                anchors.fill: parent
+                anchors.leftMargin: Style.space(10)
+                anchors.rightMargin: Style.space(10)
+                spacing: Style.space(10)
+
+                // Image (Player headshot or Club crest)
+                Image {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(32)
+                  height: width
+                  source: modelData.image
+                  fillMode: Image.PreserveAspectFit
+                  mipmap: true
+                  smooth: true
+                  visible: String(source) !== ""
+                }
+
+                // Fallback icon if no image
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(32)
+                  height: width
+                  verticalAlignment: Text.AlignVCenter
+                  horizontalAlignment: Text.AlignHCenter
+                  visible: !modelData.image || String(modelData.image) === ""
+                  text: modelData.type === "player" ? "" : "󰕲"
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.body
+                  color: Qt.darker(root.contentForeground, 1.4)
+                }
+
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: parent.width - Style.space(70)
+                  spacing: Style.space(2)
+
+                  Row {
+                    spacing: Style.space(6)
+                    Text {
+                      text: modelData.displayName
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+                    Rectangle {
+                      anchors.verticalCenter: parent.verticalCenter
+                      height: Style.space(16)
+                      width: typeTagText.implicitWidth + Style.space(8)
+                      radius: Style.space(3)
+                      color: modelData.type === "player" ? Util.alpha("#3b82f6", 0.2) : Util.alpha("#10b981", 0.2)
+                      Text {
+                        id: typeTagText
+                        anchors.centerIn: parent
+                        text: modelData.type === "player" ? "Player" : "Club"
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.space(10)
+                        font.bold: true
+                        color: modelData.type === "player" ? "#60a5fa" : "#34d399"
+                      }
+                    }
+                  }
+
+                  Text {
+                    text: modelData.subtitle
+                    color: Qt.darker(root.contentForeground, 1.4)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                    visible: text !== ""
+                  }
+                }
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: ""
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  color: Qt.darker(root.contentForeground, 1.6)
+                }
+              }
+
+              MouseArea {
+                id: searchResultArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  if (modelData.type === "player") {
+                    root.openPlayerSearchDetail(modelData)
+                  } else {
+                    root.openClubSearchDetail(modelData)
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Selected Player Card
+        Column {
+          width: parent.width
+          spacing: Style.space(12)
+          visible: root.selectedPlayerProfile !== null
+
+          Button {
+            iconText: ""
+            text: "Back to search results"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            iconSize: Style.font.caption
+            horizontalPadding: Style.space(8)
+            verticalPadding: Style.space(4)
+            onClicked: root.selectedPlayerProfile = null
+          }
+
+          Rectangle {
+            width: parent.width
+            height: playerProfileInnerCol.implicitHeight + Style.space(24)
+            radius: Style.cornerRadius
+            color: Util.alpha(root.contentForeground, 0.04)
+            border.width: Style.spacing.hairline
+            border.color: Util.alpha(root.contentForeground, 0.12)
+
+            Column {
+              id: playerProfileInnerCol
+              anchors.fill: parent
+              anchors.margins: Style.space(12)
+              spacing: Style.space(10)
+
+              Row {
+                width: parent.width
+                spacing: Style.space(12)
+
+                Image {
+                  width: Style.space(56)
+                  height: width
+                  source: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
+                  fillMode: Image.PreserveAspectFit
+                  mipmap: true
+                  smooth: true
+                  visible: String(source) !== ""
+                }
+
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: parent.width - Style.space(70)
+                  spacing: Style.space(3)
+
+                  Row {
+                    spacing: Style.space(8)
+                    Text {
+                      text: root.selectedPlayerProfile ? root.selectedPlayerProfile.fullName : ""
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                    }
+                    Text {
+                      text: root.selectedPlayerProfile && root.selectedPlayerProfile.jersey !== "" ? ("#" + root.selectedPlayerProfile.jersey) : ""
+                      color: root.favoriteTeamAccent
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      visible: text !== ""
+                    }
+                  }
+
+                  Text {
+                    text: root.selectedPlayerProfile ? ((root.selectedPlayerProfile.position !== "" ? root.selectedPlayerProfile.position + " · " : "") + root.selectedPlayerProfile.teamName) : ""
+                    color: Qt.darker(root.contentForeground, 1.3)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    visible: text !== ""
+                  }
+
+                  Row {
+                    spacing: Style.space(6)
+                    Image {
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(16)
+                      height: Style.space(12)
+                      source: root.selectedPlayerProfile ? root.selectedPlayerProfile.flag : ""
+                      fillMode: Image.PreserveAspectFit
+                      visible: String(source) !== ""
+                    }
+                    Text {
+                      text: root.selectedPlayerProfile ? root.selectedPlayerProfile.citizenship : ""
+                      color: Qt.darker(root.contentForeground, 1.5)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      visible: text !== ""
+                    }
+                  }
+                }
+              }
+
+              Rectangle {
+                width: parent.width
+                height: Style.spacing.hairline
+                color: Util.alpha(root.contentForeground, 0.12)
+              }
+
+              // Player Bio Stats Grid
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+
+                Column {
+                  width: (parent.width - Style.space(16)) / 3
+                  spacing: Style.space(2)
+                  Text { text: "AGE"; font.pixelSize: Style.space(10); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.age !== "" ? root.selectedPlayerProfile.age : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+                Column {
+                  width: (parent.width - Style.space(16)) / 3
+                  spacing: Style.space(2)
+                  Text { text: "HEIGHT"; font.pixelSize: Style.space(10); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayHeight !== "" ? root.selectedPlayerProfile.displayHeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+                Column {
+                  width: (parent.width - Style.space(16)) / 3
+                  spacing: Style.space(2)
+                  Text { text: "WEIGHT"; font.pixelSize: Style.space(10); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayWeight !== "" ? root.selectedPlayerProfile.displayWeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                }
+              }
+
+              Button {
+                width: parent.width
+                iconText: "󰖟"
+                text: "View Career Profile on ESPN"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.contentForeground
+                fontSize: Style.font.caption
+                iconSize: Style.font.caption
+                horizontalPadding: Style.space(8)
+                verticalPadding: Style.space(4)
+                visible: root.selectedPlayerProfile && root.selectedPlayerProfile.webUrl !== ""
+                onClicked: {
+                  if (root.selectedPlayerProfile && root.selectedPlayerProfile.webUrl !== "") {
+                    Qt.openUrlExternally(root.selectedPlayerProfile.webUrl)
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Selected Club Card
+        Column {
+          width: parent.width
+          spacing: Style.space(12)
+          visible: root.selectedClubProfile !== null
+
+          Button {
+            iconText: ""
+            text: "Back to search results"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            iconSize: Style.font.caption
+            horizontalPadding: Style.space(8)
+            verticalPadding: Style.space(4)
+            onClicked: root.selectedClubProfile = null
+          }
+
+          Rectangle {
+            width: parent.width
+            height: clubProfileInnerCol.implicitHeight + Style.space(24)
+            radius: Style.cornerRadius
+            color: Util.alpha(root.contentForeground, 0.04)
+            border.width: Style.spacing.hairline
+            border.color: Util.alpha(root.contentForeground, 0.12)
+
+            Column {
+              id: clubProfileInnerCol
+              anchors.fill: parent
+              anchors.margins: Style.space(12)
+              spacing: Style.space(10)
+
+              Row {
+                width: parent.width
+                spacing: Style.space(12)
+
+                Image {
+                  width: Style.space(52)
+                  height: width
+                  source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
+                  fillMode: Image.PreserveAspectFit
+                  mipmap: true
+                  smooth: true
+                  visible: String(source) !== ""
+                }
+
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: parent.width - Style.space(66)
+                  spacing: Style.space(3)
+
+                  Text {
+                    text: root.selectedClubProfile ? root.selectedClubProfile.displayName : ""
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+
+                  Text {
+                    text: root.selectedClubProfile ? root.selectedClubProfile.standingSummary : ""
+                    color: Qt.darker(root.contentForeground, 1.3)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    visible: text !== ""
+                  }
+
+                  Text {
+                    text: root.selectedClubProfile && root.selectedClubProfile.record !== "" ? ("Record: " + root.selectedClubProfile.record) : ""
+                    color: Qt.darker(root.contentForeground, 1.5)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    visible: text !== ""
+                  }
+                }
+              }
+
+              Item {
+                width: parent.width
+                height: Style.space(32)
+                visible: root.selectedClubProfile && root.selectedClubProfile.nextEvent !== ""
+
+                Rectangle {
+                  anchors.fill: parent
+                  radius: Style.space(4)
+                  color: Util.alpha(root.contentForeground, 0.05)
+                }
+
+                Row {
+                  anchors.centerIn: parent
+                  spacing: Style.space(6)
+                  Text {
+                    text: "Next: " + (root.selectedClubProfile ? root.selectedClubProfile.nextEvent : "")
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    color: root.contentForeground
+                  }
+                }
+              }
+
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+
+                Button {
+                  width: (parent.width - Style.space(8)) / 2
+                  iconText: "󰐕"
+                  text: "Track in Tabs"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  fontSize: Style.font.caption
+                  iconSize: Style.font.caption
+                  horizontalPadding: Style.space(8)
+                  verticalPadding: Style.space(4)
+                  onClicked: {
+                    if (root.selectedClubProfile) {
+                      root.showSearch = false
+                      root.addFollowedTeam(root.selectedClubProfile.displayName, root.selectedClubProfile.leagueSlug, root.selectedClubProfile.id)
+                    }
+                  }
+                }
+
+                Button {
+                  width: (parent.width - Style.space(8)) / 2
+                  iconText: "󰒭"
+                  text: "Switch to Club"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  fontSize: Style.font.caption
+                  iconSize: Style.font.caption
+                  horizontalPadding: Style.space(8)
+                  verticalPadding: Style.space(4)
+                  onClicked: {
+                    if (root.selectedClubProfile) {
+                      root.showSearch = false
+                      root.switchActiveTeam(root.selectedClubProfile.displayName, root.selectedClubProfile.leagueSlug, root.selectedClubProfile.id)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       Column {
         id: matchDetailView
         width: parent.width
         spacing: Style.space(12)
         visible: root.showMatchDetail
-
-        // Back button & header
         Row {
           width: parent.width
           spacing: Style.space(8)
