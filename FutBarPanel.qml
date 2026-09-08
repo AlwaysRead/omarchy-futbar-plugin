@@ -5379,9 +5379,10 @@ onStreamFinished: root.warnStderr("", text)
 
   function triggerSearch(q) {
     root.searchQuery = q
+    root.selectedPlayerProfile = null
+    root.selectedClubProfile = null
     searchDebounceTimer.restart()
   }
-
   function performSearch() {
     var q = root.searchQuery.trim()
     if (q.length < 2) {
@@ -6216,20 +6217,20 @@ root.warnStderr("team select failed", text)
             width: parent.width
             height: playerProfileInnerCol.implicitHeight + Style.space(24)
             radius: Style.cornerRadius
-            color: Util.alpha(root.contentForeground, 0.03)
+            color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.65)
             clip: true
             border.width: Style.spacing.hairline
-            border.color: Util.alpha(root.contentForeground, 0.12)
+            border.color: Util.alpha(root.favoriteTeamAccent, 0.35)
 
-            // Dynamic club color top-glow gradient
+            // Frosted glass gradient banner
             Rectangle {
               anchors.top: parent.top
               anchors.left: parent.left
               anchors.right: parent.right
-              height: Style.space(90)
-              opacity: 0.18
+              height: Style.space(120)
               gradient: Gradient {
-                GradientStop { position: 0.0; color: root.favoriteTeamAccent }
+                GradientStop { position: 0.0; color: Util.alpha(root.favoriteTeamAccent, 0.32) }
+                GradientStop { position: 0.55; color: Util.alpha(root.favoriteTeamAccent, 0.10) }
                 GradientStop { position: 1.0; color: "transparent" }
               }
             }
@@ -6273,16 +6274,26 @@ root.warnStderr("team select failed", text)
                     border.color: Util.alpha(root.contentForeground, 0.15)
                   }
 
+                  // Default player silhouette icon fallback
+                  Text {
+                    anchors.centerIn: parent
+                    text: ""
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.space(32)
+                    color: Util.alpha(root.contentForeground, 0.25)
+                    visible: !root.selectedPlayerProfile || !root.selectedPlayerProfile.headshot || String(root.selectedPlayerProfile.headshot) === "" || playerHeadshotImg.status !== Image.Ready
+                  }
+
                   Image {
+                    id: playerHeadshotImg
                     anchors.fill: parent
                     anchors.margins: Style.space(2)
                     source: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
                     smooth: true
-                    visible: String(source) !== ""
+                    visible: String(source) !== "" && status === Image.Ready
                   }
-                }
 
                 Column {
                   anchors.verticalCenter: parent.verticalCenter
@@ -6468,21 +6479,20 @@ root.warnStderr("team select failed", text)
             width: parent.width
             height: clubProfileInnerCol.implicitHeight + Style.space(24)
             radius: Style.cornerRadius
-            color: Util.alpha(root.contentForeground, 0.03)
+            color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.65)
             clip: true
             border.width: Style.spacing.hairline
-            border.color: Util.alpha(root.contentForeground, 0.12)
+            border.color: Util.alpha(root.selectedClubProfile && root.selectedClubProfile.color !== "" ? root.selectedClubProfile.color : root.favoriteTeamAccent, 0.35)
 
-            // Dynamic club primary/alternate color gradient banner
+            // Distinct glass gradient with club brand colors
             Rectangle {
               anchors.top: parent.top
               anchors.left: parent.left
               anchors.right: parent.right
-              height: Style.space(110)
-              opacity: 0.22
+              height: Style.space(130)
               gradient: Gradient {
-                GradientStop { position: 0.0; color: root.selectedClubProfile && root.selectedClubProfile.color !== "" ? root.selectedClubProfile.color : root.favoriteTeamAccent }
-                GradientStop { position: 0.7; color: root.selectedClubProfile && root.selectedClubProfile.alternateColor !== "" ? root.selectedClubProfile.alternateColor : "transparent" }
+                GradientStop { position: 0.0; color: Util.alpha(root.selectedClubProfile && root.selectedClubProfile.color !== "" ? root.selectedClubProfile.color : root.favoriteTeamAccent, 0.32) }
+                GradientStop { position: 0.5; color: Util.alpha(root.selectedClubProfile && root.selectedClubProfile.alternateColor !== "" ? root.selectedClubProfile.alternateColor : (root.selectedClubProfile && root.selectedClubProfile.color !== "" ? root.selectedClubProfile.color : root.favoriteTeamAccent), 0.12) }
                 GradientStop { position: 1.0; color: "transparent" }
               }
             }
@@ -6502,7 +6512,6 @@ root.warnStderr("team select failed", text)
               smooth: true
               visible: String(source) !== ""
             }
-
             Column {
               id: clubProfileInnerCol
               anchors.fill: parent
@@ -6711,7 +6720,7 @@ root.warnStderr("team select failed", text)
           }
         }
       }
-
+    }
       Column {
         id: matchDetailView
         width: parent.width
