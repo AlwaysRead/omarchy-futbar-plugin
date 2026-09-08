@@ -6294,6 +6294,7 @@ root.warnStderr("team select failed", text)
                     smooth: true
                     visible: String(source) !== "" && status === Image.Ready
                   }
+                }
 
                 Column {
                   anchors.verticalCenter: parent.verticalCenter
@@ -6717,7 +6718,6 @@ root.warnStderr("team select failed", text)
                 }
               }
             }
-          }
         }
       }
     }
