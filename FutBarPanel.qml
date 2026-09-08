@@ -573,6 +573,8 @@ Panel {
   property string careerAggTarget: ""
   property var selectedClubProfile: null
   property bool searchClubLoading: false
+  property var _pendingClubProfile: null
+  property int _clubFetchPending: 0
   property var clubLeaderQueue: []
   property var matchDetailJerseyUrls: []
   readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.leagueMode
@@ -5717,96 +5719,103 @@ onStreamFinished: root.warnStderr("", text)
       }
     }
   }
+  Timer {
+    id: clubFetchTimeoutTimer
+    interval: 5000
+    repeat: false
+    onTriggered: {
+      if (root.searchClubLoading && root._pendingClubProfile) {
+        root.searchClubLoading = false
+        root.selectedClubProfile = Object.assign({}, root._pendingClubProfile)
+        root._pendingClubProfile = null
+        root.resetPanelScroll()
+      }
+    }
+  }
+
+  function _onClubFetchDone() {
+    root._clubFetchPending = Math.max(0, root._clubFetchPending - 1)
+    if (root._clubFetchPending === 0) {
+      clubFetchTimeoutTimer.stop()
+      if (root.searchClubLoading && root._pendingClubProfile) {
+        root.searchClubLoading = false
+        root.selectedClubProfile = Object.assign({}, root._pendingClubProfile)
+        root._pendingClubProfile = null
+        root.resetPanelScroll()
+      }
+    }
+  }
+
   Process {
     id: searchClubDetailRequest
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        root.searchClubLoading = false
-        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
-          return
-        }
-        try {
-          var res = JSON.parse(text)
-          var t = res && res.team ? res.team : null
-          if (t) {
-            var rec = t.record && t.record.items && t.record.items[0] ? t.record.items[0] : null
-            var statsList = rec && Array.isArray(rec.stats) ? rec.stats : []
-            var getStat = function(name) {
-              for (var si = 0; si < statsList.length; si++) {
-                if (statsList[si].name === name) return String(statsList[si].value)
+        if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && root._pendingClubProfile) {
+          try {
+            var res = JSON.parse(text)
+            var t = res && res.team ? res.team : null
+            if (t) {
+              var rec = t.record && t.record.items && t.record.items[0] ? t.record.items[0] : null
+              var statsList = rec && Array.isArray(rec.stats) ? rec.stats : []
+              var getStat = function(name) {
+                for (var si = 0; si < statsList.length; si++) {
+                  if (statsList[si].name === name) return String(statsList[si].value)
+                }
+                return ""
               }
-              return ""
+              var pts = getStat("points")
+              var wins = getStat("wins")
+              var ties = getStat("ties")
+              var losses = getStat("losses")
+              var diff = getStat("pointDifferential")
+              var gf = getStat("pointsFor")
+              var ga = getStat("pointsAgainst")
+              var homeW = getStat("homeWins")
+              var homeD = getStat("homeTies")
+              var homeL = getStat("homeLosses")
+              var awayW = getStat("awayWins")
+              var awayD = getStat("awayTies")
+              var awayL = getStat("awayLosses")
+              var homeRec = (homeW !== "" || homeD !== "" || homeL !== "") ? (homeW + "W-" + homeD + "D-" + homeL + "L") : ""
+              var awayRec = (awayW !== "" || awayD !== "" || awayL !== "") ? (awayW + "W-" + awayD + "D-" + awayL + "L") : ""
+              var clr = t.color ? ("#" + String(t.color).replace("#", "")) : ""
+              var altClr = t.alternateColor ? ("#" + String(t.alternateColor).replace("#", "")) : ""
+              var vName = t.venue && t.venue.fullName ? String(t.venue.fullName) : (t.franchise && t.franchise.venue && t.franchise.venue.fullName ? String(t.franchise.venue.fullName) : "")
+              var vCity = t.venue && t.venue.address && t.venue.address.city ? String(t.venue.address.city) : ""
+              var venueStr = vName !== "" ? (vCity !== "" ? vName + " (" + vCity + ")" : vName) : ""
+
+              root._pendingClubProfile.id = String(t.id || root._pendingClubProfile.id || "")
+              root._pendingClubProfile.displayName = String(t.displayName || t.name || root._pendingClubProfile.displayName || "")
+              root._pendingClubProfile.abbreviation = String(t.abbreviation || "")
+              root._pendingClubProfile.location = String(t.location || "")
+              root._pendingClubProfile.standingSummary = String(t.standingSummary || "")
+              root._pendingClubProfile.record = rec && rec.summary ? String(rec.summary) : ""
+              root._pendingClubProfile.points = pts
+              root._pendingClubProfile.wins = wins
+              root._pendingClubProfile.ties = ties
+              root._pendingClubProfile.losses = losses
+              root._pendingClubProfile.diff = diff
+              root._pendingClubProfile.goalsFor = gf
+              root._pendingClubProfile.goalsAgainst = ga
+              root._pendingClubProfile.homeRecord = homeRec
+              root._pendingClubProfile.awayRecord = awayRec
+              if (venueStr !== "") root._pendingClubProfile.venue = venueStr
+              root._pendingClubProfile.nextEvent = t.nextEvent && t.nextEvent[0] && t.nextEvent[0].name ? String(t.nextEvent[0].name) : ""
+              root._pendingClubProfile.nextEventDate = t.nextEvent && t.nextEvent[0] && t.nextEvent[0].date ? String(t.nextEvent[0].date) : ""
+              if (t.logos && t.logos[0] && t.logos[0].href) root._pendingClubProfile.logo = String(t.logos[0].href)
+              root._pendingClubProfile.color = clr
+              root._pendingClubProfile.alternateColor = altClr
+              root._pendingClubProfile.form = t.form ? String(t.form) : ""
             }
-            var pts = getStat("points")
-            var wins = getStat("wins")
-            var ties = getStat("ties")
-            var losses = getStat("losses")
-            var diff = getStat("pointDifferential")
-            var gf = getStat("pointsFor")
-            var ga = getStat("pointsAgainst")
-            var streak = getStat("streak")
-            var homeW = getStat("homeWins")
-            var homeD = getStat("homeTies")
-            var homeL = getStat("homeLosses")
-            var homeGF = getStat("homePointsFor")
-            var homeGA = getStat("homePointsAgainst")
-            var awayW = getStat("awayWins")
-            var awayD = getStat("awayTies")
-            var awayL = getStat("awayLosses")
-            var awayGF = getStat("awayPointsFor")
-            var awayGA = getStat("awayPointsAgainst")
-            var homeRec = (homeW !== "" || homeD !== "" || homeL !== "") ? (homeW + "W-" + homeD + "D-" + homeL + "L") : ""
-            var awayRec = (awayW !== "" || awayD !== "" || awayL !== "") ? (awayW + "W-" + awayD + "D-" + awayL + "L") : ""
-            var clr = t.color ? ("#" + String(t.color).replace("#", "")) : ""
-            var altClr = t.alternateColor ? ("#" + String(t.alternateColor).replace("#", "")) : ""
-            var vName = t.venue && t.venue.fullName ? String(t.venue.fullName) : (t.franchise && t.franchise.venue && t.franchise.venue.fullName ? String(t.franchise.venue.fullName) : "")
-            var vCity = t.venue && t.venue.address && t.venue.address.city ? String(t.venue.address.city) : ""
-            var venueStr = vName !== "" ? (vCity !== "" ? vName + " (" + vCity + ")" : vName) : ""
-            root.selectedClubProfile = {
-              id: String(t.id || ""),
-              displayName: String(t.displayName || t.name || ""),
-              abbreviation: String(t.abbreviation || ""),
-              location: String(t.location || ""),
-              standingSummary: String(t.standingSummary || ""),
-              record: rec && rec.summary ? String(rec.summary) : "",
-              points: pts,
-              wins: wins,
-              ties: ties,
-              losses: losses,
-              diff: diff,
-              goalsFor: gf,
-              goalsAgainst: ga,
-              homeRecord: homeRec,
-              awayRecord: awayRec,
-              venue: venueStr,
-              possession: "",
-              shotsPerGame: "",
-              shotsOnTarget: "",
-              passPct: "",
-              cleanSheets: "",
-              tackles: "",
-              interceptions: "",
-              topScorer: "",
-              topAssister: "",
-              topCarder: "",
-              nextEvent: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].name ? String(t.nextEvent[0].name) : "",
-              nextEventDate: t.nextEvent && t.nextEvent[0] && t.nextEvent[0].date ? String(t.nextEvent[0].date) : "",
-              logo: t.logos && t.logos[0] && t.logos[0].href ? String(t.logos[0].href) : (root.selectedClubProfile ? root.selectedClubProfile.logo : ""),
-              color: clr,
-              alternateColor: altClr,
-              leagueSlug: root.selectedClubProfile ? root.selectedClubProfile.leagueSlug : "",
-              form: t.form ? String(t.form) : "",
-              recentMatches: root.selectedClubProfile && root.selectedClubProfile.recentMatches ? root.selectedClubProfile.recentMatches : [],
-              webUrl: root.selectedClubProfile ? root.selectedClubProfile.webUrl : ""
-            }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
+        root._onClubFetchDone()
       }
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: { root.searchClubLoading = false }
+      onStreamFinished: root._onClubFetchDone()
     }
   }
 
@@ -5815,109 +5824,39 @@ onStreamFinished: root.warnStderr("", text)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedClubProfile) return
-        try {
-          var sched = JSON.parse(text)
-          var evs = sched && Array.isArray(sched.events) ? sched.events : []
-          var mList = []
-          for (var mi = 0; mi < evs.length && mList.length < 3; mi++) {
-            var ev = evs[mi]
-            var comp = ev.competitions && ev.competitions[0] ? ev.competitions[0] : null
-            if (!comp) continue
-            var comps = comp.competitors || []
-            var h = comps[0] || {}
-            var a = comps[1] || {}
-            var hName = h.team && (h.team.abbreviation || h.team.shortDisplayName || h.team.displayName) ? (h.team.abbreviation || h.team.shortDisplayName || h.team.displayName) : "Home"
-            var aName = a.team && (a.team.abbreviation || a.team.shortDisplayName || a.team.displayName) ? (a.team.abbreviation || a.team.shortDisplayName || a.team.displayName) : "Away"
-            var hScore = h.score && h.score.displayValue !== undefined ? String(h.score.displayValue) : ""
-            var aScore = a.score && a.score.displayValue !== undefined ? String(a.score.displayValue) : ""
-            var statusText = comp.status && comp.status.type && comp.status.type.shortDetail ? String(comp.status.type.shortDetail) : ""
-            mList.push({
-              matchName: hName + " vs " + aName,
-              score: (hScore !== "" && aScore !== "") ? (hScore + "–" + aScore) : statusText,
-              date: ev.date ? Qt.formatDate(new Date(ev.date), "MMM d") : ""
-            })
-          }
-          var prof = root.selectedClubProfile
-          if (prof) {
-            prof.recentMatches = mList
-            root.selectedClubProfile = Object.assign({}, prof)
-          }
-        } catch (e) {}
-      }
-    }
-  }
-
-  Process {
-    id: searchClubLeadersRequest
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedClubProfile) return
-        try {
-          var lData = JSON.parse(text)
-          var cats = lData && Array.isArray(lData.categories) ? lData.categories : []
-          var prof = root.selectedClubProfile
-          if (!prof) return
-          root.clubLeaderQueue = []
-          for (var ci = 0; ci < cats.length; ci++) {
-            var cat = cats[ci]
-            var lName = cat.name
-            var lead = cat.leaders && cat.leaders[0] ? cat.leaders[0] : null
-            if (!lead) continue
-            var lVal = lead.value !== undefined ? String(Math.round(lead.value)) : (lead.displayValue ? String(lead.displayValue).replace(/.*Goals:\s*|.*Assists:\s*/, "").trim() : "")
-            var athRef = lead.athlete && lead.athlete["$ref"] ? String(lead.athlete["$ref"]) : ""
-            var idMatch = athRef.match(/\/athletes\/(\d+)/)
-            var athId = idMatch ? idMatch[1] : ""
-            if (lName === "goals") {
-              if (athId !== "") root.clubLeaderQueue.push({ type: "topScorer", id: athId, val: lVal })
-              else if (prof.topScorer === "") prof.topScorer = "(" + lVal + ")"
-            } else if (lName === "assists") {
-              if (athId !== "") root.clubLeaderQueue.push({ type: "topAssister", id: athId, val: lVal })
-              else if (prof.topAssister === "") prof.topAssister = "(" + lVal + ")"
-            } else if (lName === "yellowCards") {
-              if (athId !== "") root.clubLeaderQueue.push({ type: "topCarder", id: athId, val: lVal + " YC" })
-              else if (prof.topCarder === "") prof.topCarder = "(" + lVal + " YC)"
+        if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && root._pendingClubProfile) {
+          try {
+            var sched = JSON.parse(text)
+            var evs = sched && Array.isArray(sched.events) ? sched.events : []
+            var mList = []
+            for (var mi = 0; mi < evs.length && mList.length < 3; mi++) {
+              var ev = evs[mi]
+              var comp = ev.competitions && ev.competitions[0] ? ev.competitions[0] : null
+              if (!comp) continue
+              var comps = comp.competitors || []
+              var h = comps[0] || {}
+              var a = comps[1] || {}
+              var hName = h.team && (h.team.abbreviation || h.team.shortDisplayName || h.team.displayName) ? (h.team.abbreviation || h.team.shortDisplayName || h.team.displayName) : "Home"
+              var aName = a.team && (a.team.abbreviation || a.team.shortDisplayName || a.team.displayName) ? (a.team.abbreviation || a.team.shortDisplayName || a.team.displayName) : "Away"
+              var hScore = h.score && h.score.displayValue !== undefined ? String(h.score.displayValue) : ""
+              var aScore = a.score && a.score.displayValue !== undefined ? String(a.score.displayValue) : ""
+              var statusText = comp.status && comp.status.type && comp.status.type.shortDetail ? String(comp.status.type.shortDetail) : ""
+              mList.push({
+                matchName: hName + " vs " + aName,
+                score: (hScore !== "" && aScore !== "") ? (hScore + "–" + aScore) : statusText,
+                date: ev.date ? Qt.formatDate(new Date(ev.date), "MMM d") : ""
+              })
             }
-          }
-          root.selectedClubProfile = Object.assign({}, prof)
-          root._fetchNextClubLeaderName()
-        } catch (e) {}
+            root._pendingClubProfile.recentMatches = mList
+          } catch (e) {}
+        }
+        root._onClubFetchDone()
       }
     }
-  }
-
-  Process {
-    id: searchClubLeaderAthleteRequest
-    stdout: StdioCollector {
+    stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        try {
-          if (root.clubLeaderQueue.length > 0) {
-            var item = root.clubLeaderQueue.shift()
-            if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && root.selectedClubProfile) {
-              var aData = JSON.parse(text)
-              var name = String(aData.shortDisplayName || aData.displayName || aData.fullName || aData.name || "")
-              var prof = root.selectedClubProfile
-              if (prof && name !== "") {
-                prof[item.type] = name + " (" + item.val + ")"
-                root.selectedClubProfile = Object.assign({}, prof)
-              }
-            }
-          }
-        } catch (e) {}
-        root._fetchNextClubLeaderName()
-      }
+      onStreamFinished: root._onClubFetchDone()
     }
-  }
-
-  function _fetchNextClubLeaderName() {
-    if (root.clubLeaderQueue.length === 0 || !root.selectedClubProfile) return
-    var next = root.clubLeaderQueue[0]
-    searchClubLeaderAthleteRequest.running = false
-    searchClubLeaderAthleteRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-      "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(next.id)]
-    searchClubLeaderAthleteRequest.running = true
   }
 
   Process {
@@ -5925,29 +5864,60 @@ onStreamFinished: root.warnStderr("", text)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedClubProfile) return
-        try {
-          var sData = JSON.parse(text)
-          var cats = sData && Array.isArray(sData.splits && sData.splits.categories) ? sData.splits.categories : []
-          var sMap = {}
-          for (var ci = 0; ci < cats.length; ci++) {
-            var stList = cats[ci].stats || []
-            for (var si = 0; si < stList.length; si++) {
-              sMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
+        if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && root._pendingClubProfile) {
+          try {
+            var sData = JSON.parse(text)
+            var cats = sData && Array.isArray(sData.splits && sData.splits.categories) ? sData.splits.categories : []
+            var sMap = {}
+            for (var ci = 0; ci < cats.length; ci++) {
+              var stList = cats[ci].stats || []
+              for (var si = 0; si < stList.length; si++) {
+                sMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
+              }
             }
-          }
-          var prof = root.selectedClubProfile
-          if (!prof) return
-          if (sMap["possessionPct"]) prof.possession = sMap["possessionPct"] + "%"
-          if (sMap["totalShots"]) prof.shotsPerGame = sMap["totalShots"]
-          if (sMap["shotsOnTarget"]) prof.shotsOnTarget = sMap["shotsOnTarget"]
-          if (sMap["passPct"]) prof.passPct = Math.round(parseFloat(sMap["passPct"]) * 100) + "%"
-          if (sMap["cleanSheet"]) prof.cleanSheets = sMap["cleanSheet"]
-          if (sMap["totalTackles"]) prof.tackles = sMap["totalTackles"]
-          if (sMap["interceptions"]) prof.interceptions = sMap["interceptions"]
-          root.selectedClubProfile = Object.assign({}, prof)
-        } catch (e) {}
+            if (sMap["possessionPct"]) root._pendingClubProfile.possession = sMap["possessionPct"] + "%"
+            if (sMap["totalShots"]) root._pendingClubProfile.shotsPerGame = sMap["totalShots"]
+            if (sMap["shotsOnTarget"]) root._pendingClubProfile.shotsOnTarget = sMap["shotsOnTarget"]
+            if (sMap["passPct"]) root._pendingClubProfile.passPct = Math.round(parseFloat(sMap["passPct"]) * 100) + "%"
+            if (sMap["cleanSheet"]) root._pendingClubProfile.cleanSheets = sMap["cleanSheet"]
+            if (sMap["totalTackles"]) root._pendingClubProfile.tackles = sMap["totalTackles"]
+            if (sMap["interceptions"]) root._pendingClubProfile.interceptions = sMap["interceptions"]
+          } catch (e) {}
+        }
+        root._onClubFetchDone()
       }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root._onClubFetchDone()
+    }
+  }
+
+  Process {
+    id: searchClubCoreRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && root._pendingClubProfile) {
+          try {
+            var cData = JSON.parse(text)
+            var vObj = cData && cData.venue ? cData.venue : null
+            if (vObj) {
+              var vName = String(vObj.fullName || vObj.name || "")
+              var vCity = (vObj.address && vObj.address.city) ? String(vObj.address.city) : ""
+              var vStr = vName !== "" ? (vCity !== "" ? vName + " (" + vCity + ")" : vName) : ""
+              if (vStr !== "" && (!root._pendingClubProfile.venue || root._pendingClubProfile.venue === "")) {
+                root._pendingClubProfile.venue = vStr
+              }
+            }
+          } catch (e) {}
+        }
+        root._onClubFetchDone()
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root._onClubFetchDone()
     }
   }
 
@@ -5955,6 +5925,9 @@ onStreamFinished: root.warnStderr("", text)
     root.searchQuery = q
     root.selectedPlayerProfile = null
     root.selectedClubProfile = null
+    root.searchClubLoading = false
+    root._pendingClubProfile = null
+    clubFetchTimeoutTimer.stop()
     searchDebounceTimer.restart()
   }
   function performSearch() {
@@ -5975,6 +5948,9 @@ onStreamFinished: root.warnStderr("", text)
 
   function openPlayerSearchDetail(item) {
     root.selectedClubProfile = null
+    root.searchClubLoading = false
+    root._pendingClubProfile = null
+    clubFetchTimeoutTimer.stop()
     root.searchPlayerCardTab = "info"
     root.searchPlayerStatsTab = "career"
     root.clubNameQueue = []
@@ -6406,13 +6382,18 @@ onStreamFinished: root.warnStderr("", text)
 
   function openClubSearchDetail(item) {
     root.selectedPlayerProfile = null
-    root.selectedClubProfile = {
-      id: item.id,
-      displayName: item.displayName,
-      leagueName: item.subtitle,
+    root.selectedClubProfile = null
+    root.searchClubLoading = true
+    root.resetPanelScroll()
+
+    var lg = (item && item.leagueSlug) ? item.leagueSlug : (root.league !== "" ? root.league : "esp.1")
+    root._pendingClubProfile = {
+      id: item ? item.id : "",
+      displayName: item ? item.displayName : "",
+      leagueName: item ? (item.subtitle || "") : "",
       abbreviation: "",
       location: "",
-      leagueSlug: item.leagueSlug || root.league || "esp.1",
+      leagueSlug: lg,
       possession: "",
       shotsPerGame: "",
       shotsOnTarget: "",
@@ -6424,32 +6405,56 @@ onStreamFinished: root.warnStderr("", text)
       topAssister: "",
       topCarder: "",
       recentMatches: [],
-      webUrl: item.webUrl
+      webUrl: item ? (item.webUrl || "") : "",
+      standingSummary: "",
+      record: "",
+      points: "",
+      wins: "",
+      ties: "",
+      losses: "",
+      diff: "",
+      goalsFor: "",
+      goalsAgainst: "",
+      homeRecord: "",
+      awayRecord: "",
+      venue: "",
+      nextEvent: "",
+      nextEventDate: "",
+      logo: item ? (item.image || "") : "",
+      color: "",
+      alternateColor: "",
+      form: ""
     }
-    var lg = item.leagueSlug !== "" ? item.leagueSlug : (root.league !== "" ? root.league : "esp.1")
-    if (item.id !== "") {
-      root.searchClubLoading = true
-      searchClubDetailRequest.running = false
-      searchClubDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
-      searchClubDetailRequest.running = true
 
-      searchClubScheduleRequest.running = false
-      searchClubScheduleRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule"]
-      searchClubScheduleRequest.running = true
-
-      var curYear = new Date().getFullYear()
-      searchClubLeadersRequest.running = false
-      searchClubLeadersRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/leaders?lang=en&region=us"]
-      searchClubLeadersRequest.running = true
-
-      searchClubStatsRequest.running = false
-      searchClubStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/statistics"]
-      searchClubStatsRequest.running = true
+    if (!item || !item.id || item.id === "") {
+      root.selectedClubProfile = root._pendingClubProfile
+      root.searchClubLoading = false
+      return
     }
+
+    root._clubFetchPending = 4
+    clubFetchTimeoutTimer.restart()
+
+    searchClubDetailRequest.running = false
+    searchClubDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
+    searchClubDetailRequest.running = true
+
+    searchClubScheduleRequest.running = false
+    searchClubScheduleRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
+      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule"]
+    searchClubScheduleRequest.running = true
+
+    var curYear = new Date().getFullYear()
+    searchClubStatsRequest.running = false
+    searchClubStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
+      "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/statistics"]
+    searchClubStatsRequest.running = true
+
+    searchClubCoreRequest.running = false
+    searchClubCoreRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
+      "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
+    searchClubCoreRequest.running = true
   }
 
   Process {
@@ -7071,6 +7076,30 @@ root.warnStderr("team select failed", text)
           }
         }
 
+        // Active Club Fetch Loading Indicator
+        Item {
+          width: parent.width
+          height: Style.space(36)
+          visible: root.searchClubLoading
+          Row {
+            anchors.centerIn: parent
+            spacing: Style.space(8)
+            Text {
+              text: "󰑮"
+              font.family: "Symbols Nerd Font, " + root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              color: root.favoriteTeamAccent
+              opacity: 0.5 + 0.5 * root._pulse
+            }
+            Text {
+              text: "Loading club profile…"
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              color: Qt.darker(root.contentForeground, 1.4)
+            }
+          }
+        }
+
         // Search Error or Empty Text
         Text {
           textFormat: Text.PlainText
@@ -7080,14 +7109,14 @@ root.warnStderr("team select failed", text)
           color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
-          visible: !root.searchLoading && root.searchError !== "" && !root.selectedPlayerProfile && !root.selectedClubProfile
+          visible: !root.searchLoading && !root.searchClubLoading && root.searchError !== "" && !root.selectedPlayerProfile && !root.selectedClubProfile
         }
 
-        // Search Results List (Shown when neither player nor club is selected)
+        // Search Results List (Shown when neither player nor club is selected and not loading)
         Column {
           width: parent.width
           spacing: Style.space(4)
-          visible: !root.selectedPlayerProfile && !root.selectedClubProfile && root.searchResults.length > 0
+          visible: !root.selectedPlayerProfile && !root.selectedClubProfile && !root.searchClubLoading && root.searchResults.length > 0
 
           Text {
             textFormat: Text.PlainText
@@ -8116,7 +8145,12 @@ root.warnStderr("team select failed", text)
             iconSize: Style.font.caption
             horizontalPadding: Style.space(8)
             verticalPadding: Style.space(4)
-            onClicked: root.selectedClubProfile = null
+            onClicked: {
+              root.selectedClubProfile = null
+              root.searchClubLoading = false
+              root._pendingClubProfile = null
+              root.resetPanelScroll()
+            }
           }
 
           Rectangle {
@@ -8150,12 +8184,12 @@ root.warnStderr("team select failed", text)
               width: Style.space(160)
               height: width
               opacity: 0.28
-              visible: root.selectedClubProfile && root.selectedClubProfile.logo !== ""
+              visible: !!(root.selectedClubProfile && root.selectedClubProfile.logo)
 
               Image {
                 id: clubWatermarkImg
                 anchors.fill: parent
-                source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
+                source: (root.selectedClubProfile && root.selectedClubProfile.logo) ? root.selectedClubProfile.logo : ""
                 fillMode: Image.PreserveAspectFit
                 mipmap: true
                 smooth: true
@@ -8187,7 +8221,7 @@ root.warnStderr("team select failed", text)
 
                   Image {
                     anchors.fill: parent
-                    source: root.selectedClubProfile ? root.selectedClubProfile.logo : ""
+                    source: (root.selectedClubProfile && root.selectedClubProfile.logo) ? root.selectedClubProfile.logo : ""
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
                     smooth: true
@@ -8204,7 +8238,7 @@ root.warnStderr("team select failed", text)
                     width: parent.width
                     spacing: Style.space(6)
                     Text {
-                      text: root.selectedClubProfile ? root.selectedClubProfile.displayName : ""
+                      text: (root.selectedClubProfile && root.selectedClubProfile.displayName) ? root.selectedClubProfile.displayName : ""
                       color: root.contentForeground
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
@@ -8214,7 +8248,7 @@ root.warnStderr("team select failed", text)
                     }
                     Text {
                       id: abbrevText
-                      text: root.selectedClubProfile && root.selectedClubProfile.abbreviation !== "" ? root.selectedClubProfile.abbreviation : ""
+                      text: (root.selectedClubProfile && root.selectedClubProfile.abbreviation) ? root.selectedClubProfile.abbreviation : ""
                       color: root.favoriteTeamAccent
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.bodySmall
@@ -8225,7 +8259,7 @@ root.warnStderr("team select failed", text)
 
                   Text {
                     width: parent.width
-                    text: root.selectedClubProfile ? root.selectedClubProfile.standingSummary : ""
+                    text: (root.selectedClubProfile && root.selectedClubProfile.standingSummary) ? root.selectedClubProfile.standingSummary : ""
                     color: Qt.darker(root.contentForeground, 1.25)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
@@ -8236,7 +8270,7 @@ root.warnStderr("team select failed", text)
 
                   Text {
                     width: parent.width
-                    text: root.selectedClubProfile && root.selectedClubProfile.record !== "" ? ("Season Record: " + root.selectedClubProfile.record) : ""
+                    text: (root.selectedClubProfile && root.selectedClubProfile.record) ? ("Season Record: " + root.selectedClubProfile.record) : ""
                     color: Qt.darker(root.contentForeground, 1.45)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
@@ -8245,16 +8279,19 @@ root.warnStderr("team select failed", text)
                   }
                   Row {
                     width: parent.width
-                    spacing: Style.space(4)
-                    visible: root.selectedClubProfile && root.selectedClubProfile.venue !== ""
+                    spacing: Style.space(5)
+                    visible: !!(root.selectedClubProfile && root.selectedClubProfile.venue)
                     Text {
-                      text: "🏟"
-                      font.pixelSize: Style.space(10)
-                      font.family: root.contentFontFamily
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: "󰝚"
+                      font.family: "Symbols Nerd Font, " + root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      color: Qt.darker(root.contentForeground, 1.6)
                     }
                     Text {
-                      width: parent.width - Style.space(18)
-                      text: root.selectedClubProfile ? root.selectedClubProfile.venue : ""
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: parent.width - Style.space(20)
+                      text: (root.selectedClubProfile && root.selectedClubProfile.venue) ? root.selectedClubProfile.venue : ""
                       color: Qt.darker(root.contentForeground, 1.5)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.caption
@@ -8264,7 +8301,7 @@ root.warnStderr("team select failed", text)
 
                   Row {
                     spacing: Style.space(4)
-                    visible: root.selectedClubProfile && root.selectedClubProfile.form !== ""
+                    visible: !!(root.selectedClubProfile && root.selectedClubProfile.form)
 
                     Text {
                       anchors.verticalCenter: parent.verticalCenter
@@ -8309,7 +8346,7 @@ root.warnStderr("team select failed", text)
 
             Text {
               width: parent.width
-              text: root.selectedClubProfile ? root.leagueLabel(root.selectedClubProfile.leagueSlug).toUpperCase() : "LEAGUE TABLE"
+              text: root.selectedClubProfile && root.selectedClubProfile.leagueSlug ? root.leagueLabel(root.selectedClubProfile.leagueSlug).toUpperCase() : "LEAGUE TABLE"
               font.pixelSize: Style.space(9)
               font.bold: true
               color: Qt.darker(root.contentForeground, 1.5)
@@ -8334,37 +8371,37 @@ root.warnStderr("team select failed", text)
                     width: (parent.width - Style.space(20)) / 6
                     spacing: Style.space(2)
                     Text { text: "PTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.points : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.points !== undefined) ? String(root.selectedClubProfile.points) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
                   }
                   Column {
                     width: (parent.width - Style.space(20)) / 6
                     spacing: Style.space(2)
                     Text { text: "W"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.wins : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.wins !== undefined) ? String(root.selectedClubProfile.wins) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                   }
                   Column {
                     width: (parent.width - Style.space(20)) / 6
                     spacing: Style.space(2)
                     Text { text: "D"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.ties : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.ties !== undefined) ? String(root.selectedClubProfile.ties) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                   }
                   Column {
                     width: (parent.width - Style.space(20)) / 6
                     spacing: Style.space(2)
                     Text { text: "L"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.losses : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.losses !== undefined) ? String(root.selectedClubProfile.losses) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                   }
                   Column {
                     width: (parent.width - Style.space(20)) / 6
                     spacing: Style.space(2)
                     Text { text: "DIFF"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.diff : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.diff !== undefined) ? String(root.selectedClubProfile.diff) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                   }
                   Column {
                     width: (parent.width - Style.space(20)) / 6
                     spacing: Style.space(2)
                     Text { text: "GF:GA"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? (root.selectedClubProfile.goalsFor + ":" + root.selectedClubProfile.goalsAgainst) : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.goalsFor !== undefined && root.selectedClubProfile.goalsAgainst !== undefined) ? (root.selectedClubProfile.goalsFor + ":" + root.selectedClubProfile.goalsAgainst) : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
               }
             }
@@ -8389,13 +8426,13 @@ root.warnStderr("team select failed", text)
                     width: (parent.width - Style.space(8)) / 2
                     spacing: Style.space(2)
                     Text { text: "HOME RECORD"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.homeRecord : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.homeRecord) ? root.selectedClubProfile.homeRecord : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                   }
                   Column {
                     width: (parent.width - Style.space(8)) / 2
                     spacing: Style.space(2)
                     Text { text: "AWAY RECORD"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                    Text { text: root.selectedClubProfile ? root.selectedClubProfile.awayRecord : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                    Text { text: (root.selectedClubProfile && root.selectedClubProfile.awayRecord) ? root.selectedClubProfile.awayRecord : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                   }
                 }
               }
@@ -8429,23 +8466,23 @@ root.warnStderr("team select failed", text)
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
-                      visible: root.selectedClubProfile && root.selectedClubProfile.topScorer !== ""
+                      visible: !!(root.selectedClubProfile && root.selectedClubProfile.topScorer)
                       Text { text: "TOP SCORER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topScorer : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.topScorer) ? root.selectedClubProfile.topScorer : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
-                      visible: root.selectedClubProfile && root.selectedClubProfile.topAssister !== ""
+                      visible: !!(root.selectedClubProfile && root.selectedClubProfile.topAssister)
                       Text { text: "TOP ASSISTER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topAssister : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.topAssister) ? root.selectedClubProfile.topAssister : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
-                      visible: root.selectedClubProfile && root.selectedClubProfile.topCarder !== ""
+                      visible: !!(root.selectedClubProfile && root.selectedClubProfile.topCarder)
                       Text { text: "DISCIPLINE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topCarder : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.topCarder) ? root.selectedClubProfile.topCarder : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
                     }
                   }
                 }
@@ -8458,7 +8495,7 @@ root.warnStderr("team select failed", text)
                 color: Util.alpha(root.contentForeground, 0.04)
                 border.width: Style.spacing.hairline
                 border.color: Util.alpha(root.contentForeground, 0.08)
-                visible: root.selectedClubProfile && (root.selectedClubProfile.possession !== "" || root.selectedClubProfile.shotsPerGame !== "")
+                visible: !!(root.selectedClubProfile && (root.selectedClubProfile.possession || root.selectedClubProfile.shotsPerGame))
 
                 Column {
                   id: teamStatsCol
@@ -8483,19 +8520,19 @@ root.warnStderr("team select failed", text)
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       Text { text: "POSSESSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile && root.selectedClubProfile.possession !== "" ? root.selectedClubProfile.possession : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.possession) ? root.selectedClubProfile.possession : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       Text { text: "TOTAL SHOTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile && root.selectedClubProfile.shotsPerGame !== "" ? root.selectedClubProfile.shotsPerGame : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.shotsPerGame) ? root.selectedClubProfile.shotsPerGame : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       Text { text: "SHOTS ON TARGET"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile && root.selectedClubProfile.shotsOnTarget !== "" ? root.selectedClubProfile.shotsOnTarget : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.shotsOnTarget) ? root.selectedClubProfile.shotsOnTarget : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                   }
 
@@ -8508,19 +8545,19 @@ root.warnStderr("team select failed", text)
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       Text { text: "PASS ACCURACY"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile && root.selectedClubProfile.passPct !== "" ? root.selectedClubProfile.passPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.passPct) ? root.selectedClubProfile.passPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       Text { text: "CLEAN SHEETS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile && root.selectedClubProfile.cleanSheets !== "" ? root.selectedClubProfile.cleanSheets : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.cleanSheets) ? root.selectedClubProfile.cleanSheets : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       Text { text: "TACKLES WON"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile && root.selectedClubProfile.tackles !== "" ? root.selectedClubProfile.tackles : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { text: (root.selectedClubProfile && root.selectedClubProfile.tackles) ? root.selectedClubProfile.tackles : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                   }
                 }
@@ -8534,7 +8571,7 @@ root.warnStderr("team select failed", text)
                 color: Util.alpha(root.contentForeground, 0.04)
                 border.width: Style.spacing.hairline
                 border.color: Util.alpha(root.contentForeground, 0.08)
-                visible: root.selectedClubProfile && root.selectedClubProfile.nextEvent !== ""
+                visible: !!(root.selectedClubProfile && root.selectedClubProfile.nextEvent)
 
                 Row {
                   anchors.fill: parent
@@ -8552,7 +8589,7 @@ root.warnStderr("team select failed", text)
                   Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - Style.space(24)
-                    text: (root.selectedClubProfile ? root.selectedClubProfile.nextEvent : "")
+                    text: (root.selectedClubProfile && root.selectedClubProfile.nextEvent) ? root.selectedClubProfile.nextEvent : ""
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -8631,9 +8668,9 @@ root.warnStderr("team select failed", text)
                 iconSize: Style.font.caption
                 horizontalPadding: Style.space(8)
                 verticalPadding: Style.space(4)
-                visible: root.selectedClubProfile && root.selectedClubProfile.webUrl !== ""
+                visible: !!(root.selectedClubProfile && root.selectedClubProfile.webUrl)
                 onClicked: {
-                  if (root.selectedClubProfile && root.selectedClubProfile.webUrl !== "") {
+                  if (root.selectedClubProfile && root.selectedClubProfile.webUrl) {
                     Qt.openUrlExternally(root.selectedClubProfile.webUrl)
                   }
                 }
