@@ -5836,20 +5836,14 @@ onStreamFinished: root.warnStderr("", text)
             var idMatch = athRef.match(/\/athletes\/(\d+)/)
             var athId = idMatch ? idMatch[1] : ""
             if (lName === "goals") {
-              if (prof.topScorer === "") {
-                prof.topScorer = "(" + lVal + ")"
-                if (athId !== "") root.clubLeaderQueue.push({ type: "topScorer", id: athId, val: lVal })
-              }
+              if (athId !== "") root.clubLeaderQueue.push({ type: "topScorer", id: athId, val: lVal })
+              else if (prof.topScorer === "") prof.topScorer = "(" + lVal + ")"
             } else if (lName === "assists") {
-              if (prof.topAssister === "") {
-                prof.topAssister = "(" + lVal + ")"
-                if (athId !== "") root.clubLeaderQueue.push({ type: "topAssister", id: athId, val: lVal })
-              }
+              if (athId !== "") root.clubLeaderQueue.push({ type: "topAssister", id: athId, val: lVal })
+              else if (prof.topAssister === "") prof.topAssister = "(" + lVal + ")"
             } else if (lName === "yellowCards") {
-              if (prof.topCarder === "") {
-                prof.topCarder = "(" + lVal + " YC)"
-                if (athId !== "") root.clubLeaderQueue.push({ type: "topCarder", id: athId, val: lVal + " YC" })
-              }
+              if (athId !== "") root.clubLeaderQueue.push({ type: "topCarder", id: athId, val: lVal + " YC" })
+              else if (prof.topCarder === "") prof.topCarder = "(" + lVal + " YC)"
             }
           }
           root.selectedClubProfile = Object.assign({}, prof)
@@ -8172,7 +8166,7 @@ root.warnStderr("team select failed", text)
                   width: parent.width - Style.space(70)
                   spacing: Style.space(3)
 
-                  Row {
+                  Flow {
                     width: parent.width
                     spacing: Style.space(6)
                     Text {
@@ -8181,11 +8175,12 @@ root.warnStderr("team select failed", text)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
                       font.bold: true
-                      elide: Text.ElideRight
-                      width: Math.min(implicitWidth, parent.width - (abbrevText.visible ? abbrevText.implicitWidth + parent.spacing : 0))
+                      wrapMode: Text.Wrap
+                      width: Math.min(implicitWidth, parent.width)
                     }
                     Text {
                       id: abbrevText
+                      anchors.baseline: parent.children[0] ? parent.children[0].baseline : undefined
                       text: root.selectedClubProfile && root.selectedClubProfile.abbreviation !== "" ? root.selectedClubProfile.abbreviation : ""
                       color: root.favoriteTeamAccent
                       font.family: root.contentFontFamily
@@ -8230,7 +8225,7 @@ root.warnStderr("team select failed", text)
                       color: Qt.darker(root.contentForeground, 1.5)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.caption
-                      elide: Text.ElideRight
+                      wrapMode: Text.Wrap
                     }
                   }
 
@@ -8403,21 +8398,21 @@ root.warnStderr("team select failed", text)
                       spacing: Style.space(2)
                       visible: root.selectedClubProfile && root.selectedClubProfile.topScorer !== ""
                       Text { text: "TOP SCORER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topScorer : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topScorer : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       visible: root.selectedClubProfile && root.selectedClubProfile.topAssister !== ""
                       Text { text: "TOP ASSISTER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topAssister : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topAssister : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
                       visible: root.selectedClubProfile && root.selectedClubProfile.topCarder !== ""
                       Text { text: "DISCIPLINE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topCarder : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                      Text { text: root.selectedClubProfile ? root.selectedClubProfile.topCarder : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: "#eab308"; font.family: root.contentFontFamily; wrapMode: Text.Wrap; width: parent.width }
                     }
                   }
                 }
