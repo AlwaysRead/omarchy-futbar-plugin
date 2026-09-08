@@ -6140,21 +6140,13 @@ root.warnStderr("team select failed", text)
                       font.bold: true
                       elide: Text.ElideRight
                     }
-                    Rectangle {
+                    Text {
                       anchors.verticalCenter: parent.verticalCenter
-                      height: Style.space(16)
-                      width: typeTagText.implicitWidth + Style.space(8)
-                      radius: Style.space(3)
-                      color: modelData.type === "player" ? Util.alpha("#3b82f6", 0.2) : Util.alpha("#10b981", 0.2)
-                      Text {
-                        id: typeTagText
-                        anchors.centerIn: parent
-                        text: modelData.type === "player" ? "Player" : "Club"
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.space(10)
-                        font.bold: true
-                        color: modelData.type === "player" ? "#60a5fa" : "#34d399"
-                      }
+                      text: "· " + (modelData.type === "player" ? "Player" : "Club")
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      color: Qt.darker(root.contentForeground, 1.45)
                     }
                   }
 
@@ -6361,22 +6353,14 @@ root.warnStderr("team select failed", text)
                       font.pixelSize: Style.font.caption
                       visible: text !== ""
                     }
-                    Rectangle {
+                    Text {
                       anchors.verticalCenter: parent.verticalCenter
-                      height: Style.space(14)
-                      width: playerStatusText.implicitWidth + Style.space(8)
-                      radius: Style.space(3)
-                      color: Util.alpha("#22c55e", 0.15)
+                      text: "· " + (root.selectedPlayerProfile ? root.selectedPlayerProfile.status : "")
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      color: Qt.darker(root.contentForeground, 1.45)
                       visible: root.selectedPlayerProfile && root.selectedPlayerProfile.status !== ""
-                      Text {
-                        id: playerStatusText
-                        anchors.centerIn: parent
-                        text: root.selectedPlayerProfile ? root.selectedPlayerProfile.status : ""
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.space(9)
-                        font.bold: true
-                        color: "#4ade80"
-                      }
                     }
                   }
                 }
