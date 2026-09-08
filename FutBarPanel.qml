@@ -548,6 +548,9 @@ Panel {
   property string matchDetailLineupTeam: "home"
   property string matchDetailLineupView: "pitch"
   property bool matchDetailCrestsLoaded: false
+  onMatchDetailTabChanged: root.resetPanelScroll()
+  onMatchDetailLineupTeamChanged: root.resetPanelScroll()
+  onShowMatchDetailChanged: root.resetPanelScroll()
   property bool showSearch: false
   property string searchQuery: ""
   property bool searchLoading: false
@@ -1855,6 +1858,7 @@ readonly property var leagues: [
     root.matchDetailLineupTeam = "home"
     root.matchDetailCrestsLoaded = false
     root.matchDetailJerseyUrls = []
+    root.resetPanelScroll()
 
     var initDateStr = ""
     if (match.date) {
@@ -3235,6 +3239,14 @@ readonly property var leagues: [
     setTeamRequest.running = true
   }
 
+  function resetPanelScroll() {
+    Qt.callLater(function() {
+      if (panelScrollArea && panelScrollArea.contentItem) {
+        panelScrollArea.contentItem.contentY = 0
+      }
+    })
+  }
+
   function _getTacticalCoordinates(player) {
     var abbr = String(player.positionAbbr || "").toUpperCase().trim()
     var posName = String(player.position || "").toLowerCase().trim()
@@ -3242,66 +3254,66 @@ readonly property var leagues: [
     if (isNaN(fp)) fp = 99
 
     // 1. Explicit tactical abbreviations from ESPN
-    if (abbr === "G") return { x: 0.50, y: 0.90 }
-    if (abbr === "LB") return { x: 0.13, y: 0.74 }
-    if (abbr === "LWB") return { x: 0.13, y: 0.68 }
-    if (abbr === "CD-L") return { x: 0.38, y: 0.74 }
-    if (abbr === "CD") return { x: 0.50, y: 0.74 }
-    if (abbr === "CD-R") return { x: 0.62, y: 0.74 }
-    if (abbr === "RB") return { x: 0.87, y: 0.74 }
-    if (abbr === "RWB") return { x: 0.87, y: 0.68 }
+    if (abbr === "G") return { x: 0.50, y: 0.86 }
+    if (abbr === "LB") return { x: 0.13, y: 0.72 }
+    if (abbr === "LWB") return { x: 0.13, y: 0.67 }
+    if (abbr === "CD-L") return { x: 0.38, y: 0.72 }
+    if (abbr === "CD") return { x: 0.50, y: 0.72 }
+    if (abbr === "CD-R") return { x: 0.62, y: 0.72 }
+    if (abbr === "RB") return { x: 0.87, y: 0.72 }
+    if (abbr === "RWB") return { x: 0.87, y: 0.67 }
 
-    if (abbr === "DM") return { x: 0.50, y: 0.58 }
-    if (abbr === "DM-L") return { x: 0.36, y: 0.58 }
-    if (abbr === "DM-R") return { x: 0.64, y: 0.58 }
-    if (abbr === "CM-L") return { x: 0.34, y: 0.44 }
-    if (abbr === "CM") return { x: 0.50, y: 0.44 }
-    if (abbr === "CM-R") return { x: 0.66, y: 0.44 }
-    if (abbr === "LM") return { x: 0.13, y: 0.44 }
-    if (abbr === "RM") return { x: 0.87, y: 0.44 }
+    if (abbr === "DM") return { x: 0.50, y: 0.57 }
+    if (abbr === "DM-L") return { x: 0.36, y: 0.57 }
+    if (abbr === "DM-R") return { x: 0.64, y: 0.57 }
+    if (abbr === "CM-L") return { x: 0.34, y: 0.43 }
+    if (abbr === "CM") return { x: 0.50, y: 0.43 }
+    if (abbr === "CM-R") return { x: 0.66, y: 0.43 }
+    if (abbr === "LM") return { x: 0.13, y: 0.43 }
+    if (abbr === "RM") return { x: 0.87, y: 0.43 }
 
-    if (abbr === "AM-L" || abbr === "LW" || abbr === "LF") return { x: 0.16, y: 0.24 }
+    if (abbr === "AM-L" || abbr === "LW" || abbr === "LF") return { x: 0.16, y: 0.25 }
     if (abbr === "AM") return { x: 0.50, y: 0.30 }
-    if (abbr === "AM-R" || abbr === "RW" || abbr === "RF") return { x: 0.84, y: 0.24 }
+    if (abbr === "AM-R" || abbr === "RW" || abbr === "RF") return { x: 0.84, y: 0.25 }
 
-    if (abbr === "CF-L") return { x: 0.35, y: 0.12 }
-    if (abbr === "CF-R") return { x: 0.65, y: 0.12 }
-    if (abbr === "CF" || abbr === "F" || abbr === "ST") return { x: 0.50, y: 0.12 }
+    if (abbr === "CF-L") return { x: 0.35, y: 0.14 }
+    if (abbr === "CF-R") return { x: 0.65, y: 0.14 }
+    if (abbr === "CF" || abbr === "F" || abbr === "ST") return { x: 0.50, y: 0.14 }
 
     // 2. Position Name matching
-    if (posName.indexOf("goal") !== -1 || fp === 1) return { x: 0.50, y: 0.90 }
-    if (posName.indexOf("left back") !== -1 || (posName.indexOf("def") !== -1 && fp === 3)) return { x: 0.13, y: 0.74 }
-    if (posName.indexOf("right back") !== -1 || (posName.indexOf("def") !== -1 && fp === 2)) return { x: 0.87, y: 0.74 }
-    if (posName.indexOf("center left def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 4 || fp === 6))) return { x: 0.38, y: 0.74 }
-    if (posName.indexOf("center right def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 5 || fp === 7))) return { x: 0.62, y: 0.74 }
-    if (posName.indexOf("center def") !== -1 || (posName.indexOf("def") !== -1 && fp === 5)) return { x: 0.50, y: 0.74 }
+    if (posName.indexOf("goal") !== -1 || fp === 1) return { x: 0.50, y: 0.86 }
+    if (posName.indexOf("left back") !== -1 || (posName.indexOf("def") !== -1 && fp === 3)) return { x: 0.13, y: 0.72 }
+    if (posName.indexOf("right back") !== -1 || (posName.indexOf("def") !== -1 && fp === 2)) return { x: 0.87, y: 0.72 }
+    if (posName.indexOf("center left def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 4 || fp === 6))) return { x: 0.38, y: 0.72 }
+    if (posName.indexOf("center right def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 5 || fp === 7))) return { x: 0.62, y: 0.72 }
+    if (posName.indexOf("center def") !== -1 || (posName.indexOf("def") !== -1 && fp === 5)) return { x: 0.50, y: 0.72 }
 
-    if (posName.indexOf("defensive mid") !== -1) return { x: 0.50, y: 0.58 }
-    if (posName.indexOf("left mid") !== -1) return { x: 0.13, y: 0.44 }
-    if (posName.indexOf("right mid") !== -1) return { x: 0.87, y: 0.44 }
-    if (posName.indexOf("center left mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 8)) return { x: 0.34, y: 0.44 }
-    if (posName.indexOf("center right mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 7)) return { x: 0.66, y: 0.44 }
-    if (posName.indexOf("center mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 4)) return { x: 0.50, y: 0.44 }
+    if (posName.indexOf("defensive mid") !== -1) return { x: 0.50, y: 0.57 }
+    if (posName.indexOf("left mid") !== -1) return { x: 0.13, y: 0.43 }
+    if (posName.indexOf("right mid") !== -1) return { x: 0.87, y: 0.43 }
+    if (posName.indexOf("center left mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 8)) return { x: 0.34, y: 0.43 }
+    if (posName.indexOf("center right mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 7)) return { x: 0.66, y: 0.43 }
+    if (posName.indexOf("center mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 4)) return { x: 0.50, y: 0.43 }
 
-    if (posName.indexOf("left forw") !== -1 || posName.indexOf("left wing") !== -1 || (posName.indexOf("att") !== -1 && fp === 11)) return { x: 0.16, y: 0.24 }
-    if (posName.indexOf("right forw") !== -1 || posName.indexOf("right wing") !== -1 || (posName.indexOf("att") !== -1 && (fp === 7 || fp === 10))) return { x: 0.84, y: 0.24 }
-    if (posName.indexOf("center left forw") !== -1) return { x: 0.35, y: 0.12 }
-    if (posName.indexOf("center right forw") !== -1) return { x: 0.65, y: 0.12 }
-    if (posName.indexOf("forw") !== -1 || posName.indexOf("striker") !== -1 || fp === 9) return { x: 0.50, y: 0.12 }
+    if (posName.indexOf("left forw") !== -1 || posName.indexOf("left wing") !== -1 || (posName.indexOf("att") !== -1 && fp === 11)) return { x: 0.16, y: 0.25 }
+    if (posName.indexOf("right forw") !== -1 || posName.indexOf("right wing") !== -1 || (posName.indexOf("att") !== -1 && (fp === 7 || fp === 10))) return { x: 0.84, y: 0.25 }
+    if (posName.indexOf("center left forw") !== -1) return { x: 0.35, y: 0.14 }
+    if (posName.indexOf("center right forw") !== -1) return { x: 0.65, y: 0.14 }
+    if (posName.indexOf("forw") !== -1 || posName.indexOf("striker") !== -1 || fp === 9) return { x: 0.50, y: 0.14 }
     if (posName.indexOf("att") !== -1 || fp === 10) return { x: 0.50, y: 0.30 }
 
     // 3. formationPlace mapping fallback
-    if (fp === 1) return { x: 0.50, y: 0.90 }
-    if (fp === 3) return { x: 0.13, y: 0.74 }
-    if (fp === 4) return { x: 0.38, y: 0.74 }
-    if (fp === 5) return { x: 0.50, y: 0.74 }
-    if (fp === 6) return { x: 0.62, y: 0.74 }
-    if (fp === 2) return { x: 0.87, y: 0.74 }
-    if (fp === 8) return { x: 0.34, y: 0.44 }
-    if (fp === 7) return { x: 0.66, y: 0.44 }
-    if (fp === 11) return { x: 0.16, y: 0.24 }
-    if (fp === 10) return { x: 0.84, y: 0.24 }
-    if (fp === 9) return { x: 0.50, y: 0.12 }
+    if (fp === 1) return { x: 0.50, y: 0.86 }
+    if (fp === 3) return { x: 0.13, y: 0.72 }
+    if (fp === 4) return { x: 0.38, y: 0.72 }
+    if (fp === 5) return { x: 0.50, y: 0.72 }
+    if (fp === 6) return { x: 0.62, y: 0.72 }
+    if (fp === 2) return { x: 0.87, y: 0.72 }
+    if (fp === 8) return { x: 0.34, y: 0.43 }
+    if (fp === 7) return { x: 0.66, y: 0.43 }
+    if (fp === 11) return { x: 0.16, y: 0.25 }
+    if (fp === 10) return { x: 0.84, y: 0.25 }
+    if (fp === 9) return { x: 0.50, y: 0.14 }
 
     return { x: 0.50, y: 0.50 }
   }
@@ -3356,11 +3368,11 @@ readonly property var leagues: [
             if (dy < 0.06) {
               var neededY = (0.06 - dy) / 2
               if (result[a].y <= result[b].y) {
-                result[a].y = Math.max(0.10, result[a].y - neededY)
-                result[b].y = Math.min(0.90, result[b].y + neededY)
+                result[a].y = Math.max(0.12, result[a].y - neededY)
+                result[b].y = Math.min(0.86, result[b].y + neededY)
               } else {
-                result[a].y = Math.min(0.90, result[a].y + neededY)
-                result[b].y = Math.max(0.10, result[b].y - neededY)
+                result[a].y = Math.min(0.86, result[a].y + neededY)
+                result[b].y = Math.max(0.12, result[b].y - neededY)
               }
             }
           }
@@ -6465,7 +6477,7 @@ root.warnStderr("team select failed", text)
     // Keep the card tied to its bar button instead of centering it on the bar.
     centerOnBar: false
     contentWidth: popup.fittedContentWidth(Style.space(390))
-    contentHeight: popup.fittedContentHeight((pinnedHeader.visible ? pinnedHeader.implicitHeight + Style.space(14) : 0) + content.implicitHeight, Style.space(560))
+    contentHeight: popup.fittedContentHeight((pinnedHeader.visible ? pinnedHeader.implicitHeight + Style.space(14) : 0) + content.implicitHeight, root.showMatchDetail ? Style.space(720) : Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -8671,7 +8683,8 @@ root.warnStderr("team select failed", text)
 
         Item {
           width: parent.width
-          height: Math.max(Style.space(260), matchDetailInnerCol.implicitHeight)
+          implicitHeight: Math.max(Style.space(260), matchDetailInnerCol.implicitHeight)
+          height: implicitHeight
 
           Column {
             id: matchDetailInnerCol
@@ -8684,7 +8697,9 @@ root.warnStderr("team select failed", text)
         Item {
           id: heroCard
           width: parent.width
-          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (shootoutBottomCol.visible ? shootoutBottomCol.implicitHeight + Style.space(8) : 0) + Style.space(24))
+          height: (root.matchDetailTab === "lineups")
+            ? Math.max(Style.space(48), Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + Style.space(8))
+            : Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (shootoutBottomCol.visible ? shootoutBottomCol.implicitHeight + Style.space(8) : 0) + Style.space(24))
 
           Rectangle {
             anchors.fill: parent
@@ -8704,22 +8719,22 @@ root.warnStderr("team select failed", text)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
             wrapMode: Text.NoWrap
-            visible: text !== ""
+            visible: text !== "" && root.matchDetailTab !== "lineups"
           }
 
           // Center Score & Status
           Column {
             id: scoreCenterCol
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: (dateTextHeader.visible && dateTextHeader.text !== "") ? dateTextHeader.bottom : parent.top
-            anchors.topMargin: (dateTextHeader.visible && dateTextHeader.text !== "") ? Style.space(6) : Style.space(10)
+            anchors.top: (root.matchDetailTab !== "lineups" && dateTextHeader.visible && dateTextHeader.text !== "") ? dateTextHeader.bottom : parent.top
+            anchors.topMargin: (root.matchDetailTab === "lineups") ? Style.space(4) : ((dateTextHeader.visible && dateTextHeader.text !== "") ? Style.space(6) : Style.space(10))
             width: Style.space(90)
-            spacing: Style.space(4)
+            spacing: (root.matchDetailTab === "lineups") ? Style.space(1) : Style.space(4)
 
             // Upper area: Score centered between the crests (height: Style.space(50))
             Item {
               width: parent.width
-              height: Style.space(50)
+              height: (root.matchDetailTab === "lineups") ? Style.space(26) : Style.space(50)
 
               Text {
                 textFormat: Text.PlainText
@@ -8728,7 +8743,7 @@ root.warnStderr("team select failed", text)
                   ? (root.matchDetail.home.score + " – " + root.matchDetail.away.score) : "vs"
                 color: (root.matchDetail && !root.matchDetail.started) ? Qt.darker(root.contentForeground, 1.5) : root.contentForeground
                 font.family: root.contentFontFamily
-                font.pixelSize: (root.matchDetail && !root.matchDetail.started) ? Style.font.body : Style.font.title
+                font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.body : ((root.matchDetail && !root.matchDetail.started) ? Style.font.body : Style.font.title)
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
               }
@@ -8746,7 +8761,7 @@ root.warnStderr("team select failed", text)
                 text: root.matchDetail ? (root.matchDetail.status || (root.matchDetail.started ? "Full Time" : "Scheduled")) : "Full Time"
                 color: (root.matchDetail && root.matchDetail.isLive) ? "#4ade80" : Qt.darker(root.contentForeground, 1.4)
                 font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
+                font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.caption - 2 : Style.font.caption
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
               }
@@ -8761,7 +8776,7 @@ root.warnStderr("team select failed", text)
                 font.pixelSize: Style.font.caption - 2
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
-                visible: text !== ""
+                visible: text !== "" && root.matchDetailTab !== "lineups"
               }
             }
           }
@@ -8774,12 +8789,12 @@ root.warnStderr("team select failed", text)
             anchors.top: scoreCenterCol.top
             anchors.leftMargin: Style.space(10)
             anchors.rightMargin: Style.space(6)
-            spacing: Style.space(4)
+            spacing: (root.matchDetailTab === "lineups") ? Style.space(2) : Style.space(4)
 
             Image {
               id: homeDetailCrestImg
               anchors.horizontalCenter: parent.horizontalCenter
-              width: Style.space(50)
+              width: (root.matchDetailTab === "lineups") ? Style.space(28) : Style.space(50)
               height: width
               source: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.logo : ""
               fillMode: Image.PreserveAspectFit
@@ -8803,16 +8818,16 @@ root.warnStderr("team select failed", text)
               text: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : ""
               color: root.contentForeground
               font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
+              font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.caption - 1 : Style.font.caption
               font.bold: true
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
-              maximumLineCount: 2
+              maximumLineCount: (root.matchDetailTab === "lineups") ? 1 : 2
               elide: Text.ElideRight
             }
 
             Repeater {
-              model: (root.matchDetail && root.matchDetail.homeScorers) ? root.matchDetail.homeScorers : []
+              model: (root.matchDetail && root.matchDetail.homeScorers && root.matchDetailTab !== "lineups") ? root.matchDetail.homeScorers : []
               Text {
                 textFormat: Text.PlainText
                 width: parent.width
@@ -8834,12 +8849,12 @@ root.warnStderr("team select failed", text)
             anchors.top: scoreCenterCol.top
             anchors.leftMargin: Style.space(6)
             anchors.rightMargin: Style.space(10)
-            spacing: Style.space(4)
+            spacing: (root.matchDetailTab === "lineups") ? Style.space(2) : Style.space(4)
 
             Image {
               id: awayDetailCrestImg
               anchors.horizontalCenter: parent.horizontalCenter
-              width: Style.space(50)
+              width: (root.matchDetailTab === "lineups") ? Style.space(28) : Style.space(50)
               height: width
               source: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.logo : ""
               fillMode: Image.PreserveAspectFit
@@ -8863,16 +8878,16 @@ root.warnStderr("team select failed", text)
               text: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : ""
               color: root.contentForeground
               font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
+              font.pixelSize: (root.matchDetailTab === "lineups") ? Style.font.caption - 1 : Style.font.caption
               font.bold: true
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
-              maximumLineCount: 2
+              maximumLineCount: (root.matchDetailTab === "lineups") ? 1 : 2
               elide: Text.ElideRight
             }
 
             Repeater {
-              model: (root.matchDetail && root.matchDetail.awayScorers) ? root.matchDetail.awayScorers : []
+              model: (root.matchDetail && root.matchDetail.awayScorers && root.matchDetailTab !== "lineups") ? root.matchDetail.awayScorers : []
               Text {
                 textFormat: Text.PlainText
                 width: parent.width
@@ -8893,7 +8908,7 @@ root.warnStderr("team select failed", text)
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Style.space(8)
             spacing: Style.space(1)
-            visible: !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
+            visible: root.matchDetailTab !== "lineups" && !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
 
             Text {
               textFormat: Text.PlainText
@@ -9552,25 +9567,17 @@ root.warnStderr("team select failed", text)
             visible: !!(!root.matchDetail || !root.matchDetail.lineups || !root.matchDetail.lineups.available)
           }
 
-          Flickable {
-            id: lineupFlickable
+          Column {
+            id: lineupCol
             width: parent.width
-            height: Math.min(lineupCol.implicitHeight, Style.space(390))
-            contentHeight: lineupCol.implicitHeight
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
+            spacing: Style.space(8)
             visible: !!(root.matchDetail && root.matchDetail.lineups && root.matchDetail.lineups.available)
 
-            Column {
-              id: lineupCol
+            // Tactical Pitch View
+            Rectangle {
+              id: pitchField
               width: parent.width
-              spacing: Style.space(8)
-
-              // Tactical Pitch View
-              Rectangle {
-                id: pitchField
-                width: parent.width
-                height: Style.space(370)
+              height: Style.space(340)
                 radius: Style.space(8)
                 color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.025)
                 clip: true
@@ -10236,7 +10243,6 @@ root.warnStderr("team select failed", text)
               }
             }
           }
-        }
 
         // H2H & Form Tab
         Column {
