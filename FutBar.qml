@@ -43,10 +43,31 @@ BarWidget {
     str = str.replace(/&(?:[a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);/g, '')
     return str.trim()
   }
-  readonly property string teamName: root.sanitizePlainText(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
-    ? root.savedFavorite.teamName : setting("teamName", ""))
-  readonly property string league: root.sanitizePlainText(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
-    ? root.savedFavorite.league : setting("league", ""))
+  readonly property var primaryItem: {
+    if (root.savedFavorite && Array.isArray(root.savedFavorite.tabOrder) && root.savedFavorite.tabOrder.length > 0) {
+      return root.savedFavorite.tabOrder[0]
+    }
+    if (root.savedFavorite && Array.isArray(root.savedFavorite.followedTeams) && root.savedFavorite.followedTeams.length > 0) {
+      return root.savedFavorite.followedTeams[0]
+    }
+    return null
+  }
+  readonly property string teamName: {
+    if (root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName) {
+      return root.sanitizePlainText(root.primaryItem.teamName)
+    }
+    var raw = (root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== "")
+      ? root.savedFavorite.teamName : setting("teamName", "")
+    return root.sanitizePlainText(raw)
+  }
+  readonly property string league: {
+    if (root.primaryItem && root.primaryItem.league) {
+      return root.sanitizePlainText(root.primaryItem.league)
+    }
+    var raw = (root.savedFavorite.league !== undefined && root.savedFavorite.league !== "")
+      ? root.savedFavorite.league : setting("league", "")
+    return root.sanitizePlainText(raw)
+  }
   FileView {
     id: favoriteStore
     path: root.favoritePath
@@ -69,6 +90,9 @@ BarWidget {
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
+  readonly property real openPanelIndicatorWidth: (root.barWidgetMode === "icon" || root.barDisplayText === "")
+    ? Math.max(Style.space(10), Math.round(Style.bar.iconSlot * 0.55))
+    : button.labelWidth
   opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
 
   SequentialAnimation on _pulse {
@@ -219,12 +243,37 @@ BarWidget {
 
   readonly property string barDisplayText: {
     var p = panelLoader.item
-    if (!p) return ""
     var mode = root.barWidgetMode
+    if (!p) return ""
     if (mode === "icon") return ""
 
+    var isClub = root.primaryItem ? !root.primaryItem.followLeague : (root.teamName !== "")
+    var primaryKey = p.teamKey ? p.teamKey(root.teamName, root.league) : ""
+    var cached = (primaryKey && p._teamStateCache) ? p._teamStateCache[primaryKey] : null
+
     if (mode === "score") {
-      if (p.leagueMode) {
+      if (isClub) {
+        var lm = (!p.leagueMode && p.teamName === root.teamName) ? p.liveMatch : (cached ? cached.liveMatch : p.liveMatch)
+        if (lm) {
+          var h = p.scoreFor(lm, "home")
+          var a = p.scoreFor(lm, "away")
+          var clk = p.statusFor(lm)
+          var hAbbrev = p.teamTabLabel(p.teamNameFor(lm, "home"), root.league, "abbrev")
+          var aAbbrev = p.teamTabLabel(p.teamNameFor(lm, "away"), root.league, "abbrev")
+          return (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
+        }
+        var prev = (!p.leagueMode && p.teamName === root.teamName) ? p.previousMatch : (cached ? cached.previousMatch : p.previousMatch)
+        if (prev) {
+          var prevH = p.scoreFor(prev, "home")
+          var prevA = p.scoreFor(prev, "away")
+          var prevClk = p.statusFor(prev) || "FT"
+          var prevHAbbrev = p.teamTabLabel(p.teamNameFor(prev, "home"), root.league, "abbrev")
+          var prevAAbbrev = p.teamTabLabel(p.teamNameFor(prev, "away"), root.league, "abbrev")
+          return (prevHAbbrev || "H") + " " + prevH + "–" + prevA + " " + (prevAAbbrev || "A") + " " + prevClk
+        }
+        if (p.loading || root.loading) return "Fetching Scores…"
+        return "No Live Match"
+      } else {
         if (Array.isArray(p.leagueLive) && p.leagueLive.length > 0) {
           var lm = p.leagueLive[0]
           var lh = (lm.homeScore !== undefined && lm.homeScore !== "") ? lm.homeScore : "0"
@@ -244,30 +293,39 @@ BarWidget {
           var raAbbrev = p.teamTabLabel(rm.awayName, p.league, "abbrev") || rm.awayName
           return (rhAbbrev || "H") + " " + rh + "–" + ra + " " + (raAbbrev || "A") + " " + rclk
         }
-        return "No Live Match"
-      } else {
-        if (p.liveMatch) {
-          var h = p.scoreFor(p.liveMatch, "home")
-          var a = p.scoreFor(p.liveMatch, "away")
-          var clk = p.statusFor(p.liveMatch)
-          var hAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "home"), p.league, "abbrev")
-          var aAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "away"), p.league, "abbrev")
-          return (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
-        }
-        if (p.previousMatch) {
-          var prevH = p.scoreFor(p.previousMatch, "home")
-          var prevA = p.scoreFor(p.previousMatch, "away")
-          var prevClk = p.statusFor(p.previousMatch) || "FT"
-          var prevHAbbrev = p.teamTabLabel(p.teamNameFor(p.previousMatch, "home"), p.league, "abbrev")
-          var prevAAbbrev = p.teamTabLabel(p.teamNameFor(p.previousMatch, "away"), p.league, "abbrev")
-          return (prevHAbbrev || "H") + " " + prevH + "–" + prevA + " " + (prevAAbbrev || "A") + " " + prevClk
-        }
+        if (p.loading || root.loading) return "Checking Scores…"
         return "No Live Match"
       }
     }
 
     if (mode === "next") {
-      if (p.leagueMode) {
+      if (isClub) {
+        var nm = (!p.leagueMode && p.teamName === root.teamName) ? p.nextMatch : (cached ? cached.nextMatch : p.nextMatch)
+        if (nm) {
+          var home = p.teamNameFor(nm, "home")
+          var away = p.teamNameFor(nm, "away")
+          var homeAbbrev = p.teamTabLabel(home, root.league, "abbrev")
+          var awayAbbrev = p.teamTabLabel(away, root.league, "abbrev")
+          var t = p.kickoffTime(nm)
+          return (homeAbbrev || home || "H") + " vs " + (awayAbbrev || away || "A") + (t ? " · " + t : "")
+        }
+        var rows = (!p.leagueMode && p.teamName === root.teamName) ? p.teamFixtureRows : (cached ? cached.teamFixtureRows : p.teamFixtureRows)
+        if (Array.isArray(rows) && rows.length > 0) {
+          for (var f = 0; f < rows.length; f++) {
+            var row = rows[f]
+            if (row && row.state === "pre") {
+              var rHome = row.homeName || p.teamNameFor(row, "home")
+              var rAway = row.awayName || p.teamNameFor(row, "away")
+              var rHAbbrev = p.teamTabLabel(rHome, root.league, "abbrev") || rHome
+              var rAAbbrev = p.teamTabLabel(rAway, root.league, "abbrev") || rAway
+              var rTime = row.timeText || (row.date ? p.kickoffTime(row) : "")
+              return (rHAbbrev || "H") + " vs " + (rAAbbrev || "A") + (rTime ? " · " + rTime : "")
+            }
+          }
+        }
+        if (p.loading || root.loading) return "Fetching Fixture…"
+        return "No Upcoming Fixture"
+      } else {
         var upMatch = null
         if (Array.isArray(p.leagueUpcoming) && p.leagueUpcoming.length > 0) {
           upMatch = p.leagueUpcoming[0]
@@ -285,43 +343,11 @@ BarWidget {
           var ut = upMatch.timeText || (upMatch.kickoff ? root.sanitizePlainText(Qt.formatDateTime(new Date(upMatch.kickoff), "HH:mm")) : "")
           return (uhAbbrev || "H") + " vs " + (uaAbbrev || "A") + (ut ? " · " + ut : "")
         }
-        return "No Upcoming Fixture"
-      } else {
-        if (p.nextMatch) {
-          var home = p.teamNameFor(p.nextMatch, "home")
-          var away = p.teamNameFor(p.nextMatch, "away")
-          var homeAbbrev = p.teamTabLabel(home, p.league, "abbrev")
-          var awayAbbrev = p.teamTabLabel(away, p.league, "abbrev")
-          var t = p.kickoffTime(p.nextMatch)
-          return (homeAbbrev || home || "H") + " vs " + (awayAbbrev || away || "A") + (t ? " · " + t : "")
-        }
+        if (p.loading || root.loading) return "Checking Fixtures…"
         return "No Upcoming Fixture"
       }
     }
     return ""
-  }
-
-  TextMetrics {
-    id: barMetrics
-    text: root.barDisplayText
-    font.family: root.bar ? root.bar.fontFamily : Style.font.family
-    font.pixelSize: Style.font.caption
-    font.bold: true
-  }
-
-  Component {
-    id: barLabelComponent
-    // Text-only label: in score/next modes the bar shows just the fixture
-    // text (no ball glyph). Live state is still signaled through the accent
-    // color (button.active -> activeColor), same as icon mode.
-    Text {
-      anchors.centerIn: parent
-      text: root.barDisplayText
-      color: button.active && button.useActiveColor ? button.activeColor : button.foreground
-      font.family: root.bar ? root.bar.fontFamily : Style.font.family
-      font.pixelSize: Style.font.caption
-      font.bold: true
-    }
   }
 
   // Refresh cadence for the shared data fetches (scoreboard, fixtures).
@@ -362,6 +388,7 @@ BarWidget {
       if (p.leagueUpcomingChanged) p.leagueUpcomingChanged.connect(function() { root.updateTooltip() })
       if (p.leagueRecentChanged) p.leagueRecentChanged.connect(function() { root.updateTooltip() })
       if (p.matchWeekRowsChanged) p.matchWeekRowsChanged.connect(function() { root.updateTooltip() })
+      if (p.teamFixtureRowsChanged) p.teamFixtureRowsChanged.connect(function() { root.updateTooltip() })
       if (p.leagueModeChanged) p.leagueModeChanged.connect(function() { root.updateTooltip() })
       if (p.leagueBoardSummaryChanged) p.leagueBoardSummaryChanged.connect(function() { root.updateTooltip() })
       if (p.barWidgetModeChanged) p.barWidgetModeChanged.connect(function() { root.updateTooltip() })
@@ -373,19 +400,18 @@ BarWidget {
     }
   }
 
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰒸"
-    tooltipText: root.tooltip
-    iconComponent: (root.barWidgetMode !== "icon" && root.barDisplayText !== "") ? barLabelComponent : null
-    slotSize: (root.barWidgetMode !== "icon" && root.barDisplayText !== "")
-      ? Math.max(Style.bar.iconSlot, Style.space(28) + barMetrics.width)
-      : Style.bar.iconSlot
-    opticalSize: slotSize
+    text: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? "󰒸" : root.barDisplayText
+    labelVisible: true
+    fontSize: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? Style.bar.iconFont : Style.font.caption
+    fixedWidth: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? Style.bar.iconSlot : -1
+    horizontalMargin: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? 0 : 8.5
     active: root.live
     activeColor: Color.accent
+    tooltipText: root.tooltip
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.MiddleButton) root.refresh()
       else {

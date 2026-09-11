@@ -30,15 +30,47 @@ Panel {
       return parsed && typeof parsed === "object" ? parsed : ({})
     } catch (e) { return ({}) }
   }
+  readonly property var primaryItem: {
+    if (root.savedFavorite && Array.isArray(root.savedFavorite.tabOrder) && root.savedFavorite.tabOrder.length > 0) {
+      return root.savedFavorite.tabOrder[0]
+    }
+    if (root.savedFavorite && Array.isArray(root.savedFavorite.followedTeams) && root.savedFavorite.followedTeams.length > 0) {
+      return root.savedFavorite.followedTeams[0]
+    }
+    return null
+  }
   // The state file is authoritative: the shell's injected settings can be
   // stale at reload (it hands over the previous in-memory team before syncing
   // shell.json), so prefer the remembered favorite over settings.
-  readonly property string teamName: root.leagueMode ? "" : root.sanitizePlainText(root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== ""
-    ? root.savedFavorite.teamName : setting("teamName", ""))
-  readonly property string league: root.sanitizePlainText(root.savedFavorite.league !== undefined && root.savedFavorite.league !== ""
-    ? root.savedFavorite.league : setting("league", ""))
-  readonly property string teamId: root.leagueMode ? "" : root.safeIdentifier(root.savedFavorite.teamId !== undefined && root.savedFavorite.teamId !== ""
-    ? root.savedFavorite.teamId : setting("teamId", ""))
+  readonly property string teamName: {
+    if (root.leagueMode) return ""
+    var raw = (root.savedFavorite && root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== "")
+      ? root.savedFavorite.teamName : ""
+    if (raw === "" && root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName) {
+      raw = root.primaryItem.teamName
+    }
+    if (raw === "") raw = setting("teamName", "")
+    return root.sanitizePlainText(raw)
+  }
+  readonly property string league: {
+    var raw = (root.savedFavorite && root.savedFavorite.league !== undefined && root.savedFavorite.league !== "")
+      ? root.savedFavorite.league : ""
+    if (raw === "" && root.primaryItem && root.primaryItem.league) {
+      raw = root.primaryItem.league
+    }
+    if (raw === "") raw = setting("league", "")
+    return root.sanitizePlainText(raw)
+  }
+  readonly property string teamId: {
+    if (root.leagueMode) return ""
+    var raw = (root.savedFavorite && root.savedFavorite.teamId !== undefined && root.savedFavorite.teamId !== "")
+      ? root.savedFavorite.teamId : ""
+    if (raw === "" && root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamId) {
+      raw = root.primaryItem.teamId
+    }
+    if (raw === "") raw = setting("teamId", "")
+    return root.safeIdentifier(raw)
+  }
   readonly property string tabLabelStyle: {
     var raw = (root.savedFavorite && root.savedFavorite.tabLabelStyle !== undefined && root.savedFavorite.tabLabelStyle !== "")
       ? String(root.savedFavorite.tabLabelStyle) : setting("tabLabelStyle", "abbrev")
@@ -390,14 +422,22 @@ Panel {
   // A remembered favorite (the state file) counts as a team too.
   property bool needsTeam: root.leagueMode
     ? false
-    : (root.settings
-        ? (root.settings.teamName === undefined && root.savedFavorite.teamName === undefined)
-        : true)
+    : (root.teamName === "")
   // League-follow mode: the user tracks a whole competition instead of a
   // single club. Stored in the favorite file (authoritative on reload).
-  readonly property bool leagueMode: (root.savedFavorite.followLeague === true
-    || ((root.savedFavorite.teamName === undefined || root.savedFavorite.teamName === "") && (setting("teamName", "") === "") && String(root.league || "") !== ""))
-    && String(root.league || "") !== ""
+  readonly property bool leagueMode: {
+    if (root.savedFavorite && root.savedFavorite.followLeague === true) {
+      if (root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName && (!root.savedFavorite.teamName || root.savedFavorite.teamName === "")) {
+        return false
+      }
+      return true
+    }
+    if ((!root.savedFavorite || !root.savedFavorite.teamName) && (setting("teamName", "") === "")) {
+      if (root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName) return false
+      return String(root.league || "") !== ""
+    }
+    return false
+  }
   // True once the widget has started fetching with a real team. Reloads must
   // not fetch (or worse, resolve+persist) with stale in-memory settings before
   // the shell finishes syncing the current shell.json — the shell hands the
@@ -486,7 +526,7 @@ Panel {
   FileView {
     id: favoriteStore
     path: root.favoritePath
-    watchChanges: false
+    watchChanges: true
     atomicWrites: true
     printErrors: false
     onLoaded: {
@@ -499,9 +539,10 @@ Panel {
     onLoadFailed: { root.savedFavorite = ({}); root._favoriteLoaded = true }
   }
 
-  // The first read can race shell startup; one delayed reload self-corrects.
+  // Periodic reload keeps favoriteStore in sync across processes
   Timer {
-    interval: 1500
+    interval: 2000
+    repeat: true
     running: true
     onTriggered: favoriteStore.reload()
   }
@@ -550,6 +591,7 @@ Panel {
       }
     }
     root.savedFavorite = payload
+    if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -2123,7 +2165,11 @@ readonly property var leagues: [
 
   function startScoreboards() {
     var slugs = root.competitionSlugs.slice()
-    if (slugs.indexOf(root.league) === -1) slugs.unshift(root.league)
+    var primarySlug = root.safeIdentifier(root.league || "esp.1")
+    var pIdx = slugs.indexOf(primarySlug)
+    if (pIdx > 0) slugs.splice(pIdx, 1)
+    if (slugs.indexOf(primarySlug) === -1) slugs.unshift(primarySlug)
+    else if (slugs[0] !== primarySlug) slugs.unshift(primarySlug)
     root.scoreboardQueue = slugs
     root._sbRetry = {}
     root.kickScoreboards()
@@ -2197,6 +2243,12 @@ readonly property var leagues: [
         }
       }
       root.collectedEvents = merged
+      if (merged.length > 0) {
+        root.setFixtures({ events: merged })
+        if (root.clubFixturePage === 0 && root.teamFixtureRows.length > 0) {
+          root.initClubFixturePage()
+        }
+      }
       if (slug !== "") {
         var clearRetry = Object.assign({}, root._sbRetry)
         delete clearRetry[slug]
@@ -4029,7 +4081,9 @@ readonly property var leagues: [
     var leagues = []
     var candidates = root.followedTeamsList()
     for (var i = 0; i < candidates.length; i++) {
-      var lg = root.safeIdentifier(String(candidates[i].league || ""))
+      var cand = candidates[i]
+      if (!cand || cand.followLeague || !cand.teamName || String(cand.teamName).trim() === "") continue
+      var lg = root.safeIdentifier(String(cand.league || ""))
       if (lg === "" || seen[lg]) continue
       seen[lg] = true
       leagues.push(lg)
@@ -4068,17 +4122,17 @@ readonly property var leagues: [
           if (!Array.isArray(competitors)) continue
           for (var c = 0; c < candidates.length; c++) {
             var cand = candidates[c]
+            if (!cand || cand.followLeague || !cand.teamName || String(cand.teamName).trim() === "") continue
             if (root.teamKey(cand.teamName, cand.league) === activeKey) continue
             var matched = false
+            var wanted = String(cand.teamName || "").trim().toLowerCase()
+            if (wanted === "" && !cand.teamId) continue
             for (var k = 0; k < competitors.length; k++) {
               var team = competitors[k].team || {}
               if (cand.teamId && String(team.id || "") === String(cand.teamId)) { matched = true; break }
-              if (!cand.teamId) {
-                var wanted = String(cand.teamName || "").toLowerCase()
-                if ([team.displayName, team.shortDisplayName, team.name, team.abbreviation].some(function(n) {
-                  return String(n || "").toLowerCase().indexOf(wanted) !== -1
-                })) { matched = true; break }
-              }
+              if (wanted !== "" && [team.displayName, team.shortDisplayName, team.name, team.abbreviation].some(function(n) {
+                return String(n || "").toLowerCase().indexOf(wanted) !== -1
+              })) { matched = true; break }
             }
             if (matched) {
               root._liveSwitchDone = true
