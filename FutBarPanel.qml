@@ -5908,9 +5908,34 @@ onStreamFinished: root.warnStderr("", text)
               var tLogo = String(t.logo || "")
               var tSlug = String(t.slug || "").toLowerCase()
               var tLower = tName.toLowerCase()
-              var isNat = (tLogo.indexOf("/countries/") !== -1) || (tSlug.indexOf(".") === -1) || (tSlug.indexOf(".u") !== -1) || (tName.indexOf(" U") !== -1) || (tLower.indexOf("national") !== -1)
+
+              // Check if team is explicitly a club from its links or logo path
+              var isClub = false
+              if (t.links && Array.isArray(t.links)) {
+                for (var li = 0; li < t.links.length; li++) {
+                  var href = t.links[li] && t.links[li].href ? String(t.links[li].href) : ""
+                  if (href.indexOf("/club/") !== -1) {
+                    isClub = true
+                    break
+                  }
+                }
+              }
+              if (tLogo.indexOf("/teamlogos/soccer/") !== -1 || tLogo.indexOf("/soccer/") !== -1) {
+                isClub = true
+              }
+
+              // A team is a national team if:
+              // 1. Its logo is hosted on the ESPN /countries/ CDN path, OR
+              // 2. Its slug is a 2-3 letter country code (e.g. "bra", "arg", "eng", or youth "esp.u23"), OR
+              // 3. Its name indicates a national team,
+              // AND it is NOT an explicit club team.
+              var isCountryLogo = tLogo.indexOf("/countries/") !== -1
+              var isCountrySlug = (/^[a-z]{2,3}$/i.test(tSlug)) || (/^[a-z]{2,3}\.u\d+$/i.test(tSlug))
+              var isNationalName = tLower.indexOf("national team") !== -1
+              var isNat = !isClub && (isCountryLogo || isCountrySlug || isNationalName)
+
               if (isNat) {
-                var isYouth = (tName.match(/U\d\d?/i) !== null) || (tSlug.indexOf(".u") !== -1) || (tLower.indexOf("youth") !== -1)
+                var isYouth = (tName.match(/\bU-?\d{1,2}\b/i) !== null) || (tSlug.indexOf(".u") !== -1) || (tLower.indexOf("youth") !== -1)
                 var rawSeasons = String(t.seasons || "")
                 var cleanSeasons = rawSeasons
                 var yrMatches = rawSeasons.match(/\b(19\d\d|20\d\d)\b/g)
@@ -5924,7 +5949,19 @@ onStreamFinished: root.warnStderr("", text)
                   }
                   cleanSeasons = minY === maxY ? String(minY) : (minY + "–" + maxY)
                 }
-                var finalLogo = root.sanitizeImageUrl(tLogo !== "" ? tLogo : ("https://a.espncdn.com/i/teamlogos/countries/500/" + tId + ".png"))
+                var slugCountry = tSlug.split(".")[0]
+                var defaultCountryLogo = (slugCountry !== "" && slugCountry.length <= 3) ? ("https://a.espncdn.com/i/teamlogos/countries/500/" + slugCountry + ".png") : ""
+                var finalLogo = root.sanitizeImageUrl(tLogo !== "" ? tLogo : (defaultCountryLogo !== "" ? defaultCountryLogo : (root.selectedPlayerProfile ? root.selectedPlayerProfile.flag : "")))
+
+                var existing = false
+                for (var ni = 0; ni < natList.length; ni++) {
+                  if (natList[ni].id === tId || (natList[ni].name === tName && natList[ni].isYouth === isYouth)) {
+                    existing = true
+                    break
+                  }
+                }
+                if (existing) continue
+
                 natList.push({
                   id: tId,
                   name: tName,
