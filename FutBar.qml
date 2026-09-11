@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "FutUtils.js" as FutUtils
 
 // A deliberately small bar widget. It asks ESPN's public scoreboard for the
 // selected league, then makes a second request only for a live match so that
@@ -16,32 +17,10 @@ BarWidget {
   readonly property string favoritePath: Quickshell.env("HOME") + "/.local/state/omarchy/futbar.json"
   property var savedFavorite: ({})
   function parseFavorite(txt) {
-    if (!txt || typeof txt !== "string" || txt.length > 65536) return ({})
-    try {
-      var parsed = JSON.parse(txt)
-      return parsed && typeof parsed === "object" ? parsed : ({})
-    } catch (e) { return ({}) }
+    return FutUtils.parseFavorite(txt)
   }
   function sanitizePlainText(raw) {
-    if (raw === undefined || raw === null) return ""
-    var str = String(raw)
-    str = str.replace(/&#(?:60|0*60|x0*3c|x0*3C);/gi, '<')
-             .replace(/&#(?:62|0*62|x0*3e|x0*3E);/gi, '>')
-             .replace(/&lt;/gi, '<')
-             .replace(/&gt;/gi, '>')
-             .replace(/&quot;/gi, '"')
-             .replace(/&apos;/gi, "'")
-             .replace(/&#39;/gi, "'")
-             .replace(/&amp;/gi, '&')
-    str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
-    var prev = ""
-    while (prev !== str) {
-      prev = str
-      str = str.replace(/<[^<>]*>/g, '')
-    }
-    str = str.replace(/[<>]/g, '')
-    str = str.replace(/&(?:[a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);/g, '')
-    return str.trim()
+    return FutUtils.sanitizePlainText(raw)
   }
   readonly property var primaryItem: {
     if (root.savedFavorite && Array.isArray(root.savedFavorite.tabOrder) && root.savedFavorite.tabOrder.length > 0) {
