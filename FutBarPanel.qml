@@ -560,7 +560,7 @@ Panel {
   property string searchError: ""
   property var selectedPlayerProfile: null
   property bool searchPlayerLoading: false
-  property string searchPlayerStatsTab: "season_all"
+  property string searchPlayerStatsTab: "all"
   property string searchPlayerCardTab: "info"
   property string statsPlayerKey: ""
   property string statsPlayerLeague: ""
@@ -6108,10 +6108,7 @@ onStreamFinished: root.warnStderr("", text)
           var entries = logData && Array.isArray(logData.entries) ? logData.entries : []
           var teamMap = {}
           var isIntlLeague = function(lg) {
-            return lg.indexOf("fifa.world") === 0 || lg.indexOf("fifa.friendly") === 0 || lg.indexOf("fifa.olympics") === 0
-              || lg.indexOf("uefa.euro") === 0 || lg.indexOf("uefa.nations") === 0 || lg.indexOf("conmebol.america") === 0
-              || lg.indexOf("concacaf.gold") === 0 || lg.indexOf("concacaf.nations") === 0 || lg.indexOf("caf.nations") === 0
-              || lg.indexOf("afc.asian") === 0
+            return root.isIntlLeague(lg)
           }
           for (var ei = 0; ei < entries.length; ei++) {
             var entry = entries[ei]
@@ -6132,6 +6129,7 @@ onStreamFinished: root.warnStderr("", text)
             var teamId = tMatch ? tMatch[1] : ""
             var lgSlug = lMatch ? lMatch[1] : ""
             if (teamId !== "" && year !== "") {
+              if (root.isPreseasonLeague(lgSlug)) continue
               if (!teamMap[teamId]) {
                 teamMap[teamId] = { teamId: teamId, start: parseInt(year), end: parseInt(year), leagues: [], urls: [] }
               } else {
@@ -6192,10 +6190,12 @@ onStreamFinished: root.warnStderr("", text)
               var yr = sMatch ? parseInt(sMatch[1]) : 0
               var lg = lMatch ? lMatch[1].toLowerCase() : ""
               if (stUrl !== "" && yr > 0) {
+                if (root.isPreseasonLeague(lg)) continue
+                var isCountryComp = root.isIntlLeague(lg)
                 var score = 0
-                if (isIntlLeague(lg)) {
+                if (isCountryComp) {
                   score = 5
-                } else if (lg.indexOf("gamper") !== -1 || lg.indexOf("super") !== -1 || lg.indexOf("charity") !== -1 || lg.indexOf("friendly") !== -1 || lg.indexOf("emirates") !== -1 || lg.indexOf("campeon") !== -1) {
+                } else if (lg.indexOf("super") !== -1 || lg.indexOf("charity") !== -1 || lg.indexOf("campeon") !== -1) {
                   score = 20
                 } else if (lg.indexOf("cup") !== -1 || lg.indexOf("fa") !== -1 || lg.indexOf("copa") !== -1 || lg.indexOf("dfb") !== -1 || lg.indexOf("coppa") !== -1) {
                   score = 30
@@ -6225,6 +6225,7 @@ onStreamFinished: root.warnStderr("", text)
                     leagueName: cInfo.full,
                     shortName: cInfo.short,
                     url: cleanUrl,
+                    isCountry: isCountryComp,
                     score: score
                   })
                 }
@@ -7017,6 +7018,40 @@ onStreamFinished: root.warnStderr("", text)
     }
   }
 
+  function isPreseasonLeague(lg) {
+    if (!lg || typeof lg !== "string") return false
+    var l = lg.toLowerCase()
+    if (l.indexOf("fifa.friendly") === 0) return false
+    return l.indexOf("gamper") !== -1 ||
+           l.indexOf("preseason") !== -1 ||
+           l.indexOf("friendly") !== -1 ||
+           l.indexOf("emirates") !== -1 ||
+           l.indexOf("audi_cup") !== -1 ||
+           l.indexOf("audi.cup") !== -1 ||
+           l.indexOf("icc") !== -1 ||
+           l.indexOf("trofeo") !== -1 ||
+           l.indexOf("trofeu") !== -1 ||
+           l.indexOf("exhibition") !== -1 ||
+           l.indexOf("world_football_challenge") !== -1 ||
+           l.indexOf("florida_cup") !== -1
+  }
+
+  function isIntlLeague(lg) {
+    if (!lg || typeof lg !== "string") return false
+    var l = lg.toLowerCase()
+    if (l.indexOf("fifa.cwc") === 0 || l.indexOf("fifa.club") === 0) return false
+    return l.indexOf("fifa.") === 0 ||
+           l.indexOf("uefa.euro") === 0 ||
+           l.indexOf("uefa.nations") === 0 ||
+           l.indexOf("conmebol.america") === 0 ||
+           l.indexOf("conmebol.copa_america") === 0 ||
+           l.indexOf("concacaf.gold") === 0 ||
+           l.indexOf("concacaf.nations") === 0 ||
+           l.indexOf("caf.nations") === 0 ||
+           l.indexOf("afc.asian") === 0 ||
+           l.indexOf("international") !== -1
+  }
+
   function formatCompetitionName(lg) {
     if (!lg || typeof lg !== "string") return { full: "Competition", short: "Comp" }
     var l = lg.toLowerCase()
@@ -7239,127 +7274,142 @@ onStreamFinished: root.warnStderr("", text)
     if (!season) return
 
     if (root.searchPlayerStatsTab === "career") {
+      if (prof.careerStatMap) {
+        root.applySingleStatMap(prof.careerStatMap, "Career")
+      }
       return
     }
 
-    if (root.searchPlayerStatsTab === "season_all") {
-      var comps = season.competitions || []
-      var sumMap = {
-        appearances: 0,
-        totalGoals: 0,
-        goalAssists: 0,
-        shotAssists: 0,
-        minutes: 0,
-        yellowCards: 0,
-        redCards: 0,
-        foulsCommitted: 0,
-        foulsSuffered: 0,
-        subIns: 0,
-        subOuts: 0,
-        totalShots: 0,
-        shotsOnTarget: 0,
-        accurateLongBalls: 0,
-        effectiveTackles: 0,
-        interceptions: 0,
-        saves: 0,
-        cleanSheet: 0,
-        bigChanceCreated: 0,
-        accuratePasses: 0,
-        totalPasses: 0
+    var allComps = season.competitions || []
+    var comps = []
+    if (root.searchPlayerStatsTab === "club") {
+      comps = allComps.filter(function(c) { return !c.isCountry })
+    } else if (root.searchPlayerStatsTab === "country") {
+      comps = allComps.filter(function(c) { return !!c.isCountry })
+    } else {
+      comps = allComps
+    }
+
+    var sLabel = season.seasonYear || String(season.year)
+    prof.selectedSeasonYear = sLabel
+
+    if (comps.length === 0) {
+      var emptyMap = {
+        appearances: "0",
+        totalGoals: "0",
+        goalAssists: "0",
+        shotAssists: "0",
+        minutes: "0",
+        yellowCards: "0",
+        redCards: "0",
+        foulsCommitted: "0",
+        foulsSuffered: "0",
+        subIns: "0",
+        subOuts: "0",
+        totalShots: "0",
+        shotsOnTarget: "0",
+        accurateLongBalls: "0",
+        effectiveTackles: "0",
+        interceptions: "0",
+        saves: "0",
+        cleanSheet: "0",
+        bigChanceCreated: "0",
+        passPct: ""
       }
+      root.applySingleStatMap(emptyMap, sLabel)
+      root.playerStatsLoading = false
+      return
+    }
 
-      var pendingUrls = []
-      var anyCached = false
-      for (var ci = 0; ci < comps.length; ci++) {
-        var curl = comps[ci].url
-        if (!curl) continue
-        var cached = root.playerCompStatCache ? root.playerCompStatCache[curl] : null
-        if (cached) {
-          anyCached = true
-          var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
-          sumMap.appearances += num(cached["appearances"] || cached["starts"])
-          sumMap.totalGoals += num(cached["totalGoals"])
-          sumMap.goalAssists += num(cached["goalAssists"])
-          sumMap.shotAssists += num(cached["shotAssists"])
-          sumMap.minutes += num(cached["minutes"])
-          sumMap.yellowCards += num(cached["yellowCards"])
-          sumMap.redCards += num(cached["redCards"])
-          sumMap.foulsCommitted += num(cached["foulsCommitted"])
-          sumMap.foulsSuffered += num(cached["foulsSuffered"])
-          sumMap.subIns += num(cached["subIns"])
-          sumMap.subOuts += num(cached["subOuts"])
-          sumMap.totalShots += num(cached["totalShots"])
-          sumMap.shotsOnTarget += num(cached["shotsOnTarget"])
-          sumMap.accurateLongBalls += num(cached["accurateLongBalls"] || cached["totalLongBalls"])
-          sumMap.effectiveTackles += num(cached["effectiveTackles"] || cached["totalTackles"])
-          sumMap.interceptions += num(cached["interceptions"])
-          sumMap.saves += num(cached["saves"])
-          sumMap.cleanSheet += num(cached["cleanSheet"])
-          sumMap.bigChanceCreated += num(cached["bigChanceCreated"])
-          sumMap.accuratePasses += num(cached["accuratePasses"])
-          sumMap.totalPasses += num(cached["totalPasses"])
-        } else {
-          pendingUrls.push(curl)
-        }
-      }
+    var sumMap = {
+      appearances: 0,
+      totalGoals: 0,
+      goalAssists: 0,
+      shotAssists: 0,
+      minutes: 0,
+      yellowCards: 0,
+      redCards: 0,
+      foulsCommitted: 0,
+      foulsSuffered: 0,
+      subIns: 0,
+      subOuts: 0,
+      totalShots: 0,
+      shotsOnTarget: 0,
+      accurateLongBalls: 0,
+      effectiveTackles: 0,
+      interceptions: 0,
+      saves: 0,
+      cleanSheet: 0,
+      bigChanceCreated: 0,
+      accuratePasses: 0,
+      totalPasses: 0
+    }
 
-      var sLabel = season.seasonYear || String(season.year)
-      prof.selectedSeasonYear = sLabel
-
-      if (anyCached) {
-        var statMapCombined = {
-          appearances: String(sumMap.appearances),
-          totalGoals: String(sumMap.totalGoals),
-          goalAssists: String(sumMap.goalAssists),
-          shotAssists: String(sumMap.shotAssists),
-          minutes: String(sumMap.minutes),
-          yellowCards: String(sumMap.yellowCards),
-          redCards: String(sumMap.redCards),
-          foulsCommitted: String(sumMap.foulsCommitted),
-          foulsSuffered: String(sumMap.foulsSuffered),
-          subIns: String(sumMap.subIns),
-          subOuts: String(sumMap.subOuts),
-          totalShots: String(sumMap.totalShots),
-          shotsOnTarget: String(sumMap.shotsOnTarget),
-          accurateLongBalls: String(sumMap.accurateLongBalls),
-          effectiveTackles: String(sumMap.effectiveTackles),
-          interceptions: String(sumMap.interceptions),
-          saves: String(sumMap.saves),
-          cleanSheet: String(sumMap.cleanSheet),
-          bigChanceCreated: String(sumMap.bigChanceCreated),
-          passPct: (sumMap.totalPasses > 0) ? String(sumMap.accuratePasses / sumMap.totalPasses) : ""
-        }
-        root.applySingleStatMap(statMapCombined, sLabel)
-      }
-
-      if (pendingUrls.length > 0) {
-        root.fetchPendingCompStats(pendingUrls)
+    var pendingUrls = []
+    var anyCached = false
+    for (var ci = 0; ci < comps.length; ci++) {
+      var curl = comps[ci].url
+      if (!curl) continue
+      var cached = root.playerCompStatCache ? root.playerCompStatCache[curl] : null
+      if (cached) {
+        anyCached = true
+        var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
+        sumMap.appearances += num(cached["appearances"] || cached["starts"])
+        sumMap.totalGoals += num(cached["totalGoals"])
+        sumMap.goalAssists += num(cached["goalAssists"])
+        sumMap.shotAssists += num(cached["shotAssists"])
+        sumMap.minutes += num(cached["minutes"])
+        sumMap.yellowCards += num(cached["yellowCards"])
+        sumMap.redCards += num(cached["redCards"])
+        sumMap.foulsCommitted += num(cached["foulsCommitted"])
+        sumMap.foulsSuffered += num(cached["foulsSuffered"])
+        sumMap.subIns += num(cached["subIns"])
+        sumMap.subOuts += num(cached["subOuts"])
+        sumMap.totalShots += num(cached["totalShots"])
+        sumMap.shotsOnTarget += num(cached["shotsOnTarget"])
+        sumMap.accurateLongBalls += num(cached["accurateLongBalls"] || cached["totalLongBalls"])
+        sumMap.effectiveTackles += num(cached["effectiveTackles"] || cached["totalTackles"])
+        sumMap.interceptions += num(cached["interceptions"])
+        sumMap.saves += num(cached["saves"])
+        sumMap.cleanSheet += num(cached["cleanSheet"])
+        sumMap.bigChanceCreated += num(cached["bigChanceCreated"])
+        sumMap.accuratePasses += num(cached["accuratePasses"])
+        sumMap.totalPasses += num(cached["totalPasses"])
       } else {
-        root.playerStatsLoading = false
+        pendingUrls.push(curl)
       }
-      return
     }
 
-    if (root.searchPlayerStatsTab === "season_comp") {
-      var comps2 = season.competitions || []
-      var cIdx = prof.selectedCompIndex || 0
-      if (cIdx < 0 || cIdx >= comps2.length) cIdx = 0
-      prof.selectedCompIndex = cIdx
-      var comp = comps2[cIdx]
-      if (!comp) return
-
-      var sLabel2 = (season.seasonYear || String(season.year)) + " · " + (comp.shortName || comp.leagueName)
-      prof.selectedSeasonYear = sLabel2
-
-      var cached2 = root.playerCompStatCache ? root.playerCompStatCache[comp.url] : null
-      if (cached2) {
-        root.applySingleStatMap(cached2, sLabel2)
-      } else if (comp.url) {
-        root.playerStatsLoading = true
-        searchPlayerSeasonStatsRequest.running = false
-        searchPlayerSeasonStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", comp.url]
-        searchPlayerSeasonStatsRequest.running = true
+    if (anyCached) {
+      var statMapCombined = {
+        appearances: String(sumMap.appearances),
+        totalGoals: String(sumMap.totalGoals),
+        goalAssists: String(sumMap.goalAssists),
+        shotAssists: String(sumMap.shotAssists),
+        minutes: String(sumMap.minutes),
+        yellowCards: String(sumMap.yellowCards),
+        redCards: String(sumMap.redCards),
+        foulsCommitted: String(sumMap.foulsCommitted),
+        foulsSuffered: String(sumMap.foulsSuffered),
+        subIns: String(sumMap.subIns),
+        subOuts: String(sumMap.subOuts),
+        totalShots: String(sumMap.totalShots),
+        shotsOnTarget: String(sumMap.shotsOnTarget),
+        accurateLongBalls: String(sumMap.accurateLongBalls),
+        effectiveTackles: String(sumMap.effectiveTackles),
+        interceptions: String(sumMap.interceptions),
+        saves: String(sumMap.saves),
+        cleanSheet: String(sumMap.cleanSheet),
+        bigChanceCreated: String(sumMap.bigChanceCreated),
+        passPct: (sumMap.totalPasses > 0) ? String(sumMap.accuratePasses / sumMap.totalPasses) : ""
       }
+      root.applySingleStatMap(statMapCombined, sLabel)
+    }
+
+    if (pendingUrls.length > 0) {
+      root.fetchPendingCompStats(pendingUrls)
+    } else {
+      root.playerStatsLoading = false
     }
   }
 
@@ -7372,7 +7422,7 @@ onStreamFinished: root.warnStderr("", text)
     root._pendingClubProfile = null
     clubFetchTimeoutTimer.stop()
     root.searchPlayerCardTab = "info"
-    root.searchPlayerStatsTab = "season_all"
+    root.searchPlayerStatsTab = "all"
     root.playerCompStatQueue = []
     root.playerCompStatCache = ({})
     searchCompQueueRequest.running = false
@@ -7548,7 +7598,7 @@ onStreamFinished: root.warnStderr("", text)
   // Goalkeepers show SAVES; outfield players show PASS % -> TACKLES -> SHOTS -> KEY PASSES -> CHANCES -> INTERCEPTIONS.
   function stat4Active() {
     var p = root.selectedPlayerProfile
-    var season = root.searchPlayerStatsTab === "season_all" || root.searchPlayerStatsTab === "season_comp" || root.searchPlayerStatsTab === "season"
+    var season = root.searchPlayerStatsTab !== "career"
     if (!p) return { label: "PASS %", value: "" }
     var get = function(c, s) { var v = season ? p[s] : p[c]; return v ? String(v) : "" }
     if (root.isPlayerGoalkeeper()) {
@@ -9537,66 +9587,19 @@ root.warnStderr("team select failed", text)
                   anchors.margins: Style.space(8)
                   spacing: Style.space(6)
 
+                  // Header Row: STATISTICS on Left, Season Navigator on Right
                   Item {
                     width: parent.width
                     height: Style.space(20)
 
-                    Row {
+                    Text {
                       anchors.left: parent.left
                       anchors.verticalCenter: parent.verticalCenter
-                      spacing: Style.space(5)
-
-                      Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "STATISTICS"
-                        font.pixelSize: Style.space(9)
-                        font.bold: true
-                        color: Qt.darker(root.contentForeground, 1.5)
-                        font.family: root.contentFontFamily
-                      }
-
-                      // Mode Toggle Buttons: All Comps / Competition / Career
-                      Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Style.space(3)
-
-                        Button {
-                          height: Style.space(18)
-                          fontSize: Style.space(8)
-                          horizontalPadding: Style.space(5)
-                          verticalPadding: 0
-                          text: "All Comps"
-                          selected: root.searchPlayerStatsTab === "season_all"
-                          fontFamily: root.contentFontFamily
-                          foreground: root.contentForeground
-                          accent: root.contentForeground
-                          onClicked: root.setPlayerStatsTab("season_all")
-                        }
-                        Button {
-                          height: Style.space(18)
-                          fontSize: Style.space(8)
-                          horizontalPadding: Style.space(5)
-                          verticalPadding: 0
-                          text: "Competition"
-                          selected: root.searchPlayerStatsTab === "season_comp"
-                          fontFamily: root.contentFontFamily
-                          foreground: root.contentForeground
-                          accent: root.contentForeground
-                          onClicked: root.setPlayerStatsTab("season_comp")
-                        }
-                        Button {
-                          height: Style.space(18)
-                          fontSize: Style.space(8)
-                          horizontalPadding: Style.space(5)
-                          verticalPadding: 0
-                          text: "Career"
-                          selected: root.searchPlayerStatsTab === "career"
-                          fontFamily: root.contentFontFamily
-                          foreground: root.contentForeground
-                          accent: root.contentForeground
-                          onClicked: root.setPlayerStatsTab("career")
-                        }
-                      }
+                      text: "STATISTICS"
+                      font.pixelSize: Style.space(9)
+                      font.bold: true
+                      color: Qt.darker(root.contentForeground, 1.5)
+                      font.family: root.contentFontFamily
                     }
 
                     // Season Year and Prev/Next Toggle Buttons (Right-aligned)
@@ -9604,16 +9607,15 @@ root.warnStderr("team select failed", text)
                       anchors.right: parent.right
                       anchors.verticalCenter: parent.verticalCenter
                       spacing: Style.space(4)
-                      visible: (root.searchPlayerStatsTab === "season_all" || root.searchPlayerStatsTab === "season_comp" || root.searchPlayerStatsTab === "season") && !!(root.selectedPlayerProfile && root.selectedPlayerProfile.availableSeasons && root.selectedPlayerProfile.availableSeasons.length > 0)
+                      visible: root.searchPlayerStatsTab !== "career" && !!(root.selectedPlayerProfile && root.selectedPlayerProfile.availableSeasons && root.selectedPlayerProfile.availableSeasons.length > 0)
 
                       // Older Season (◀)
                       Button {
-                        height: Style.space(18)
-                        width: Style.space(18)
-                        horizontalPadding: 0
+                        height: Style.space(20)
+                        fontSize: Style.space(8)
+                        horizontalPadding: Style.space(6)
                         verticalPadding: 0
                         text: "◀"
-                        fontSize: Style.space(8)
                         enabled: root.selectedPlayerProfile && root.selectedPlayerProfile.availableSeasons && ((root.selectedPlayerProfile.selectedSeasonIndex || 0) < (root.selectedPlayerProfile.availableSeasons.length - 1))
                         opacity: enabled ? 1.0 : 0.35
                         fontFamily: root.contentFontFamily
@@ -9639,12 +9641,11 @@ root.warnStderr("team select failed", text)
 
                       // Newer Season (▶)
                       Button {
-                        height: Style.space(18)
-                        width: Style.space(18)
-                        horizontalPadding: 0
+                        height: Style.space(20)
+                        fontSize: Style.space(8)
+                        horizontalPadding: Style.space(6)
                         verticalPadding: 0
                         text: "▶"
-                        fontSize: Style.space(8)
                         enabled: root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedSeasonIndex || 0) > 0
                         opacity: enabled ? 1.0 : 0.35
                         fontFamily: root.contentFontFamily
@@ -9655,79 +9656,61 @@ root.warnStderr("team select failed", text)
                     }
                   }
 
-                  // Specific Competition Selector Row (when in Competition mode)
-                  Flickable {
-                    id: compFlick
-                    width: parent.width
-                    height: Style.space(22)
-                    contentWidth: compRow.implicitWidth
-                    contentHeight: height
-                    boundsBehavior: Flickable.StopAtBounds
-                    clip: true
-                    visible: root.searchPlayerStatsTab === "season_comp" && root.currentSeasonComps().length > 0
-
-                    Row {
-                      id: compRow
-                      height: parent.height
-                      spacing: Style.space(4)
-
-                      Repeater {
-                        model: root.currentSeasonComps()
-                        delegate: Rectangle {
-                          height: Style.space(20)
-                          width: compPillText.implicitWidth + Style.space(12)
-                          radius: Style.space(10)
-                          color: (root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedCompIndex || 0) === index)
-                                 ? Util.alpha(root.favoriteTeamAccent, 0.22)
-                                 : Util.alpha(root.contentForeground, 0.05)
-                          border.width: (root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedCompIndex || 0) === index) ? 1 : Style.spacing.hairline
-                          border.color: (root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedCompIndex || 0) === index)
-                                        ? root.favoriteTeamAccent
-                                        : Util.alpha(root.contentForeground, 0.12)
-
-                          Text {
-                            id: compPillText
-                            anchors.centerIn: parent
-                            text: modelData.shortName || modelData.leagueName
-                            color: (root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedCompIndex || 0) === index)
-                                   ? root.favoriteTeamAccent
-                                   : root.contentForeground
-                            font.family: root.contentFontFamily
-                            font.pixelSize: Style.font.caption - 1
-                            font.bold: (root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedCompIndex || 0) === index)
-                          }
-
-                          MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectPlayerCompetition(index)
-                          }
-                        }
-                      }
-                    }
-                  }
-
-                  // All Competitions combined banner/label (when in All Comps mode)
+                  // Filter Row: All Stats | Club | Country | Career
                   Row {
                     width: parent.width
                     spacing: Style.space(4)
-                    visible: root.searchPlayerStatsTab === "season_all" && root.currentSeasonComps().length > 0
 
-                    Text {
-                      text: "󰝨"
-                      font.family: "Symbols Nerd Font, " + root.contentFontFamily
-                      font.pixelSize: Style.space(8)
-                      color: root.favoriteTeamAccent
-                      anchors.verticalCenter: parent.verticalCenter
+                    Button {
+                      height: Style.space(20)
+                      fontSize: Style.space(9)
+                      horizontalPadding: Style.space(8)
+                      verticalPadding: 0
+                      text: "All Stats"
+                      selected: root.searchPlayerStatsTab === "all"
+                      fontFamily: root.contentFontFamily
+                      foreground: root.contentForeground
+                      accent: root.contentForeground
+                      onClicked: root.setPlayerStatsTab("all")
                     }
-                    Text {
-                      text: "Combined stats across all " + root.currentSeasonComps().length + " competitions (" + root.currentSeasonComps().map(function(c) { return c.shortName || c.leagueName }).join(", ") + ")"
-                      font.pixelSize: Style.space(8)
-                      color: Qt.darker(root.contentForeground, 1.6)
-                      font.family: root.contentFontFamily
-                      elide: Text.ElideRight
-                      width: parent.width - Style.space(16)
-                      anchors.verticalCenter: parent.verticalCenter
+
+                    Button {
+                      height: Style.space(20)
+                      fontSize: Style.space(9)
+                      horizontalPadding: Style.space(8)
+                      verticalPadding: 0
+                      text: "Club"
+                      selected: root.searchPlayerStatsTab === "club"
+                      fontFamily: root.contentFontFamily
+                      foreground: root.contentForeground
+                      accent: root.contentForeground
+                      onClicked: root.setPlayerStatsTab("club")
+                    }
+
+                    Button {
+                      height: Style.space(20)
+                      fontSize: Style.space(9)
+                      horizontalPadding: Style.space(8)
+                      verticalPadding: 0
+                      text: "Country"
+                      selected: root.searchPlayerStatsTab === "country"
+                      fontFamily: root.contentFontFamily
+                      foreground: root.contentForeground
+                      accent: root.contentForeground
+                      onClicked: root.setPlayerStatsTab("country")
+                    }
+
+                    Button {
+                      height: Style.space(20)
+                      fontSize: Style.space(9)
+                      horizontalPadding: Style.space(8)
+                      verticalPadding: 0
+                      text: "Career"
+                      selected: root.searchPlayerStatsTab === "career"
+                      fontFamily: root.contentFontFamily
+                      foreground: root.contentForeground
+                      accent: root.contentForeground
+                      onClicked: root.setPlayerStatsTab("career")
                     }
                   }
 
