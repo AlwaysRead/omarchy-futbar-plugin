@@ -16437,8 +16437,10 @@ root.warnStderr("team select failed", text)
               return d
             }
 
+            readonly property bool hasSubText: matchRow.modelData.state === "in" || matchRow.modelData.state === "post" || (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "")
+
             // Slim compact card height preserving original thickness with match date included
-            height: matchColumn.implicitHeight + rowVPadding * 2
+            height: matchColumn.implicitHeight + rowVPadding * 2 + (hasSubText ? Style.space(4) : 0)
 
             readonly property bool rowFollowable: root.leagueMode && !root.leagueBrowseAll && modelData.id !== ""
               && (modelData.state === "in"
@@ -16556,62 +16558,61 @@ root.warnStderr("team select failed", text)
 
                 // Center Score, Kickoff Time, and Status (FT, 67', etc.)
                 Item {
+                  id: centerScoreItem
                   width: root.matchScoreWidth
                   height: root.matchLogoSize
                   anchors.verticalCenter: parent.verticalCenter
 
-                  Row {
+                  Text {
+                    id: matchScoreText
+                    textFormat: Text.PlainText
                     anchors.centerIn: parent
-                    spacing: Style.space(4)
+                    property bool revealed: false
+                    text: matchRow.modelData.state === "pre"
+                      ? (matchRow.modelData.timeText || "VS")
+                      : ((root.antiSpoiler && !revealed)
+                        ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
+                        : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
+                    color: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
+                      ? (root.favoriteTeamAccent || root.contentForeground)
+                      : root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
+                      ? Style.font.caption
+                      : Style.font.body
+                    font.bold: matchRow.modelData.state !== "post"
+                    horizontalAlignment: Text.AlignHCenter
+                  }
 
-                    Text {
-                      id: matchScoreText
-                      textFormat: Text.PlainText
-                      anchors.verticalCenter: parent.verticalCenter
-                      property bool revealed: false
-                      text: matchRow.modelData.state === "pre"
-                        ? (matchRow.modelData.timeText || "VS")
-                        : ((root.antiSpoiler && !revealed)
-                          ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
-                          : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
-                      color: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
-                        ? (root.favoriteTeamAccent || root.contentForeground)
-                        : root.contentForeground
-                      font.family: root.contentFontFamily
-                      font.pixelSize: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
-                        ? Style.font.caption
-                        : Style.font.body
-                      font.bold: matchRow.modelData.state !== "post"
-                      horizontalAlignment: Text.AlignHCenter
-                    }
-
-                    Text {
-                      id: matchRowSubText
-                      textFormat: Text.PlainText
-                      anchors.verticalCenter: parent.verticalCenter
-                      visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
-                      text: {
-                        if (matchRow.modelData.state === "in") return matchRow.modelData.status || "Live"
-                        if (matchRow.modelData.state === "post") {
-                          var s = matchRow.modelData.status || "FT"
-                          if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
-                            s += " (" + matchRow.modelData.shootoutNote + ")"
-                          }
-                          return s
-                        }
+                  Text {
+                    id: matchRowSubText
+                    textFormat: Text.PlainText
+                    anchors.top: matchScoreText.bottom
+                    anchors.topMargin: -Style.space(1)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
+                    text: {
+                      if (matchRow.modelData.state === "in") return matchRow.modelData.status || "Live"
+                      if (matchRow.modelData.state === "post") {
+                        var s = matchRow.modelData.status || "FT"
                         if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
-                          return matchRow.modelData.shootoutNote
+                          s += " (" + matchRow.modelData.shootoutNote + ")"
                         }
-                        return ""
+                        return s
                       }
-                      color: matchRow.modelData.state === "in"
-                        ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.space(8.5)
-                      font.bold: true
-                      elide: Text.ElideRight
-                      width: Math.min(implicitWidth, Math.max(0, root.matchScoreWidth - matchScoreText.implicitWidth - parent.spacing))
+                      if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
+                        return matchRow.modelData.shootoutNote
+                      }
+                      return ""
                     }
+                    color: matchRow.modelData.state === "in"
+                      ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.space(8)
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                    width: root.matchScoreWidth
                   }
 
                   MouseArea {
