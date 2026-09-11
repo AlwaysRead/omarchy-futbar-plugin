@@ -229,11 +229,12 @@ BarWidget {
     }
     if (root.barWidgetMode === "next") {
       if (p.nextMatch) {
-        var opp = p.teamNameFor(p.nextMatch, "away")
-        if (opp === root.teamName) opp = p.teamNameFor(p.nextMatch, "home")
-        var oppAbbrev = p.teamTabLabel(opp, p.league, "abbrev")
+        var home = p.teamNameFor(p.nextMatch, "home")
+        var away = p.teamNameFor(p.nextMatch, "away")
+        var homeAbbrev = p.teamTabLabel(home, p.league, "abbrev")
+        var awayAbbrev = p.teamTabLabel(away, p.league, "abbrev")
         var t = p.kickoffTime(p.nextMatch)
-        return "vs " + (oppAbbrev || opp) + (t ? " " + t : "")
+        return (homeAbbrev || home || "H") + " vs " + (awayAbbrev || away || "A") + (t ? " " + t : "")
       }
       return ""
     }
@@ -250,26 +251,16 @@ BarWidget {
 
   Component {
     id: barLabelComponent
-    Row {
-      spacing: Style.space(5)
+    // Text-only label: in score/next modes the bar shows just the fixture
+    // text (no ball glyph). Live state is still signaled through the accent
+    // color (button.active -> activeColor), same as icon mode.
+    Text {
       anchors.centerIn: parent
-
-      Text {
-        anchors.verticalCenter: parent.verticalCenter
-        text: "󰒸"
-        color: button.active && button.useActiveColor ? button.activeColor : button.foreground
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.bar.iconFont
-      }
-
-      Text {
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.barDisplayText
-        color: button.active && button.useActiveColor ? button.activeColor : button.foreground
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
+      text: root.barDisplayText
+      color: button.active && button.useActiveColor ? button.activeColor : button.foreground
+      font.family: root.bar ? root.bar.fontFamily : Style.font.family
+      font.pixelSize: Style.font.caption
+      font.bold: true
     }
   }
 

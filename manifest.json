@@ -18,6 +18,18 @@
     "category": "Sports",
     "allowMultiple": false,
     "defaultSection": "right",
+    "defaults": {
+      "tabLabelStyle": "abbrev",
+      "barWidgetMode": "icon",
+      "kickoffTimeFormat": "24h",
+      "enableNotifications": true,
+      "notifyGoals": true,
+      "notifyEvents": true,
+      "notifyScope": "primary",
+      "antiSpoiler": false,
+      "showOdds": true,
+      "livePollRate": 10
+    },
     "schema": [
       {
         "key": "teamName",
@@ -32,74 +44,85 @@
         "description": "Examples: esp.1 (LaLiga), eng.1 (Premier League), ita.1 (Serie A), ger.1 (Bundesliga), uefa.champions."
       },
       {
-        "key": "tabLabelStyle",
+        "key": "teamId",
         "type": "string",
+        "label": "ESPN team ID",
+        "description": "Numeric ESPN team identifier, resolved automatically when you pick a club in the panel. Rarely needs manual editing."
+      },
+      {
+        "key": "tabLabelStyle",
+        "type": "enum",
         "label": "Tab label style",
         "description": "Choose how followed tabs are labeled: abbrev (3 letters), short (short names), or full (full names).",
-        "default": "abbrev"
+        "options": ["abbrev", "short", "full"],
+        "defaultValue": "abbrev"
       },
       {
         "key": "barWidgetMode",
-        "type": "string",
+        "type": "enum",
         "label": "Bar widget display mode",
         "description": "Choose what is displayed on the top bar: icon (minimal glyph), score (live match score), or next (upcoming fixture).",
-        "default": "icon"
+        "options": ["icon", "score", "next"],
+        "defaultValue": "icon"
       },
       {
         "key": "kickoffTimeFormat",
-        "type": "string",
+        "type": "enum",
         "label": "Kickoff time format",
         "description": "Format for match kickoff times: 24h (20:00), 12h (8:00 PM), or relative (in 2h 15m).",
-        "default": "24h"
+        "options": ["24h", "12h", "relative"],
+        "defaultValue": "24h"
       },
       {
         "key": "enableNotifications",
         "type": "boolean",
         "label": "Enable desktop notifications",
         "description": "Master switch to enable or disable all desktop match notifications.",
-        "default": true
+        "defaultValue": true
       },
       {
         "key": "notifyGoals",
         "type": "boolean",
         "label": "Goal alerts",
         "description": "Send desktop notification when a goal is scored.",
-        "default": true
+        "defaultValue": true
       },
       {
         "key": "notifyEvents",
         "type": "boolean",
         "label": "Cards and match whistles",
         "description": "Send desktop notification on red cards, penalties, kickoff, and full-time.",
-        "default": true
+        "defaultValue": true
       },
       {
         "key": "notifyScope",
-        "type": "string",
+        "type": "enum",
         "label": "Notification scope",
         "description": "Choose whether to receive alerts for primary club only or all followed tabs.",
-        "default": "primary"
+        "options": ["primary", "all"],
+        "defaultValue": "primary"
       },
       {
         "key": "antiSpoiler",
         "type": "boolean",
         "label": "Anti-spoiler mode",
         "description": "Hide match scores behind a reveal badge until hovered or clicked.",
-        "default": false
+        "defaultValue": false
       },
       {
         "key": "showOdds",
         "type": "boolean",
         "label": "Show pre-match betting odds",
         "description": "Show pre-match betting odds and win probability in fixture info.",
-        "default": true
+        "defaultValue": true
       },
       {
         "key": "livePollRate",
-        "type": "integer",
+        "type": "enum",
         "label": "Live polling interval (seconds)",
         "description": "Refresh rate during live matches: 10, 30, or 60 seconds.",
-        "default": 10
+        "options": [10, 30, 60],
+        "defaultValue": 10
       }
     ]
   }
