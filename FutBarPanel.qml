@@ -349,17 +349,16 @@ Panel {
   // League-follow mode: the user tracks a whole competition instead of a
   // single club. Stored in the favorite file (authoritative on reload).
   readonly property bool leagueMode: {
-    if (root.savedFavorite && root.savedFavorite.followLeague === true) {
-      if (root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName && (!root.savedFavorite.teamName || root.savedFavorite.teamName === "")) {
-        return false
-      }
-      return true
+    if (root.savedFavorite && root.savedFavorite.followLeague !== undefined) {
+      return root.savedFavorite.followLeague === true
     }
-    if ((!root.savedFavorite || !root.savedFavorite.teamName) && (setting("teamName", "") === "")) {
-      if (root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName) return false
-      return String(root.league || "") !== ""
+    if (root.savedFavorite && root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== "") {
+      return false
     }
-    return false
+    if (root.primaryItem) {
+      return root.primaryItem.followLeague === true
+    }
+    return setting("teamName", "") === "" && (root.league !== "" || setting("league", "") !== "")
   }
   // True once the widget has started fetching with a real team. Reloads must
   // not fetch (or worse, resolve+persist) with stale in-memory settings before
@@ -696,6 +695,48 @@ Panel {
   function teamKey(name, league) {
     return root.itemKey(name, league, false)
   }
+  function normalizeTeamName(s) {
+    if (!s || typeof s !== "string") return ""
+    return s.toLowerCase()
+      .replace(/\bfc\b|\bcf\b|\bsc\b|\bac\b|\bafc\b/gi, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim()
+  }
+  function isSameTeam(a, b) {
+    var na = root.normalizeTeamName(a)
+    var nb = root.normalizeTeamName(b)
+    return na !== "" && nb !== "" && na === nb
+  }
+  function findFollowedTab(teamName, league, teamId, followLeague) {
+    var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
+    var lg = String(league || "").trim().toLowerCase()
+    var name = String(teamName || "").trim().toLowerCase()
+    var tid = String(teamId || "").trim()
+    var tabs = root.allFollowedTabs()
+    for (var i = 0; i < tabs.length; i++) {
+      var t = tabs[i]
+      if (isLg) {
+        if (t.followLeague && String(t.league || "").trim().toLowerCase() === lg) return t
+      } else {
+        if (!t.followLeague) {
+          var tTid = String(t.teamId || "").trim()
+          var tName = String(t.teamName || "").trim().toLowerCase()
+          if (tid !== "" && tTid !== "" && tid === tTid) return t
+          if (name !== "" && tName !== "" && (name === tName || root.isSameTeam(name, tName))) return t
+        }
+      }
+    }
+    return null
+  }
+  function isItemFollowed(teamName, league, teamId, followLeague) {
+    return root.findFollowedTab(teamName, league, teamId, followLeague) !== null
+  }
+  function isLeagueFollowed(league) {
+    return root.findFollowedTab("", league, "", true) !== null
+  }
+  function isTeamFollowed(teamName, teamId) {
+    return root.findFollowedTab(teamName, "", teamId, false) !== null
+  }
   // Normalizes to well-formed { teamName, league, teamId, followLeague } objects
   // so every consumer -- switchActiveItem, the tab Repeater -- can trust entry fields.
   function followedTeamsList() {
@@ -745,44 +786,91 @@ Panel {
     }
 
     var tabs = []
-    var seen = {}
+    var seenKeys = {}
+    var seenLeagues = {}
+    var seenTeams = {}
+    var seenTeamIds = {}
+
+    function markSeen(tName, tLg, tTid, tIsLg) {
+      var k = root.itemKey(tIsLg ? "" : tName, tLg, tIsLg)
+      seenKeys[k] = true
+      if (tIsLg) {
+        if (tLg) seenLeagues[tLg.toLowerCase()] = true
+      } else {
+        if (tName) {
+          seenTeams[tName.toLowerCase()] = true
+          var norm = root.normalizeTeamName(tName)
+          if (norm) seenTeams[norm] = true
+        }
+        if (tTid) seenTeamIds[tTid] = true
+      }
+    }
+
+    function isSeen(tName, tLg, tTid, tIsLg) {
+      var k = root.itemKey(tIsLg ? "" : tName, tLg, tIsLg)
+      if (seenKeys[k]) return true
+      if (tIsLg) {
+        if (tLg && seenLeagues[tLg.toLowerCase()]) return true
+      } else {
+        if (tTid && seenTeamIds[tTid]) return true
+        if (tName) {
+          if (seenTeams[tName.toLowerCase()]) return true
+          var norm = root.normalizeTeamName(tName)
+          if (norm && seenTeams[norm]) return true
+        }
+      }
+      return false
+    }
 
     for (var i = 0; i < rawOrder.length; i++) {
       var entry = rawOrder[i]
       if (!entry || typeof entry !== "object") continue
-      var name = typeof entry.teamName === "string" ? entry.teamName : ""
-      var lg = typeof entry.league === "string" ? entry.league : ""
+      var name = typeof entry.teamName === "string" ? entry.teamName.trim() : ""
+      var lg = typeof entry.league === "string" ? entry.league.trim() : ""
+      var tid = typeof entry.teamId === "string" ? entry.teamId.trim() : ""
       var isLg = entry.followLeague === true || (name === "" && lg !== "")
       if (name === "" && lg === "") continue
-      var key = root.itemKey(isLg ? "" : name, lg, isLg)
-      if (seen[key]) continue
-      seen[key] = true
+      if (isSeen(name, lg, tid, isLg)) continue
+      markSeen(name, lg, tid, isLg)
       tabs.push({
         teamName: isLg ? "" : name,
         league: lg,
-        teamId: typeof entry.teamId === "string" ? entry.teamId : "",
+        teamId: tid,
         followLeague: isLg
       })
     }
 
-    var activeKey = root.itemKey(root.leagueMode ? "" : root.teamName, root.league, root.leagueMode)
-    if (activeKey !== "||false" && activeKey !== "||true" && !seen[activeKey]) {
-      seen[activeKey] = true
+    var curIsLg = root.leagueMode
+    var curName = curIsLg ? "" : root.teamName
+    var curLg = root.league
+    var curTid = curIsLg ? "" : (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
+    var hasActive = curIsLg ? (curLg !== "") : (curName !== "")
+    if (hasActive && !isSeen(curName, curLg, curTid, curIsLg)) {
+      markSeen(curName, curLg, curTid, curIsLg)
       tabs.push({
-        teamName: root.leagueMode ? "" : root.teamName,
-        league: root.league,
-        teamId: root.leagueMode ? "" : (root.teamId !== "" ? root.teamId : root.resolvedTeamId),
-        followLeague: root.leagueMode
+        teamName: curName,
+        league: curLg,
+        teamId: curTid,
+        followLeague: curIsLg
       })
     }
 
     var legacyList = root.followedTeamsList()
     for (var j = 0; j < legacyList.length; j++) {
       var lEntry = legacyList[j]
-      var lKey = root.itemKey(lEntry.teamName, lEntry.league, lEntry.followLeague)
-      if (!seen[lKey]) {
-        seen[lKey] = true
-        tabs.push(lEntry)
+      var lName = typeof lEntry.teamName === "string" ? lEntry.teamName.trim() : ""
+      var lLg = typeof lEntry.league === "string" ? lEntry.league.trim() : ""
+      var lTid = typeof lEntry.teamId === "string" ? lEntry.teamId.trim() : ""
+      var lIsLg = lEntry.followLeague === true || (lName === "" && lLg !== "")
+      if (lName === "" && lLg === "") continue
+      if (!isSeen(lName, lLg, lTid, lIsLg)) {
+        markSeen(lName, lLg, lTid, lIsLg)
+        tabs.push({
+          teamName: lIsLg ? "" : lName,
+          league: lLg,
+          teamId: lTid,
+          followLeague: lIsLg
+        })
       }
     }
 
@@ -802,22 +890,43 @@ Panel {
       for (var k in root.savedFavorite) payload[k] = root.savedFavorite[k]
     }
     var cleanTabs = []
+    var seenKeys = {}
+    var seenLeagues = {}
+    var seenTeams = {}
+    var seenTeamIds = {}
 
     if (Array.isArray(list)) {
       for (var i = 0; i < list.length; i++) {
         var entry = list[i]
         if (!entry || typeof entry !== "object") continue
-        var name = typeof entry.teamName === "string" ? entry.teamName : ""
-        var lg = typeof entry.league === "string" ? entry.league : ""
+        var name = typeof entry.teamName === "string" ? entry.teamName.trim() : ""
+        var lg = typeof entry.league === "string" ? entry.league.trim() : ""
+        var tid = typeof entry.teamId === "string" ? entry.teamId.trim() : ""
         var isLg = entry.followLeague === true || (name === "" && lg !== "")
         if (name === "" && lg === "") continue
-        var itemObj = {
+        var key = root.itemKey(isLg ? "" : name, lg, isLg)
+        if (seenKeys[key]) continue
+        if (isLg) {
+          if (lg && seenLeagues[lg.toLowerCase()]) continue
+          seenLeagues[lg.toLowerCase()] = true
+        } else {
+          if (tid && seenTeamIds[tid]) continue
+          if (name && seenTeams[name.toLowerCase()]) continue
+          var norm = root.normalizeTeamName(name)
+          if (norm && seenTeams[norm]) continue
+          if (tid) seenTeamIds[tid] = true
+          if (name) {
+            seenTeams[name.toLowerCase()] = true
+            if (norm) seenTeams[norm] = true
+          }
+        }
+        seenKeys[key] = true
+        cleanTabs.push({
           teamName: isLg ? "" : name,
           league: lg,
-          teamId: typeof entry.teamId === "string" ? entry.teamId : "",
+          teamId: tid,
           followLeague: isLg
-        }
-        cleanTabs.push(itemObj)
+        })
       }
     }
 
@@ -844,32 +953,27 @@ Panel {
   // Switches the active item WITHOUT reordering the tabs list
   function switchActiveItem(teamName, league, teamId, followLeague) {
     var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
-    var destKey = root.itemKey(isLg ? "" : teamName, league, isLg)
-    var activeKey = root.itemKey(root.leagueMode ? "" : root.teamName, root.league, root.leagueMode)
-    if (destKey === activeKey) return
-
+    var existing = root.findFollowedTab(teamName, league, teamId, isLg)
     var currentTabs = root.allFollowedTabs().slice()
-    var found = false
-    for (var i = 0; i < currentTabs.length; i++) {
-      if (root.itemKey(currentTabs[i].teamName, currentTabs[i].league, currentTabs[i].followLeague) === destKey) {
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      currentTabs.push({
+    if (!existing) {
+      existing = {
         teamName: isLg ? "" : teamName,
         league: league,
         teamId: teamId || "",
         followLeague: isLg
-      })
+      }
+      currentTabs.push(existing)
     }
 
+    var destKey = root.itemKey(existing.teamName, existing.league, existing.followLeague)
+    var activeKey = root.itemKey(root.leagueMode ? "" : root.teamName, root.league, root.leagueMode)
+    if (destKey === activeKey) return
+
     // Keep tabs in their exact positions!
-    if (isLg) {
-      root.activateLeague(league, currentTabs)
+    if (existing.followLeague) {
+      root.activateLeague(existing.league, currentTabs)
     } else {
-      root.activateTeam(teamName, league, teamId, currentTabs)
+      root.activateTeam(existing.teamName, existing.league, existing.teamId, currentTabs)
     }
   }
 
@@ -917,24 +1021,17 @@ Panel {
   }
   function addFollowedItem(teamName, league, teamId, followLeague) {
     var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
-    var destKey = root.itemKey(isLg ? "" : teamName, league, isLg)
+    if (root.findFollowedTab(teamName, league, teamId, isLg)) {
+      return
+    }
     var currentTabs = root.allFollowedTabs().slice()
-    var found = false
-    for (var i = 0; i < currentTabs.length; i++) {
-      if (root.itemKey(currentTabs[i].teamName, currentTabs[i].league, currentTabs[i].followLeague) === destKey) {
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      currentTabs.push({
-        teamName: isLg ? "" : teamName,
-        league: league,
-        teamId: teamId || "",
-        followLeague: isLg
-      })
-      root.persistFollowedTeams(currentTabs)
-    }
+    currentTabs.push({
+      teamName: isLg ? "" : teamName,
+      league: league,
+      teamId: teamId || "",
+      followLeague: isLg
+    })
+    root.persistFollowedTeams(currentTabs)
   }
   function removeFollowedItem(teamName, league, followLeague) {
     var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
@@ -3864,7 +3961,13 @@ Panel {
     root.editingTeam = false
     if (root.addingTeam) {
       root.addingTeam = false
-      root.addFollowedTeam(teamVal, leagueVal, teamIdVal)
+      var existing = root.findFollowedTab(teamVal, leagueVal, teamIdVal, false)
+      if (existing) {
+        root.switchActiveTeam(existing.teamName, existing.league, existing.teamId)
+      } else {
+        root.addFollowedTeam(teamVal, leagueVal, teamIdVal)
+        root.switchActiveTeam(teamVal, leagueVal, teamIdVal)
+      }
     } else {
       root.switchActiveTeam(teamVal, leagueVal, teamIdVal)
     }
@@ -4060,7 +4163,13 @@ Panel {
     root.editingTeam = false
     if (root.addingTeam) {
       root.addingTeam = false
-      root.addFollowedLeague(leagueVal)
+      var existing = root.findFollowedTab("", leagueVal, "", true)
+      if (existing) {
+        root.switchActiveLeague(existing.league)
+      } else {
+        root.addFollowedLeague(leagueVal)
+        root.switchActiveLeague(leagueVal)
+      }
     } else {
       root.switchActiveLeague(leagueVal)
     }
@@ -9433,7 +9542,15 @@ root.warnStderr("team select failed", text)
               Button {
                 visible: root.selectedTeam || root.pickerLeagueOnly
                 width: parent.width
-                text: root.addingTeam ? "Add to Followed Tabs" : "Confirm Selection"
+                text: {
+                  if (root.addingTeam) {
+                    var alreadyFollowed = root.pickerLeagueOnly
+                      ? root.isLeagueFollowed(root.selectedLeague)
+                      : (root.selectedTeam ? root.isTeamFollowed(root.selectedTeam.value, root.selectedTeam.id) : false)
+                    return alreadyFollowed ? "Already Followed (Switch to Tab)" : "Add to Followed Tabs"
+                  }
+                  return "Confirm Selection"
+                }
                 fontFamily: root.contentFontFamily
                 foreground: root.contentForeground
                 accent: root.contentForeground

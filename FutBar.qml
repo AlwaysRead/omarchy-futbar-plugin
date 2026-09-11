@@ -53,8 +53,9 @@ BarWidget {
     return null
   }
   readonly property string teamName: {
-    if (root.primaryItem && !root.primaryItem.followLeague && root.primaryItem.teamName) {
-      return root.sanitizePlainText(root.primaryItem.teamName)
+    if (root.primaryItem) {
+      if (root.primaryItem.followLeague) return ""
+      if (root.primaryItem.teamName) return root.sanitizePlainText(root.primaryItem.teamName)
     }
     var raw = (root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== "")
       ? root.savedFavorite.teamName : setting("teamName", "")
