@@ -600,7 +600,7 @@ Panel {
     root.setSettingValue("showOdds", root.toBool(on, true))
   }
 
-  // Transient confirmation flag for the Save Settings button.
+  // Transient confirmation flags for settings actions.
   property bool settingsJustSaved: false
   Timer {
     id: settingsSavedTimer
@@ -608,13 +608,17 @@ Panel {
     onTriggered: root.settingsJustSaved = false
   }
 
+  property bool settingsJustReset: false
+  Timer {
+    id: settingsResetTimer
+    interval: 2500
+    onTriggered: root.settingsJustReset = false
+  }
+
   // Writes every display/notification/refresh preference to BOTH stores at
   // once: the local favorite file (authoritative for the panel) and shell.json
   // (authoritative for `omarchy plugin config` and the bar widget's
-  // injected settings). Per-control edits already stream through, but the
-  // favorite file wins over shell.json on reload, so without an explicit
-  // save a change made in the plugin config UI can look ignored. Saving
-  // replays all ten values and confirms with a desktop notification.
+  // injected settings).
   function saveAllSettings() {
     var payload = {}
     if (root.savedFavorite && typeof root.savedFavorite === "object") {
@@ -647,7 +651,43 @@ Panel {
     }
     root.settingsJustSaved = true
     settingsSavedTimer.restart()
-    root.notify("Settings Saved", "Display, notification, and refresh preferences applied to the desktop bar", "󰸞")
+    root.notify("Settings Confirmed", "Preferences saved and applied to desktop bar", "󰄬")
+  }
+
+  function confirmAllSettings() {
+    root.saveAllSettings()
+    if (!root.needsTeam) {
+      root.editingTeam = false
+      root.addingTeam = false
+    }
+  }
+
+  function resetAllSettings() {
+    var payload = {}
+    if (root.savedFavorite && typeof root.savedFavorite === "object") {
+      for (var k in root.savedFavorite) payload[k] = root.savedFavorite[k]
+    }
+    payload.tabLabelStyle = "abbrev"
+    payload.barWidgetMode = "icon"
+    payload.kickoffTimeFormat = "24h"
+    payload.enableNotifications = true
+    payload.notifyGoals = true
+    payload.notifyEvents = true
+    payload.notifyScope = "primary"
+    payload.antiSpoiler = false
+    payload.showOdds = true
+    payload.livePollRate = 10
+    root.savedFavorite = payload
+    favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
+    var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
+      "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
+      "antiSpoiler", "showOdds", "livePollRate"]
+    for (var i = 0; i < keys.length; i++) {
+      root._queueSetBarWidget(keys[i], payload[keys[i]])
+    }
+    root.settingsJustReset = true
+    settingsResetTimer.restart()
+    root.notify("Settings Reset", "All preferences have been restored to defaults", "󰦛")
   }
 
   function setLivePollRate(sec) {
@@ -10298,18 +10338,38 @@ root.warnStderr("team select failed", text)
               onClicked: root.clearCacheAndReload()
             }
 
-            Button {
+            Row {
               width: parent.width
-              iconText: "󰸞"
-              text: root.settingsJustSaved ? "Settings Saved" : "Save Settings"
-              tooltipText: "Write all display, notification, and refresh preferences to the favorite file and the desktop bar config"
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.favoriteTeamAccent || root.contentForeground
-              fontSize: Style.font.caption
-              horizontalPadding: Style.space(10)
-              verticalPadding: Style.space(6)
-              onClicked: root.saveAllSettings()
+              spacing: Style.space(8)
+
+              Button {
+                width: (parent.width - parent.spacing) / 2
+                iconText: "󰦛"
+                text: root.settingsJustReset ? "Reset Done" : "Reset"
+                tooltipText: "Reset all preferences back to default values"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.contentForeground
+                fontSize: Style.font.caption
+                horizontalPadding: Style.space(8)
+                verticalPadding: Style.space(6)
+                onClicked: root.resetAllSettings()
+              }
+
+              Button {
+                width: (parent.width - parent.spacing) / 2
+                iconText: "󰄬"
+                text: root.settingsJustSaved ? "Confirmed" : "Confirm"
+                tooltipText: "Confirm and apply all preferences to the desktop bar"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.favoriteTeamAccent || Color.accent
+                selected: true
+                fontSize: Style.font.caption
+                horizontalPadding: Style.space(8)
+                verticalPadding: Style.space(6)
+                onClicked: root.confirmAllSettings()
+              }
             }
           }
         }
