@@ -16509,21 +16509,28 @@ root.warnStderr("team select failed", text)
               // Matchup Row: Home Crest & Name - Center Score / Status - Away Name & Crest
               Row {
                 width: parent.width
+                height: root.matchLogoSize
                 spacing: Style.space(6)
 
-                Image {
-                  anchors.verticalCenter: parent.verticalCenter
+                Item {
                   width: root.matchLogoSize
                   height: root.matchLogoSize
-                  source: matchRow.modelData.homeLogo
-                  fillMode: Image.PreserveAspectFit
-                  sourceSize.width: 96
-                  sourceSize.height: 96
-                  mipmap: true
-                  cache: true
-                  asynchronous: true
-                  smooth: true
-                  visible: String(source) !== ""
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Image {
+                    anchors.centerIn: parent
+                    width: root.matchLogoSize
+                    height: root.matchLogoSize
+                    source: matchRow.modelData.homeLogo
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize.width: 96
+                    sourceSize.height: 96
+                    mipmap: true
+                    cache: true
+                    asynchronous: true
+                    smooth: true
+                    visible: String(source) !== ""
+                  }
                 }
 
                 Text {
@@ -16545,14 +16552,14 @@ root.warnStderr("team select failed", text)
                   height: root.matchLogoSize
                   anchors.verticalCenter: parent.verticalCenter
 
-                  Column {
+                  Row {
                     anchors.centerIn: parent
-                    spacing: 0
+                    spacing: Style.space(4)
 
                     Text {
                       id: matchScoreText
                       textFormat: Text.PlainText
-                      anchors.horizontalCenter: parent.horizontalCenter
+                      anchors.verticalCenter: parent.verticalCenter
                       property bool revealed: false
                       text: matchRow.modelData.state === "pre"
                         ? matchRow.modelData.timeText
@@ -16568,19 +16575,12 @@ root.warnStderr("team select failed", text)
                         : Style.font.body
                       font.bold: matchRow.modelData.state !== "post"
                       horizontalAlignment: Text.AlignHCenter
-
-                      MouseArea {
-                        anchors.fill: parent
-                        enabled: root.antiSpoiler && !matchScoreText.revealed && matchRow.modelData.state !== "pre"
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: matchScoreText.revealed = true
-                      }
                     }
 
                     Text {
                       id: matchRowSubText
                       textFormat: Text.PlainText
-                      anchors.horizontalCenter: parent.horizontalCenter
+                      anchors.verticalCenter: parent.verticalCenter
                       visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
                       text: {
                         if (matchRow.modelData.state === "in") return matchRow.modelData.status || "Live"
@@ -16599,10 +16599,18 @@ root.warnStderr("team select failed", text)
                       color: matchRow.modelData.state === "in"
                         ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
                       font.family: root.contentFontFamily
-                      font.pixelSize: Style.space(8)
-                      font.bold: matchRow.modelData.state === "in"
+                      font.pixelSize: Style.space(8.5)
+                      font.bold: true
                       elide: Text.ElideRight
+                      width: Math.min(implicitWidth, Math.max(0, root.matchScoreWidth - matchScoreText.implicitWidth - parent.spacing))
                     }
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    enabled: root.antiSpoiler && !matchScoreText.revealed && matchRow.modelData.state !== "pre"
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: matchScoreText.revealed = true
                   }
                 }
 
@@ -16619,19 +16627,25 @@ root.warnStderr("team select failed", text)
                   horizontalAlignment: Text.AlignLeft
                 }
 
-                Image {
-                  anchors.verticalCenter: parent.verticalCenter
+                Item {
                   width: root.matchLogoSize
                   height: root.matchLogoSize
-                  source: matchRow.modelData.awayLogo
-                  fillMode: Image.PreserveAspectFit
-                  sourceSize.width: 96
-                  sourceSize.height: 96
-                  mipmap: true
-                  cache: true
-                  asynchronous: true
-                  smooth: true
-                  visible: String(source) !== ""
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Image {
+                    anchors.centerIn: parent
+                    width: root.matchLogoSize
+                    height: root.matchLogoSize
+                    source: matchRow.modelData.awayLogo
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize.width: 96
+                    sourceSize.height: 96
+                    mipmap: true
+                    cache: true
+                    asynchronous: true
+                    smooth: true
+                    visible: String(source) !== ""
+                  }
                 }
               }
             }
@@ -17158,7 +17172,6 @@ root.warnStderr("team select failed", text)
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
             visible: !root.leagueMode || root.leagueBrowseAll
-            onVisibleChanged: console.warn("futbar", "NAV-VISIBLE=" + matchWeekNav.visible + " leagueMode=" + root.leagueMode + " browseAll=" + root.leagueBrowseAll + " showMatches=" + root.showMatches + " rows=" + root.matchWeekRows.length + " label=[" + root.matchWeekLabel + "]")
 
             Button {
               id: prevWeekButton
@@ -17222,21 +17235,6 @@ root.warnStderr("team select failed", text)
                 root.pendingEdge = "next"
                 root.loadMatchList()
               }
-            }
-          }
-
-          Timer {
-            interval: 2000
-            repeat: true
-            running: root.opened
-            onTriggered: {
-              var o = matchWeekNav
-              var s = ""
-              while (o) {
-                s += (o.visible ? "V" : "v") + "(" + Math.round(o.x) + "," + Math.round(o.y) + " " + Math.round(o.width) + "x" + Math.round(o.height) + ") <- "
-                o = o.parent
-              }
-              console.warn("futbar", "NAV-GEO " + s)
             }
           }
         }
