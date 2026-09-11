@@ -206,11 +206,78 @@ BarWidget {
     else if (button.tooltipHovered) root.bar.showTooltip(button, root.tooltip)
   }
 
+  readonly property string barWidgetMode: {
+    var raw = (root.savedFavorite && root.savedFavorite.barWidgetMode !== undefined && root.savedFavorite.barWidgetMode !== "")
+      ? String(root.savedFavorite.barWidgetMode) : setting("barWidgetMode", "icon")
+    if (raw === "score" || raw === "next" || raw === "icon") return raw
+    return "icon"
+  }
+
+  readonly property string barDisplayText: {
+    var p = panelLoader.item
+    if (!p) return ""
+    if (root.barWidgetMode === "score") {
+      if (p.liveMatch) {
+        var h = p.scoreFor(p.liveMatch, "home")
+        var a = p.scoreFor(p.liveMatch, "away")
+        var clk = p.statusFor(p.liveMatch)
+        var hAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "home"), p.league, "abbrev")
+        var aAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "away"), p.league, "abbrev")
+        return (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
+      }
+      return ""
+    }
+    if (root.barWidgetMode === "next") {
+      if (p.nextMatch) {
+        var opp = p.teamNameFor(p.nextMatch, "away")
+        if (opp === root.teamName) opp = p.teamNameFor(p.nextMatch, "home")
+        var oppAbbrev = p.teamTabLabel(opp, p.league, "abbrev")
+        var t = p.kickoffTime(p.nextMatch)
+        return "vs " + (oppAbbrev || opp) + (t ? " " + t : "")
+      }
+      return ""
+    }
+    return ""
+  }
+
+  TextMetrics {
+    id: barMetrics
+    text: root.barDisplayText
+    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+    font.pixelSize: Style.font.caption
+    font.bold: true
+  }
+
+  Component {
+    id: barLabelComponent
+    Row {
+      spacing: Style.space(5)
+      anchors.centerIn: parent
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "󰒸"
+        color: button.active && button.useActiveColor ? button.activeColor : button.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.bar.iconFont
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.barDisplayText
+        color: button.active && button.useActiveColor ? button.activeColor : button.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
+        font.bold: true
+      }
+    }
+  }
+
   // Refresh cadence for the shared data fetches (scoreboard, fixtures).
   // Fast while a match is live so goals reach the bar and popup promptly;
   // relaxed otherwise to stay off ESPN's back. Notification bodies never
   // depend on this timing: they read scores from their own summary payload.
-  readonly property int liveRefreshMs: 10000
+  readonly property int liveRefreshMs: ((panelLoader.item && panelLoader.item.livePollRate) ? panelLoader.item.livePollRate : 10) * 1000
   readonly property int idleRefreshMs: 60000
 
   Timer {
@@ -250,11 +317,13 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // Keep the bar clean: fixture details stay in the popup and tooltip.
     text: "󰒸"
     tooltipText: root.tooltip
-    // Steady theme accent while a match is live; white otherwise. Events
-    // blink it via the eventBlink animation above.
+    iconComponent: (root.barWidgetMode !== "icon" && root.barDisplayText !== "") ? barLabelComponent : null
+    slotSize: (root.barWidgetMode !== "icon" && root.barDisplayText !== "")
+      ? Math.max(Style.bar.iconSlot, Style.space(28) + barMetrics.width)
+      : Style.bar.iconSlot
+    opticalSize: slotSize
     active: root.live
     activeColor: Color.accent
     onPressed: function(mouseButton) {

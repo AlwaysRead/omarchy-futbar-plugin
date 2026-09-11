@@ -30,6 +30,76 @@
         "type": "string",
         "label": "ESPN league code",
         "description": "Examples: esp.1 (LaLiga), eng.1 (Premier League), ita.1 (Serie A), ger.1 (Bundesliga), uefa.champions."
+      },
+      {
+        "key": "tabLabelStyle",
+        "type": "string",
+        "label": "Tab label style",
+        "description": "Choose how followed tabs are labeled: abbrev (3 letters), short (short names), or full (full names).",
+        "default": "abbrev"
+      },
+      {
+        "key": "barWidgetMode",
+        "type": "string",
+        "label": "Bar widget display mode",
+        "description": "Choose what is displayed on the top bar: icon (minimal glyph), score (live match score), or next (upcoming fixture).",
+        "default": "icon"
+      },
+      {
+        "key": "kickoffTimeFormat",
+        "type": "string",
+        "label": "Kickoff time format",
+        "description": "Format for match kickoff times: 24h (20:00), 12h (8:00 PM), or relative (in 2h 15m).",
+        "default": "24h"
+      },
+      {
+        "key": "enableNotifications",
+        "type": "boolean",
+        "label": "Enable desktop notifications",
+        "description": "Master switch to enable or disable all desktop match notifications.",
+        "default": true
+      },
+      {
+        "key": "notifyGoals",
+        "type": "boolean",
+        "label": "Goal alerts",
+        "description": "Send desktop notification when a goal is scored.",
+        "default": true
+      },
+      {
+        "key": "notifyEvents",
+        "type": "boolean",
+        "label": "Cards and match whistles",
+        "description": "Send desktop notification on red cards, penalties, kickoff, and full-time.",
+        "default": true
+      },
+      {
+        "key": "notifyScope",
+        "type": "string",
+        "label": "Notification scope",
+        "description": "Choose whether to receive alerts for primary club only or all followed tabs.",
+        "default": "primary"
+      },
+      {
+        "key": "antiSpoiler",
+        "type": "boolean",
+        "label": "Anti-spoiler mode",
+        "description": "Hide match scores behind a reveal badge until hovered or clicked.",
+        "default": false
+      },
+      {
+        "key": "showOdds",
+        "type": "boolean",
+        "label": "Show pre-match betting odds",
+        "description": "Show pre-match betting odds and win probability in fixture info.",
+        "default": true
+      },
+      {
+        "key": "livePollRate",
+        "type": "integer",
+        "label": "Live polling interval (seconds)",
+        "description": "Refresh rate during live matches: 10, 30, or 60 seconds.",
+        "default": 10
       }
     ]
   }
