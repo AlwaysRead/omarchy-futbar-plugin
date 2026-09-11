@@ -57,23 +57,38 @@ Panel {
     if (raw === "12h" || raw === "relative" || raw === "24h") return raw
     return "24h"
   }
+  // Coerces a setting to a real boolean. The shell.json mirror written via
+  // setBarWidget IPC historically stored booleans as JSON strings ("true" /
+  // "false"), and a non-empty string is truthy in QML/JS -- so a stored
+  // "false" would still read as ON without this. Accepts real booleans,
+  // their string forms, and 1/0; anything else falls back.
+  function toBool(val, fallback) {
+    if (val === true || val === 1) return true
+    if (val === false || val === 0) return false
+    if (typeof val === "string") {
+      var s = val.trim().toLowerCase()
+      if (s === "true" || s === "1") return true
+      if (s === "false" || s === "0" || s === "") return false
+    }
+    return fallback
+  }
   readonly property bool enableNotifications: {
     if (root.savedFavorite && root.savedFavorite.enableNotifications !== undefined) {
-      return root.savedFavorite.enableNotifications === true
+      return root.toBool(root.savedFavorite.enableNotifications, root.toBool(setting("enableNotifications", true), true))
     }
-    return setting("enableNotifications", true)
+    return root.toBool(setting("enableNotifications", true), true)
   }
   readonly property bool notifyGoals: {
     if (root.savedFavorite && root.savedFavorite.notifyGoals !== undefined) {
-      return root.savedFavorite.notifyGoals === true
+      return root.toBool(root.savedFavorite.notifyGoals, root.toBool(setting("notifyGoals", true), true))
     }
-    return setting("notifyGoals", true)
+    return root.toBool(setting("notifyGoals", true), true)
   }
   readonly property bool notifyEvents: {
     if (root.savedFavorite && root.savedFavorite.notifyEvents !== undefined) {
-      return root.savedFavorite.notifyEvents === true
+      return root.toBool(root.savedFavorite.notifyEvents, root.toBool(setting("notifyEvents", true), true))
     }
-    return setting("notifyEvents", true)
+    return root.toBool(setting("notifyEvents", true), true)
   }
   readonly property string notifyScope: {
     var raw = (root.savedFavorite && root.savedFavorite.notifyScope !== undefined && root.savedFavorite.notifyScope !== "")
@@ -83,15 +98,15 @@ Panel {
   }
   readonly property bool antiSpoiler: {
     if (root.savedFavorite && root.savedFavorite.antiSpoiler !== undefined) {
-      return root.savedFavorite.antiSpoiler === true
+      return root.toBool(root.savedFavorite.antiSpoiler, root.toBool(setting("antiSpoiler", false), false))
     }
-    return setting("antiSpoiler", false)
+    return root.toBool(setting("antiSpoiler", false), false)
   }
   readonly property bool showOdds: {
     if (root.savedFavorite && root.savedFavorite.showOdds !== undefined) {
-      return root.savedFavorite.showOdds === true
+      return root.toBool(root.savedFavorite.showOdds, root.toBool(setting("showOdds", true), true))
     }
-    return setting("showOdds", true)
+    return root.toBool(setting("showOdds", true), true)
   }
   readonly property int livePollRate: {
     var raw = (root.savedFavorite && root.savedFavorite.livePollRate !== undefined)
@@ -563,6 +578,76 @@ Panel {
 
   function setNotifyScope(scope) {
     root.setSettingValue("notifyScope", (scope === "all" || scope === "primary") ? scope : "primary")
+  }
+
+  function setEnableNotifications(on) {
+    root.setSettingValue("enableNotifications", root.toBool(on, true))
+  }
+
+  function setNotifyGoals(on) {
+    root.setSettingValue("notifyGoals", root.toBool(on, true))
+  }
+
+  function setNotifyEvents(on) {
+    root.setSettingValue("notifyEvents", root.toBool(on, true))
+  }
+
+  function setAntiSpoiler(on) {
+    root.setSettingValue("antiSpoiler", root.toBool(on, false))
+  }
+
+  function setShowOdds(on) {
+    root.setSettingValue("showOdds", root.toBool(on, true))
+  }
+
+  // Transient confirmation flag for the Save Settings button.
+  property bool settingsJustSaved: false
+  Timer {
+    id: settingsSavedTimer
+    interval: 2500
+    onTriggered: root.settingsJustSaved = false
+  }
+
+  // Writes every display/notification/refresh preference to BOTH stores at
+  // once: the local favorite file (authoritative for the panel) and shell.json
+  // (authoritative for `omarchy plugin config` and the bar widget's
+  // injected settings). Per-control edits already stream through, but the
+  // favorite file wins over shell.json on reload, so without an explicit
+  // save a change made in the plugin config UI can look ignored. Saving
+  // replays all ten values and confirms with a desktop notification.
+  function saveAllSettings() {
+    var payload = {}
+    if (root.savedFavorite && typeof root.savedFavorite === "object") {
+      for (var k in root.savedFavorite) payload[k] = root.savedFavorite[k]
+    }
+    payload.tabLabelStyle = root.tabLabelStyle
+    payload.barWidgetMode = root.barWidgetMode
+    payload.kickoffTimeFormat = root.kickoffTimeFormat
+    payload.enableNotifications = root.enableNotifications
+    payload.notifyGoals = root.notifyGoals
+    payload.notifyEvents = root.notifyEvents
+    payload.notifyScope = root.notifyScope
+    payload.antiSpoiler = root.antiSpoiler
+    payload.showOdds = root.showOdds
+    payload.livePollRate = root.livePollRate
+    if (!Array.isArray(payload.tabOrder) || payload.tabOrder.length === 0) {
+      var currentTabs = root.allFollowedTabs()
+      if (currentTabs.length > 0) {
+        payload.tabOrder = currentTabs
+        payload.followedTeams = currentTabs
+      }
+    }
+    root.savedFavorite = payload
+    favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
+    var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
+      "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
+      "antiSpoiler", "showOdds", "livePollRate"]
+    for (var i = 0; i < keys.length; i++) {
+      root._queueSetBarWidget(keys[i], payload[keys[i]])
+    }
+    root.settingsJustSaved = true
+    settingsSavedTimer.restart()
+    root.notify("Settings Saved", "Display, notification, and refresh preferences applied to the desktop bar", "󰸞")
   }
 
   function setLivePollRate(sec) {
@@ -1915,6 +2000,14 @@ readonly property var leagues: [
     if (key !== root._fixtureTeamKey) {
       root._fixtureTeamKey = key
       root.resetTeamData()
+    } else if (root.scoreboardsRunning()) {
+      // A fetch cycle is already in flight: let it finish instead of
+      // killing it mid-flight. Killing delivers truncated stdout to the
+      // scoreboard handlers (chronic JSON.parse failures) and, with the
+      // 10s popup/live refresh beating multi-MB downloads, the cycle can
+      // never complete -- matchweek paging then has nothing to page.
+      // Stalled curls self-terminate via --max-time, so this cannot wedge.
+      return
     }
     if (root.collectedEvents.length === 0) {
       root.loading = true
@@ -1931,6 +2024,17 @@ readonly property var leagues: [
       root.buildFetchQueue()
     }
     root.startNextFetch()
+  }
+
+  // True while any club-fixture fetch is in flight (discover/teams stage
+  // or one of the three parallel scoreboard downloads).
+  function scoreboardsRunning() {
+    if (fixtureRequest.running) return true
+    var procs = [sbRequest1, sbRequest2, sbRequest3]
+    for (var i = 0; i < procs.length; i++) {
+      if (procs[i].running) return true
+    }
+    return false
   }
 
   // Orders the next round of requests: discover which competitions the team
@@ -1968,11 +2072,17 @@ readonly property var leagues: [
   // Slugs waiting to be fetched by the parallel scoreboard pool.
   property var scoreboardQueue: []
   property var sbSlugs: ["", "", ""]
+  // Per-cycle fetch attempts per slug. A killed or truncated download
+  // delivers partial stdout (JSON.parse fails on it), so failed slugs are
+  // retried instead of dropped -- otherwise one truncated 3 MB board wipes
+  // the whole cycle's fixtures and the bar blinks back to icon-only.
+  property var _sbRetry: ({})
 
   function startScoreboards() {
     var slugs = root.competitionSlugs.slice()
     if (slugs.indexOf(root.league) === -1) slugs.unshift(root.league)
     root.scoreboardQueue = slugs
+    root._sbRetry = {}
     root.kickScoreboards()
   }
 
@@ -2006,9 +2116,12 @@ readonly property var leagues: [
     if (typeof text !== "string" || text.length === 0 || text.length > 5242880) {
       if (typeof text === "string" && text.length > 5242880) {
         console.warn("futbar", "scoreboard response exceeded byte limit for " + slug)
+        root.sbSlugs[index] = ""
+        root.kickScoreboards()
+        return
       }
-      root.sbSlugs[index] = ""
-      root.kickScoreboards()
+      // Empty reply (curl DNS/timeout/HTTP error): the slug is not done.
+      root.retryScoreboard(index, slug)
       return
     }
     try {
@@ -2041,10 +2154,38 @@ readonly property var leagues: [
         }
       }
       root.collectedEvents = merged
+      if (slug !== "") {
+        var clearRetry = Object.assign({}, root._sbRetry)
+        delete clearRetry[slug]
+        root._sbRetry = clearRetry
+      }
     } catch (error) {
       console.warn("futbar", "scoreboard: " + error)
+      // Truncated download (e.g. a refresh killed curl mid-flight and the
+      // partial stdout was delivered): re-queue instead of dropping the slug.
+      root.retryScoreboard(index, slug)
+      return
     }
     root.sbSlugs[index] = ""
+    root.kickScoreboards()
+  }
+
+  // Re-queues a failed scoreboard slug at the front of the pool, up to two
+  // extra attempts per cycle. Bounded, so a permanently failing endpoint
+  // still drains the queue and lets the cycle finish.
+  function retryScoreboard(index, slug) {
+    root.sbSlugs[index] = ""
+    if (slug !== "") {
+      var tries = (root._sbRetry[slug] || 0) + 1
+      var pending = Object.assign({}, root._sbRetry)
+      pending[slug] = tries
+      root._sbRetry = pending
+      if (tries <= 2) {
+        root.scoreboardQueue.unshift(slug)
+      } else {
+        console.warn("futbar", "scoreboard retry exhausted for " + slug)
+      }
+    }
     root.kickScoreboards()
   }
 
@@ -2058,6 +2199,13 @@ readonly property var leagues: [
   }
 
   function finishFetch() {
+    // A fully failed cycle (every board truncated or errored) must not wipe
+    // good data: keep showing the last known fixtures instead of flipping
+    // the bar back to icon-only until the next cycle succeeds.
+    if (root.collectedEvents.length === 0 && root.lastRefresh > 0) {
+      root.loading = false
+      return
+    }
     root.setFixtures({ events: root.collectedEvents })
     if (root.clubFixturePage === 0 && root.teamFixtureRows.length > 0) {
       root.initClubFixturePage()
@@ -2936,7 +3084,7 @@ readonly property var leagues: [
   // scoreboard pool, so the same 5 MiB bound. One week back, two weeks
   // ahead, so a round that spills past day +7 (e.g. a Mon/Tue game after a
   // weekend) is still fetched and clustered with its matchweek.
-  function loadMatchList(force) {
+  function loadMatchList(force, isRetry) {
     if (root.needsTeam) return
     var slug = root.safeIdentifier(root.league)
     if (slug === "") return
@@ -2948,6 +3096,7 @@ readonly property var leagues: [
     matchListRequest.running = false
     root.matchListLoading = true
     root.matchListError = ""
+    if (!isRetry) root._matchListRetry = 0
     // League board covers the local day plus its UTC neighbours: an
     // evening UTC kickoff lands on the next morning east of Greenwich, so
     // a strict single-day fetch would miss exactly those live matches.
@@ -2986,7 +3135,7 @@ readonly property var leagues: [
         kickoff: new Date(e.date).getTime() || 0,
         // Split kickoff parts so upcoming rows can stack time over date
         // inside the narrow centre column without truncation.
-        timeText: root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "HH:mm")),
+        timeText: root.kickoffTime(e) || root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "HH:mm")),
         dateText: root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM")),
         // Local calendar day, not the raw UTC slice of the ISO timestamp:
         // an evening UTC kickoff lands on the next day east of Greenwich,
@@ -3903,11 +4052,24 @@ readonly property var leagues: [
   }
 
   property var _setWidgetQueue: []
+  // Mirrors a setting into shell.json via setBarWidget IPC (whose value arg
+  // is JSON-parsed by the shell). Booleans and finite numbers are encoded
+  // with their real types so shell.json holds `false`/`30` instead of the
+  // strings "false"/"30" -- a stored "false" string is truthy in QML and
+  // would silently keep a switched-off toggle behaving as ON.
   function _queueSetBarWidget(key, value) {
     var cleanKey = root.safeIdentifier(String(key))
     if (cleanKey === "") return
+    var encoded
+    try {
+      if (typeof value === "boolean") encoded = JSON.stringify(value)
+      else if (typeof value === "number" && isFinite(value)) encoded = JSON.stringify(value)
+      else encoded = JSON.stringify(String(value))
+    } catch (e) {
+      encoded = JSON.stringify(String(value))
+    }
     var queue = root._setWidgetQueue.slice()
-    queue.push(["omarchy", "shell", "-q", "shell", "setBarWidget", root.moduleName, cleanKey, JSON.stringify(String(value)), "{}"])
+    queue.push(["omarchy", "shell", "-q", "shell", "setBarWidget", root.moduleName, cleanKey, encoded, "{}"])
     root._setWidgetQueue = queue
     root._runNextSetWidget()
   }
@@ -5889,15 +6051,40 @@ onStreamFinished: root.warnStderr("", text)
     }
   }
 
+  // Attempts used by the current match-list fetch (reset per loadMatchList
+  // call). A killed or truncated download delivers partial stdout, so a
+  // failed board is retried instead of surfacing "Could not load matches".
+  property int _matchListRetry: 0
+  function retryMatchList() {
+    var tries = root._matchListRetry + 1
+    root._matchListRetry = tries
+    if (tries <= 2) {
+      root.loadMatchList(true, true)
+    } else {
+      // Terminal failure: release the page-turn latch too, or the chevrons
+      // stay dead until some other button resets pendingEdge.
+      root.pendingEdge = ""
+      root.navAnchorDay = ""
+      root.matchListError = "Could not load matches"
+      root.matchListLoading = false
+    }
+  }
+
   Process {
     id: matchListRequest
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         if (typeof text !== "string" || text.length === 0 || text.length > 5242880) {
-          if (typeof text === "string" && text.length > 5242880)
+          if (typeof text === "string" && text.length > 5242880) {
             console.warn("futbar", "league scoreboard exceeded byte limit")
-          root.matchListLoading = false
+            root.pendingEdge = ""
+            root.navAnchorDay = ""
+            root.matchListLoading = false
+            return
+          }
+          // Empty reply (curl DNS/timeout/HTTP error): retry, not a real empty round.
+          root.retryMatchList()
           return
         }
         try {
@@ -5932,6 +6119,21 @@ onStreamFinished: root.warnStderr("", text)
               for (var li = 0; li < board.live.length; li++)
                 root.enqueueLeagueSummary(board.live[li].id)
               root.pollNextLeagueSummary()
+            }
+            if (board.live.length === 0) {
+              // No live matches in the daily slate: default to the upcoming
+              // matchweek fixtures instead of an empty board. Same landing
+              // as the manual "Show full fixtures" action.
+              root.leagueBrowseAll = true
+              root.matchWindowOffset = 0
+              root.pendingEdge = ""
+              root.navAnchorDay = ""
+              if (root.matchClusters && root.matchClusters.length > 0) {
+                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              }
+              root.matchListLoading = false
+              root.loadMatchList(true)
+              return
             }
             root.matchListLoading = false
             return
@@ -5995,9 +6197,12 @@ onStreamFinished: root.warnStderr("", text)
           root._lastMatchListKey = root.safeIdentifier(root.league) + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
           root.lastMatchListRefresh = Date.now()
         } catch (error) {
-          console.warn("futbar", "could not read league scoreboard: " + error)
-          root.matchListError = "Could not load matches"
+          console.warn("futbar", "MATCHLIST FAIL len=" + (typeof text === "string" ? text.length : -1) + " retry=" + root._matchListRetry + " err=" + error)
+          // Truncated download: retry instead of showing "Could not load matches".
+          root.retryMatchList()
+          return
         }
+        console.warn("futbar", "MATCHLIST OK leagueMode=" + root.leagueMode + " browseAll=" + root.leagueBrowseAll + " showMatches=" + root.showMatches + " clusters=" + root.matchClusters.length + " rows=" + root.matchWeekRows.length + " label=[" + root.matchWeekLabel + "]")
         root.matchListLoading = false
       }
     }
@@ -9467,17 +9672,15 @@ root.warnStderr("team select failed", text)
               root.showMatches = false
               root.showStats = false
               root.loadStandings(true)
-            } else if (root.leagueMode) {
-              // League-follow always lands back on the match board.
-              root.showMatches = true
-              root.leagueBrowseAll = false
+            } else {
+              // Open the table in both club and tournament-follow mode.
+              root.showStandings = true
+              root.showStats = false
+              root.showMatches = false
               root.matchWindowOffset = 0
               root.pendingEdge = ""
               root.navAnchorDay = ""
-              if (root.matchClusters && root.matchClusters.length > 0) {
-                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
-              }
-              if (!matchListRequest.running) root.loadMatchList()
+              root.loadStandings(true)
             }
           }
         }
@@ -9503,17 +9706,12 @@ root.warnStderr("team select failed", text)
               root.showMatches = false
               root.showStandings = false
               root.loadStats(true)
-            } else if (root.leagueMode) {
-              // League-follow always lands back on the match board.
-              root.showMatches = true
-              root.leagueBrowseAll = false
-              root.matchWindowOffset = 0
-              root.pendingEdge = ""
-              root.navAnchorDay = ""
-              if (root.matchClusters && root.matchClusters.length > 0) {
-                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
-              }
-              if (!matchListRequest.running) root.loadMatchList()
+            } else {
+              // Open the leaderboard in both club and tournament-follow mode.
+              root.showStats = true
+              root.showMatches = false
+              root.showStandings = false
+              root.loadStats(true)
             }
           }
         }
@@ -9928,7 +10126,7 @@ root.warnStderr("team select failed", text)
               title: "Enable Desktop Alerts"
               description: "Send match notifications via notify-send"
               checked: root.enableNotifications
-              onToggled: root.setSettingValue("enableNotifications", !root.enableNotifications)
+              onToggled: root.setEnableNotifications(!root.enableNotifications)
             }
 
             SettingToggleRow {
@@ -9936,7 +10134,7 @@ root.warnStderr("team select failed", text)
               title: "Goal Alerts"
               description: "Notifications on goals with scorer and minute"
               checked: root.notifyGoals
-              onToggled: root.setSettingValue("notifyGoals", !root.notifyGoals)
+              onToggled: root.setNotifyGoals(!root.notifyGoals)
             }
 
             SettingToggleRow {
@@ -9944,7 +10142,7 @@ root.warnStderr("team select failed", text)
               title: "Red Cards & Match Whistles"
               description: "Alerts on red cards, kickoff, HT, and FT"
               checked: root.notifyEvents
-              onToggled: root.setSettingValue("notifyEvents", !root.notifyEvents)
+              onToggled: root.setNotifyEvents(!root.notifyEvents)
             }
 
             Column {
@@ -10007,14 +10205,14 @@ root.warnStderr("team select failed", text)
               title: "Anti-Spoiler Mode"
               description: "Hide match scores until revealed or clicked"
               checked: root.antiSpoiler
-              onToggled: root.setSettingValue("antiSpoiler", !root.antiSpoiler)
+              onToggled: root.setAntiSpoiler(!root.antiSpoiler)
             }
 
             SettingToggleRow {
               title: "Show Pre-Match Odds"
               description: "Display betting odds in fixture details"
               checked: root.showOdds
-              onToggled: root.setSettingValue("showOdds", !root.showOdds)
+              onToggled: root.setShowOdds(!root.showOdds)
             }
           }
 
@@ -10098,6 +10296,20 @@ root.warnStderr("team select failed", text)
               horizontalPadding: Style.space(10)
               verticalPadding: Style.space(6)
               onClicked: root.clearCacheAndReload()
+            }
+
+            Button {
+              width: parent.width
+              iconText: "󰸞"
+              text: root.settingsJustSaved ? "Settings Saved" : "Save Settings"
+              tooltipText: "Write all display, notification, and refresh preferences to the favorite file and the desktop bar config"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.favoriteTeamAccent || root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(10)
+              verticalPadding: Style.space(6)
+              onClicked: root.saveAllSettings()
             }
           }
         }
@@ -16150,8 +16362,14 @@ root.warnStderr("team select failed", text)
             readonly property int rowVPadding: Style.space(8)
             readonly property int rowHPadding: Style.space(10)
 
-            // League rows grow to fit the Follow button above the teams,
-            // PLUS symmetric top and bottom padding.
+            readonly property string cardDateText: {
+              if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") return matchRow.modelData.dateText
+              if (matchRow.modelData.kickoff) return root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM"))
+              if (matchRow.modelData.date) return root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM"))
+              return ""
+            }
+
+            // League rows grow to fit the content, plus symmetric top and bottom padding.
             height: matchColumn.implicitHeight + rowVPadding * 2
 
             readonly property bool rowFollowable: root.leagueMode && !root.leagueBrowseAll && modelData.id !== ""
@@ -16186,165 +16404,199 @@ root.warnStderr("team select failed", text)
               anchors.rightMargin: matchRow.rowHPadding
               spacing: Style.space(4)
 
-            Button {
-              z: 2
-              visible: matchRow.rowFollowable
-              anchors.horizontalCenter: parent.horizontalCenter
-              iconText: matchRow.rowFollowed ? "󰴅" : "󰡬"
-              text: matchRow.rowFollowed ? "Following" : "Follow"
-              tooltipText: matchRow.rowFollowed ? "Stop notifications for this match" : "Notify on goals, cards, half-time and full-time"
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              fontSize: Style.font.caption
-              iconSize: Style.font.caption
-              horizontalPadding: Style.space(8)
-              verticalPadding: Style.space(2)
-              selected: matchRow.rowFollowed
-              onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
-            }
+              // Top Line: Follow button / Competition info on left, Match date on top right
+              Item {
+                width: parent.width
+                height: Style.space(14)
+                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable || (matchRow.modelData.competitionName && !root.leagueMode)
 
-            Row {
-              width: parent.width
-              spacing: Style.space(8)
+                Row {
+                  anchors.left: parent.left
+                  anchors.right: matchCardDate.left
+                  anchors.rightMargin: Style.space(6)
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(5)
 
-              Image {
-                anchors.verticalCenter: parent.verticalCenter
-                width: root.matchLogoSize
-                height: root.matchLogoSize
-                source: matchRow.modelData.homeLogo
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: 128
-                sourceSize.height: 128
-                mipmap: true
-                cache: true
-                asynchronous: true
-                smooth: true
-                visible: String(source) !== ""
-              }
+                  Button {
+                    z: 2
+                    visible: matchRow.rowFollowable
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconText: matchRow.rowFollowed ? "󰴅" : "󰡬"
+                    text: matchRow.rowFollowed ? "Following" : "Follow"
+                    tooltipText: matchRow.rowFollowed ? "Stop notifications for this match" : "Notify on goals, cards, half-time and full-time"
+                    fontFamily: root.contentFontFamily
+                    foreground: root.contentForeground
+                    accent: root.contentForeground
+                    fontSize: Style.space(8)
+                    iconSize: Style.space(8)
+                    horizontalPadding: Style.space(6)
+                    verticalPadding: 0
+                    selected: matchRow.rowFollowed
+                    onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
+                  }
 
-              Text {
-                textFormat: Text.PlainText
-                width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
-                anchors.verticalCenter: parent.verticalCenter
-                text: matchRow.modelData.homeName
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.body
-                font.bold: matchRow.modelData.state === "in"
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignRight
-              }
+                  Image {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Style.space(12)
+                    height: width
+                    source: matchRow.modelData.competitionLogo || ""
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize.width: 32
+                    sourceSize.height: 32
+                    mipmap: true
+                    asynchronous: true
+                    smooth: true
+                    visible: String(source) !== "" && !root.leagueMode
+                  }
 
-              Text {
-                textFormat: Text.PlainText
-                width: root.matchScoreWidth
-                anchors.verticalCenter: parent.verticalCenter
-                property bool revealed: false
-                text: matchRow.modelData.state === "pre"
-                  ? matchRow.modelData.timeText
-                  : ((root.antiSpoiler && !revealed)
-                    ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
-                    : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
-                color: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre") ? (root.favoriteTeamAccent || root.contentForeground) : root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre") ? Style.font.caption : Style.font.body
-                font.bold: matchRow.modelData.state !== "post"
-                horizontalAlignment: Text.AlignHCenter
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: matchRow.modelData.competitionName || ""
+                    color: Qt.darker(root.contentForeground, 1.45)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.space(9)
+                    font.bold: true
+                    visible: text !== "" && !root.leagueMode
+                    elide: Text.ElideRight
+                  }
+                }
 
-                MouseArea {
-                  anchors.fill: parent
-                  enabled: root.antiSpoiler && !parent.revealed && matchRow.modelData.state !== "pre"
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: parent.revealed = true
+                // Match Date in the top right side of the individual match card
+                Text {
+                  id: matchCardDate
+                  textFormat: Text.PlainText
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: matchRow.cardDateText
+                  color: Qt.darker(root.contentForeground, 1.55)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.space(9)
+                  visible: text !== ""
                 }
               }
 
-              Text {
-                textFormat: Text.PlainText
-                width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
-                anchors.verticalCenter: parent.verticalCenter
-                text: matchRow.modelData.awayName
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.body
-                font.bold: matchRow.modelData.state === "in"
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignLeft
+              // Matchup Row: Home Crest & Name - Score / Kickoff Time - Away Name & Crest
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+
+                Image {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: root.matchLogoSize
+                  height: root.matchLogoSize
+                  source: matchRow.modelData.homeLogo
+                  fillMode: Image.PreserveAspectFit
+                  sourceSize.width: 128
+                  sourceSize.height: 128
+                  mipmap: true
+                  cache: true
+                  asynchronous: true
+                  smooth: true
+                  visible: String(source) !== ""
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: matchRow.modelData.homeName
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: matchRow.modelData.state === "in"
+                  elide: Text.ElideRight
+                  horizontalAlignment: Text.AlignRight
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: root.matchScoreWidth
+                  anchors.verticalCenter: parent.verticalCenter
+                  property bool revealed: false
+                  text: matchRow.modelData.state === "pre"
+                    ? matchRow.modelData.timeText
+                    : ((root.antiSpoiler && !revealed)
+                      ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
+                      : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
+                  color: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre") ? (root.favoriteTeamAccent || root.contentForeground) : root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre") ? Style.font.caption : Style.font.body
+                  font.bold: matchRow.modelData.state !== "post"
+                  horizontalAlignment: Text.AlignHCenter
+
+                  MouseArea {
+                    anchors.fill: parent
+                    enabled: root.antiSpoiler && !parent.revealed && matchRow.modelData.state !== "pre"
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: parent.revealed = true
+                  }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: matchRow.modelData.awayName
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: matchRow.modelData.state === "in"
+                  elide: Text.ElideRight
+                  horizontalAlignment: Text.AlignLeft
+                }
+
+                Image {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: root.matchLogoSize
+                  height: root.matchLogoSize
+                  source: matchRow.modelData.awayLogo
+                  fillMode: Image.PreserveAspectFit
+                  sourceSize.width: 128
+                  sourceSize.height: 128
+                  mipmap: true
+                  cache: true
+                  asynchronous: true
+                  smooth: true
+                  visible: String(source) !== ""
+                }
               }
 
-              Image {
-                anchors.verticalCenter: parent.verticalCenter
-                width: root.matchLogoSize
-                height: root.matchLogoSize
-                source: matchRow.modelData.awayLogo
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: 128
-                sourceSize.height: 128
-                mipmap: true
-                cache: true
-                asynchronous: true
-                smooth: true
-                visible: String(source) !== ""
-              }
-            }
+              // Bottom Status line: Clock (Live 67'), Full-Time (FT), or Shootout/Agg note
+              Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(5)
+                visible: matchRowSubText.text !== ""
 
-            Row {
-              anchors.horizontalCenter: parent.horizontalCenter
-              spacing: Style.space(5)
-
-              Image {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(12)
-                height: width
-                source: matchRow.modelData.competitionLogo || ""
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: 32
-                sourceSize.height: 32
-                mipmap: true
-                asynchronous: true
-                smooth: true
-                visible: String(source) !== "" && !root.leagueMode
-              }
-
-              Text {
-                textFormat: Text.PlainText
-                anchors.verticalCenter: parent.verticalCenter
-                text: matchRow.modelData.competitionName || ""
-                color: Qt.darker(root.contentForeground, 1.4)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                visible: text !== "" && !root.leagueMode
-              }
-
-              Text {
-                textFormat: Text.PlainText
-                anchors.verticalCenter: parent.verticalCenter
-                text: "·"
-                color: Qt.darker(root.contentForeground, 1.8)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                visible: !root.leagueMode && (matchRow.modelData.competitionName || "") !== "" && matchRowSubText.text !== ""
-              }
-
-              Text {
-                id: matchRowSubText
-                textFormat: Text.PlainText
-                anchors.verticalCenter: parent.verticalCenter
-                text: matchRow.modelData.state === "pre"
-                  ? matchRow.modelData.dateText : matchRow.modelData.status
-                color: matchRow.modelData.state === "in"
-                  ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: matchRow.modelData.state === "in"
-                visible: text !== ""
-                elide: Text.ElideRight
+                Text {
+                  id: matchRowSubText
+                  textFormat: Text.PlainText
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: {
+                    if (matchRow.modelData.state === "in") return matchRow.modelData.status || "Live"
+                    if (matchRow.modelData.state === "post") {
+                      var s = matchRow.modelData.status || "FT"
+                      if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
+                        s += " · " + matchRow.modelData.shootoutNote
+                      }
+                      return s
+                    }
+                    if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
+                      return matchRow.modelData.shootoutNote
+                    }
+                    return ""
+                  }
+                  color: matchRow.modelData.state === "in"
+                    ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: matchRow.modelData.state === "in"
+                  visible: text !== ""
+                  elide: Text.ElideRight
+                }
               }
             }
           }
-        }
       }
 
       Column {
@@ -16824,8 +17076,7 @@ root.warnStderr("team select failed", text)
             // Season/round controls on the right; title/live indicators on the left
             Item {
               width: parent.width
-              height: visible ? Math.max(matchTitleText.implicitHeight, matchWeekNav.implicitHeight, (liveBadge.visible ? liveBadge.implicitHeight : 0)) : 0
-              visible: (matchTitleText.visible && matchTitleText.text !== "") || matchWeekNav.visible || liveBadge.visible
+              height: Math.max(matchTitleText.implicitHeight, matchWeekNav.implicitHeight, (liveBadge.visible ? liveBadge.implicitHeight : 0))
 
               Text {
                 id: matchTitleText
@@ -16837,15 +17088,14 @@ root.warnStderr("team select failed", text)
                 opacity: root.matchListLoading ? 0.4 + 0.6 * root._pulse : 1.0
                 text: root.matchListError !== "" ? "Could not load matches"
                   : (root.leagueBrowseAll || !root.leagueMode
-                    ? (root.matchWeekRows.length > 0 ? (root.leagueMode ? "" : root.leagueLabel()) : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
+                    ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
                     : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0
-                      ? "" : (root.matchListLoading ? "Fetching matches…" : "")))
+                      ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No matches today")))
                 color: root.contentForeground
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.body
                 font.bold: true
                 elide: Text.ElideRight
-                visible: text !== ""
               }
 
               Text {
@@ -16868,12 +17118,13 @@ root.warnStderr("team select failed", text)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
-            visible: (root.leagueMode && root.leagueBrowseAll) || (!root.leagueMode && root.showMatches)
+            visible: !root.leagueMode || root.leagueBrowseAll
+            onVisibleChanged: console.warn("futbar", "NAV-VISIBLE=" + matchWeekNav.visible + " leagueMode=" + root.leagueMode + " browseAll=" + root.leagueBrowseAll + " showMatches=" + root.showMatches + " rows=" + root.matchWeekRows.length + " label=[" + root.matchWeekLabel + "]")
 
             Button {
               id: prevWeekButton
-              width: Style.space(22)
-              height: Style.space(22)
+              width: Style.space(26)
+              height: Style.space(26)
               iconText: ""
               tooltipText: "Previous matchweek"
               fontFamily: root.contentFontFamily
@@ -16883,8 +17134,12 @@ root.warnStderr("team select failed", text)
               horizontalPadding: 0
               verticalPadding: 0
               onClicked: {
-                if (matchListRequest.running || root.pendingEdge !== "") return
+                // Local round steps always work; a window extension first
+                // drops any stalled in-flight fetch instead of swallowing
+                // the tap while a retry storm is running.
+                if (root.pendingEdge !== "") return
                 if (root.matchClusterIndex > 0) { root.matchClusterIndex--; return }
+                if (matchListRequest.running) matchListRequest.running = false
                 // Empty view has no boundary row: let the landing logic use
                 // the far edge of whatever the shifted window returns.
                 root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[0].day : ""
@@ -16897,8 +17152,9 @@ root.warnStderr("team select failed", text)
             Text {
               id: matchWeekLabelText
               textFormat: Text.PlainText
-              anchors.verticalCenter: parent.verticalCenter
               text: root.matchWeekLabel
+              height: Style.space(28)
+              verticalAlignment: Text.AlignVCenter
               color: Qt.darker(root.contentForeground, 1.5)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
@@ -16908,10 +17164,9 @@ root.warnStderr("team select failed", text)
 
             Button {
               id: nextWeekButton
-              width: Style.space(22)
-              height: Style.space(22)
+              width: Style.space(26)
+              height: Style.space(26)
               iconText: ""
-
               tooltipText: "Next matchweek"
               fontFamily: root.contentFontFamily
               foreground: root.contentForeground
@@ -16920,13 +17175,29 @@ root.warnStderr("team select failed", text)
               horizontalPadding: 0
               verticalPadding: 0
               onClicked: {
-                if (matchListRequest.running || root.pendingEdge !== "") return
+                if (root.pendingEdge !== "") return
                 if (root.matchClusterIndex < root.matchClusters.length - 1) { root.matchClusterIndex++; return }
+                if (matchListRequest.running) matchListRequest.running = false
                 root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
                 root.matchWindowOffset += 21
                 root.pendingEdge = "next"
                 root.loadMatchList()
               }
+            }
+          }
+
+          Timer {
+            interval: 2000
+            repeat: true
+            running: root.opened
+            onTriggered: {
+              var o = matchWeekNav
+              var s = ""
+              while (o) {
+                s += (o.visible ? "V" : "v") + "(" + Math.round(o.x) + "," + Math.round(o.y) + " " + Math.round(o.width) + "x" + Math.round(o.height) + ") <- "
+                o = o.parent
+              }
+              console.warn("futbar", "NAV-GEO " + s)
             }
           }
         }
@@ -17002,12 +17273,15 @@ root.warnStderr("team select failed", text)
           }
         }
 
-        // Daily slate option: navigate to all fixtures window
+        // Daily slate option: navigate to all fixtures window. Always
+        // available, even on load errors -- it is the way out of an
+        // empty/failed slate into the matchweek view, and tapping it
+        // retries the fetch (loadMatchList clears the error on start).
         Item {
           id: seeFixturesRow
           width: parent.width
           height: Style.space(38)
-          visible: root.leagueMode && !root.leagueBrowseAll && root.matchListError === ""
+          visible: root.leagueMode && !root.leagueBrowseAll
           opacity: root.matchListLoading ? 0.5 : 1.0
 
           Rectangle {
