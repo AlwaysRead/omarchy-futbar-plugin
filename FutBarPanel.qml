@@ -10796,7 +10796,7 @@ root.warnStderr("team select failed", text)
                         font.bold: true
                         font.pixelSize: Style.space(8)
                         font.family: root.contentFontFamily
-                        color: parent.badgeClr
+                        color: "#ffffff"
                       }
                     }
                   }
