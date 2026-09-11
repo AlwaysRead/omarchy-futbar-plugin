@@ -10748,47 +10748,92 @@ root.warnStderr("team select failed", text)
                 }
               }
 
-              // Divider between table and form
+              // Divider between table and form/splits
               Rectangle {
                 width: parent.width
                 height: Style.spacing.hairline
                 color: Util.alpha(root.contentForeground, 0.06)
-                visible: !!(root.selectedClubProfile && root.selectedClubProfile.form)
+                visible: !!(root.selectedClubProfile && (root.selectedClubProfile.form || root.selectedClubProfile.homeRecord || root.selectedClubProfile.awayRecord))
               }
 
-              // Recent Form Row
-              Row {
+              // Recent Form & Home / Away Splits Row (Clean typography, no box container)
+              Item {
                 width: parent.width
-                spacing: Style.space(4)
-                visible: !!(root.selectedClubProfile && root.selectedClubProfile.form)
+                implicitHeight: Math.max(formRow.implicitHeight, splitsRow.implicitHeight, Style.space(16))
+                height: implicitHeight
+                visible: !!(root.selectedClubProfile && (root.selectedClubProfile.form || root.selectedClubProfile.homeRecord || root.selectedClubProfile.awayRecord))
 
-                Text {
+                // Left: Form badges
+                Row {
+                  id: formRow
+                  anchors.left: parent.left
                   anchors.verticalCenter: parent.verticalCenter
-                  text: "FORM"
-                  font.pixelSize: Style.space(8)
-                  font.bold: true
-                  color: Qt.darker(root.contentForeground, 1.6)
-                  font.family: root.contentFontFamily
+                  spacing: Style.space(4)
+                  visible: !!(root.selectedClubProfile && root.selectedClubProfile.form)
+
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "FORM"
+                    font.pixelSize: Style.space(8)
+                    font.bold: true
+                    color: Qt.darker(root.contentForeground, 1.6)
+                    font.family: root.contentFontFamily
+                  }
+
+                  Repeater {
+                    model: root.selectedClubProfile ? root.selectedClubProfile.form.split("") : []
+                    delegate: Rectangle {
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(16)
+                      height: width
+                      radius: Style.space(3)
+                      readonly property color badgeClr: modelData === "W" ? "#22c55e" : (modelData === "D" ? "#eab308" : "#ef4444")
+                      color: Util.alpha(badgeClr, 0.18)
+
+                      Text {
+                        anchors.centerIn: parent
+                        text: modelData
+                        font.bold: true
+                        font.pixelSize: Style.space(8)
+                        font.family: root.contentFontFamily
+                        color: parent.badgeClr
+                      }
+                    }
+                  }
                 }
 
-                Repeater {
-                  model: root.selectedClubProfile ? root.selectedClubProfile.form.split("") : []
-                  delegate: Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Style.space(16)
-                    height: width
-                    radius: Style.space(3)
-                    readonly property color badgeClr: modelData === "W" ? "#22c55e" : (modelData === "D" ? "#eab308" : "#ef4444")
-                    color: Util.alpha(badgeClr, 0.18)
+                // Right: Home & Away Splits (clean inline text, no container box)
+                Row {
+                  id: splitsRow
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(6)
+                  visible: !!(root.selectedClubProfile && (root.selectedClubProfile.homeRecord || root.selectedClubProfile.awayRecord))
 
-                    Text {
-                      anchors.centerIn: parent
-                      text: modelData
-                      font.bold: true
-                      font.pixelSize: Style.space(8)
-                      font.family: root.contentFontFamily
-                      color: parent.badgeClr
-                    }
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.selectedClubProfile && root.selectedClubProfile.homeRecord ? ("Home: " + root.selectedClubProfile.homeRecord) : ""
+                    font.pixelSize: Style.space(8)
+                    color: Qt.darker(root.contentForeground, 1.45)
+                    font.family: root.contentFontFamily
+                    visible: text !== ""
+                  }
+
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "·"
+                    font.pixelSize: Style.space(8)
+                    color: Qt.darker(root.contentForeground, 1.8)
+                    visible: !!(root.selectedClubProfile && root.selectedClubProfile.homeRecord && root.selectedClubProfile.awayRecord)
+                  }
+
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.selectedClubProfile && root.selectedClubProfile.awayRecord ? ("Away: " + root.selectedClubProfile.awayRecord) : ""
+                    font.pixelSize: Style.space(8)
+                    color: Qt.darker(root.contentForeground, 1.45)
+                    font.family: root.contentFontFamily
+                    visible: text !== ""
                   }
                 }
               }
