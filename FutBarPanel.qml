@@ -11636,7 +11636,7 @@ root.warnStderr("team select failed", text)
             anchors.fill: parent
             radius: Style.space(8)
             color: root.contentForeground
-            opacity: 0.05
+            opacity: (root.matchDetail && root.matchDetail.isLive) ? 0.07 : 0.03
           }
 
           Text {
@@ -15014,6 +15014,13 @@ root.warnStderr("team select failed", text)
         // The dedicated live card is redundant inside the League Matches / Stats
         // views and below the standings table.
         visible: root.liveMatch && !root.customViewActive
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Style.space(6)
+          color: root.contentForeground
+          opacity: liveCardArea.containsMouse ? 0.08 : 0.07
+        }
 
         MouseArea {
           id: liveCardArea
