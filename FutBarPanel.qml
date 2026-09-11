@@ -560,6 +560,7 @@ Panel {
     }
     payload[key] = val
     root.savedFavorite = payload
+    if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
     root._queueSetBarWidget(key, val)
   }
@@ -642,6 +643,7 @@ Panel {
       }
     }
     root.savedFavorite = payload
+    if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
     var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
@@ -678,6 +680,7 @@ Panel {
     payload.showOdds = true
     payload.livePollRate = 10
     root.savedFavorite = payload
+    if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
     var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
@@ -16423,10 +16426,15 @@ root.warnStderr("team select failed", text)
             readonly property int rowHPadding: Style.space(8)
 
             readonly property string cardDateText: {
-              if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") return matchRow.modelData.dateText
-              if (matchRow.modelData.kickoff) return root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM"))
-              if (matchRow.modelData.date) return root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM"))
-              return ""
+              var d = ""
+              if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") d = matchRow.modelData.dateText
+              else if (matchRow.modelData.kickoff) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM"))
+              else if (matchRow.modelData.date) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM"))
+              if (d !== "" && matchRow.modelData.state === "pre") {
+                var t = matchRow.modelData.timeText || (matchRow.modelData.kickoff ? root.kickoffTime({ date: matchRow.modelData.kickoff }) : "")
+                if (t && t !== "") return d + " · " + t
+              }
+              return d
             }
 
             // Slim compact card height preserving original thickness with match date included
@@ -16562,7 +16570,7 @@ root.warnStderr("team select failed", text)
                       anchors.verticalCenter: parent.verticalCenter
                       property bool revealed: false
                       text: matchRow.modelData.state === "pre"
-                        ? matchRow.modelData.timeText
+                        ? (matchRow.modelData.timeText || "VS")
                         : ((root.antiSpoiler && !revealed)
                           ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
                           : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))

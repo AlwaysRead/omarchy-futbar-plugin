@@ -55,7 +55,8 @@ BarWidget {
     onLoadFailed: root.savedFavorite = ({})
   }
   Timer {
-    interval: 1500
+    interval: 2000
+    repeat: true
     running: true
     onTriggered: favoriteStore.reload()
   }
@@ -207,6 +208,9 @@ BarWidget {
   }
 
   readonly property string barWidgetMode: {
+    if (panelLoader.item && panelLoader.item.barWidgetMode !== undefined && panelLoader.item.barWidgetMode !== "") {
+      return panelLoader.item.barWidgetMode
+    }
     var raw = (root.savedFavorite && root.savedFavorite.barWidgetMode !== undefined && root.savedFavorite.barWidgetMode !== "")
       ? String(root.savedFavorite.barWidgetMode) : setting("barWidgetMode", "icon")
     if (raw === "score" || raw === "next" || raw === "icon") return raw
@@ -216,27 +220,83 @@ BarWidget {
   readonly property string barDisplayText: {
     var p = panelLoader.item
     if (!p) return ""
-    if (root.barWidgetMode === "score") {
-      if (p.liveMatch) {
-        var h = p.scoreFor(p.liveMatch, "home")
-        var a = p.scoreFor(p.liveMatch, "away")
-        var clk = p.statusFor(p.liveMatch)
-        var hAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "home"), p.league, "abbrev")
-        var aAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "away"), p.league, "abbrev")
-        return (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
+    var mode = root.barWidgetMode
+    if (mode === "icon") return ""
+
+    if (mode === "score") {
+      if (p.leagueMode) {
+        if (Array.isArray(p.leagueLive) && p.leagueLive.length > 0) {
+          var lm = p.leagueLive[0]
+          var lh = (lm.homeScore !== undefined && lm.homeScore !== "") ? lm.homeScore : "0"
+          var la = (lm.awayScore !== undefined && lm.awayScore !== "") ? lm.awayScore : "0"
+          var lclk = lm.status || "Live"
+          var lhAbbrev = p.teamTabLabel(lm.homeName, p.league, "abbrev") || lm.homeName
+          var laAbbrev = p.teamTabLabel(lm.awayName, p.league, "abbrev") || lm.awayName
+          var lmore = p.leagueLive.length > 1 ? (" (+" + (p.leagueLive.length - 1) + ")") : ""
+          return (lhAbbrev || "H") + " " + lh + "–" + la + " " + (laAbbrev || "A") + " " + lclk + lmore
+        }
+        if (Array.isArray(p.leagueRecent) && p.leagueRecent.length > 0) {
+          var rm = p.leagueRecent[0]
+          var rh = (rm.homeScore !== undefined && rm.homeScore !== "") ? rm.homeScore : "0"
+          var ra = (rm.awayScore !== undefined && rm.awayScore !== "") ? rm.awayScore : "0"
+          var rclk = rm.status || "FT"
+          var rhAbbrev = p.teamTabLabel(rm.homeName, p.league, "abbrev") || rm.homeName
+          var raAbbrev = p.teamTabLabel(rm.awayName, p.league, "abbrev") || rm.awayName
+          return (rhAbbrev || "H") + " " + rh + "–" + ra + " " + (raAbbrev || "A") + " " + rclk
+        }
+        return "No Live Match"
+      } else {
+        if (p.liveMatch) {
+          var h = p.scoreFor(p.liveMatch, "home")
+          var a = p.scoreFor(p.liveMatch, "away")
+          var clk = p.statusFor(p.liveMatch)
+          var hAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "home"), p.league, "abbrev")
+          var aAbbrev = p.teamTabLabel(p.teamNameFor(p.liveMatch, "away"), p.league, "abbrev")
+          return (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
+        }
+        if (p.previousMatch) {
+          var prevH = p.scoreFor(p.previousMatch, "home")
+          var prevA = p.scoreFor(p.previousMatch, "away")
+          var prevClk = p.statusFor(p.previousMatch) || "FT"
+          var prevHAbbrev = p.teamTabLabel(p.teamNameFor(p.previousMatch, "home"), p.league, "abbrev")
+          var prevAAbbrev = p.teamTabLabel(p.teamNameFor(p.previousMatch, "away"), p.league, "abbrev")
+          return (prevHAbbrev || "H") + " " + prevH + "–" + prevA + " " + (prevAAbbrev || "A") + " " + prevClk
+        }
+        return "No Live Match"
       }
-      return ""
     }
-    if (root.barWidgetMode === "next") {
-      if (p.nextMatch) {
-        var home = p.teamNameFor(p.nextMatch, "home")
-        var away = p.teamNameFor(p.nextMatch, "away")
-        var homeAbbrev = p.teamTabLabel(home, p.league, "abbrev")
-        var awayAbbrev = p.teamTabLabel(away, p.league, "abbrev")
-        var t = p.kickoffTime(p.nextMatch)
-        return (homeAbbrev || home || "H") + " vs " + (awayAbbrev || away || "A") + (t ? " " + t : "")
+
+    if (mode === "next") {
+      if (p.leagueMode) {
+        var upMatch = null
+        if (Array.isArray(p.leagueUpcoming) && p.leagueUpcoming.length > 0) {
+          upMatch = p.leagueUpcoming[0]
+        } else if (Array.isArray(p.matchWeekRows) && p.matchWeekRows.length > 0) {
+          for (var i = 0; i < p.matchWeekRows.length; i++) {
+            if (p.matchWeekRows[i].state === "pre") {
+              upMatch = p.matchWeekRows[i]
+              break
+            }
+          }
+        }
+        if (upMatch) {
+          var uhAbbrev = p.teamTabLabel(upMatch.homeName, p.league, "abbrev") || upMatch.homeName
+          var uaAbbrev = p.teamTabLabel(upMatch.awayName, p.league, "abbrev") || upMatch.awayName
+          var ut = upMatch.timeText || (upMatch.kickoff ? root.sanitizePlainText(Qt.formatDateTime(new Date(upMatch.kickoff), "HH:mm")) : "")
+          return (uhAbbrev || "H") + " vs " + (uaAbbrev || "A") + (ut ? " · " + ut : "")
+        }
+        return "No Upcoming Fixture"
+      } else {
+        if (p.nextMatch) {
+          var home = p.teamNameFor(p.nextMatch, "home")
+          var away = p.teamNameFor(p.nextMatch, "away")
+          var homeAbbrev = p.teamTabLabel(home, p.league, "abbrev")
+          var awayAbbrev = p.teamTabLabel(away, p.league, "abbrev")
+          var t = p.kickoffTime(p.nextMatch)
+          return (homeAbbrev || home || "H") + " vs " + (awayAbbrev || away || "A") + (t ? " · " + t : "")
+        }
+        return "No Upcoming Fixture"
       }
-      return ""
     }
     return ""
   }
@@ -299,7 +359,16 @@ BarWidget {
       p.requestErrorChanged.connect(function() { root.updateTooltip() })
       p.activityPulse.connect(eventBlink.restart)
       if (p.leagueLiveChanged) p.leagueLiveChanged.connect(function() { root.updateTooltip() })
+      if (p.leagueUpcomingChanged) p.leagueUpcomingChanged.connect(function() { root.updateTooltip() })
+      if (p.leagueRecentChanged) p.leagueRecentChanged.connect(function() { root.updateTooltip() })
+      if (p.matchWeekRowsChanged) p.matchWeekRowsChanged.connect(function() { root.updateTooltip() })
+      if (p.leagueModeChanged) p.leagueModeChanged.connect(function() { root.updateTooltip() })
       if (p.leagueBoardSummaryChanged) p.leagueBoardSummaryChanged.connect(function() { root.updateTooltip() })
+      if (p.barWidgetModeChanged) p.barWidgetModeChanged.connect(function() { root.updateTooltip() })
+      if (p.savedFavoriteChanged) p.savedFavoriteChanged.connect(function() {
+        root.savedFavorite = p.savedFavorite
+        root.updateTooltip()
+      })
       root.updateTooltip()
     }
   }
