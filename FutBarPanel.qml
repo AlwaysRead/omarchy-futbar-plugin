@@ -16465,63 +16465,30 @@ root.warnStderr("team select failed", text)
               anchors.topMargin: matchRow.rowVPadding
               spacing: Style.space(2)
 
-              // Top Line: Follow button / Competition info on left, Match date on top right
+              // Top Line: Follow button on left (if followable), Match date on top right
               Item {
                 width: parent.width
                 height: Style.space(12)
-                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable || (matchRow.modelData.competitionName && !root.leagueMode)
+                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable
 
-                Row {
+                Button {
+                  z: 2
+                  visible: matchRow.rowFollowable
                   anchors.left: parent.left
-                  anchors.right: matchCardDate.left
-                  anchors.rightMargin: Style.space(6)
                   anchors.verticalCenter: parent.verticalCenter
-                  spacing: Style.space(4)
-
-                  Button {
-                    z: 2
-                    visible: matchRow.rowFollowable
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconText: matchRow.rowFollowed ? "󰴅" : "󰡬"
-                    text: matchRow.rowFollowed ? "Following" : "Follow"
-                    tooltipText: matchRow.rowFollowed ? "Stop notifications for this match" : "Notify on goals, cards, half-time and full-time"
-                    fontFamily: root.contentFontFamily
-                    foreground: root.contentForeground
-                    accent: root.contentForeground
-                    fontSize: Style.space(8)
-                    iconSize: Style.space(8)
-                    horizontalPadding: Style.space(5)
-                    verticalPadding: 0
-                    height: Style.space(13)
-                    selected: matchRow.rowFollowed
-                    onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
-                  }
-
-                  Image {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Style.space(11)
-                    height: width
-                    source: matchRow.modelData.competitionLogo || ""
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.width: 32
-                    sourceSize.height: 32
-                    mipmap: true
-                    asynchronous: true
-                    smooth: true
-                    visible: String(source) !== "" && !root.leagueMode
-                  }
-
-                  Text {
-                    textFormat: Text.PlainText
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: matchRow.modelData.competitionName || ""
-                    color: Qt.darker(root.contentForeground, 1.45)
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.space(8.5)
-                    font.bold: true
-                    visible: text !== "" && !root.leagueMode
-                    elide: Text.ElideRight
-                  }
+                  iconText: matchRow.rowFollowed ? "󰴅" : "󰡬"
+                  text: matchRow.rowFollowed ? "Following" : "Follow"
+                  tooltipText: matchRow.rowFollowed ? "Stop notifications for this match" : "Notify on goals, cards, half-time and full-time"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  fontSize: Style.space(8)
+                  iconSize: Style.space(8)
+                  horizontalPadding: Style.space(5)
+                  verticalPadding: 0
+                  height: Style.space(13)
+                  selected: matchRow.rowFollowed
+                  onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
                 }
 
                 // Match Date in the top right side of the individual match card
