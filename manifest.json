@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "devbook.futbar",
   "name": "FutBar",
-  "version": "2.1.1",
+  "version": "2.1.3",
   "author": "devbook",
   "license": "MIT",
   "description": "Live match center and football tracker with tactical lineups, real-time scores, league tables, and live event alerts.",
@@ -54,7 +54,11 @@
         "type": "enum",
         "label": "Tab label style",
         "description": "Choose how followed tabs are labeled: abbrev (3 letters), short (short names), or full (full names).",
-        "options": ["abbrev", "short", "full"],
+        "options": [
+          "abbrev",
+          "short",
+          "full"
+        ],
         "defaultValue": "abbrev"
       },
       {
@@ -62,7 +66,11 @@
         "type": "enum",
         "label": "Bar widget display mode",
         "description": "Choose what is displayed on the top bar: icon (minimal glyph), score (live match score), or next (upcoming fixture).",
-        "options": ["icon", "score", "next"],
+        "options": [
+          "icon",
+          "score",
+          "next"
+        ],
         "defaultValue": "icon"
       },
       {
@@ -70,7 +78,11 @@
         "type": "enum",
         "label": "Kickoff time format",
         "description": "Format for match kickoff times: 24h (20:00), 12h (8:00 PM), or relative (in 2h 15m).",
-        "options": ["24h", "12h", "relative"],
+        "options": [
+          "24h",
+          "12h",
+          "relative"
+        ],
         "defaultValue": "24h"
       },
       {
@@ -99,7 +111,10 @@
         "type": "enum",
         "label": "Notification scope",
         "description": "Choose whether to receive alerts for primary club only or all followed tabs.",
-        "options": ["primary", "all"],
+        "options": [
+          "primary",
+          "all"
+        ],
         "defaultValue": "primary"
       },
       {
@@ -121,7 +136,11 @@
         "type": "enum",
         "label": "Live polling interval (seconds)",
         "description": "Refresh rate during live matches: 10, 30, or 60 seconds.",
-        "options": [10, 30, 60],
+        "options": [
+          10,
+          30,
+          60
+        ],
         "defaultValue": 10
       }
     ]
