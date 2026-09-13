@@ -220,8 +220,8 @@ Column {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     horizontalAlignment: Text.AlignLeft
-                    elide: Text.ElideRight
-                    width: Math.min(implicitWidth, homeScorerItem.width - (homeScorerItem.isRed ? Style.space(12) : 0))
+                    wrapMode: Text.WordWrap
+                    width: Math.max(0, homeScorerItem.width - (homeScorerItem.isRed ? Style.space(12) : 0))
                   }
                 }
               }
@@ -305,8 +305,8 @@ Column {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     horizontalAlignment: Text.AlignRight
-                    elide: Text.ElideRight
-                    width: Math.min(implicitWidth, awayScorerItem.width - (awayScorerItem.isRed ? Style.space(12) : 0))
+                    wrapMode: Text.WordWrap
+                    width: Math.max(0, awayScorerItem.width - (awayScorerItem.isRed ? Style.space(12) : 0))
                   }
                 }
               }

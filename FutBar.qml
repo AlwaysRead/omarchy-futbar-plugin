@@ -368,10 +368,7 @@ BarWidget {
   Loader {
     id: panelLoader
     active: true
-    // Cache-bust the panel URL: Qt.clearComponentCache does not drop
-    // Loader-cached components, so without this a plugin reload would keep
-    // running the previous version of FutBarPanel.qml.
-    source: Qt.resolvedUrl("FutBarPanel.qml") + "?rev=" + Date.now()
+    source: Qt.resolvedUrl("FutBarPanel.qml")
     visible: false
     onLoaded: {
       root.injectPanel()
