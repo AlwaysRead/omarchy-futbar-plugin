@@ -672,6 +672,7 @@ Panel {
     root._teamAbbrevCache = {}
     root._teamShortCache = {}
     root._teamStateCache = {}
+    root._leagueStateCache = {}
     root.resetTeamData()
     root.resetMatchList()
     root.refresh()
@@ -952,6 +953,7 @@ Panel {
 
   // Switches the active item WITHOUT reordering the tabs list
   function switchActiveItem(teamName, league, teamId, followLeague) {
+    root.showSettings = false
     var isLg = followLeague === true || (String(teamName || "").trim() === "" && String(league || "").trim() !== "")
     var existing = root.findFollowedTab(teamName, league, teamId, isLg)
     var currentTabs = root.allFollowedTabs().slice()
@@ -1044,6 +1046,8 @@ Panel {
       }
     }
     delete root._teamStateCache[destKey]
+    delete root._leagueStateCache[destKey]
+    if (league) delete root._leagueStateCache[String(league)]
     var activeKey = root.itemKey(root.leagueMode ? "" : root.teamName, root.league, root.leagueMode)
     if (destKey === activeKey && currentTabs.length > 0) {
       var next = currentTabs[0]
@@ -1105,6 +1109,7 @@ Panel {
   property var activityPending: ({})
   readonly property int activityPendingMaxTries: 3
   // League standings for the selected league, shown from the header button.
+  property bool showSettings: false
   property bool showStandings: false
   // How many seasons back the table is viewing (0 = live season). Reset
   // when the popup closes.
@@ -1443,7 +1448,6 @@ Panel {
     root.showStandings = false
     root.showStats = false
     root.showClubFixtures = false
-    root.leagueBrowseAll = false
     root.showMatches = root.leagueMode
     root.pendingEdge = ""
     root.navAnchorDay = ""
@@ -1466,8 +1470,6 @@ Panel {
   // Closing always returns the League Matches view to the live round: the
   // next open refetches the standard window and lands on today's matchweek.
   function resetMatchWeekNav() {
-    root.showClubFixtures = false
-    root.leagueBrowseAll = false
     root.matchWindowOffset = 0
     root.pendingEdge = ""
     root.navAnchorDay = ""
@@ -1568,6 +1570,41 @@ Panel {
     // meanwhile, e.g. by the picker's own team search).
     root._fixtureTeamKey = root.fixtureTeamKey()
   }
+  property var _leagueStateCache: ({})
+
+  function snapshotLeagueState() {
+    return {
+      matchClusters: root.matchClusters,
+      matchClusterIndex: root.matchClusterIndex,
+      matchWindowOffset: root.matchWindowOffset,
+      leagueLive: root.leagueLive,
+      leagueRecent: root.leagueRecent,
+      leagueUpcoming: root.leagueUpcoming,
+      leagueBoardSummary: root.leagueBoardSummary,
+      leagueBrowseAll: root.leagueBrowseAll,
+      tournamentName: root.tournamentName,
+      tournamentLogo: root.tournamentLogo,
+      lastMatchListRefresh: root.lastMatchListRefresh,
+      _lastMatchListKey: root._lastMatchListKey
+    }
+  }
+
+  function restoreLeagueState(snap) {
+    if (!snap) return
+    root.matchClusters = snap.matchClusters || []
+    root.matchClusterIndex = snap.matchClusterIndex || 0
+    root.matchWindowOffset = snap.matchWindowOffset || 0
+    root.leagueLive = snap.leagueLive || []
+    root.leagueRecent = snap.leagueRecent || []
+    root.leagueUpcoming = snap.leagueUpcoming || []
+    root.leagueBoardSummary = snap.leagueBoardSummary || ""
+    root.leagueBrowseAll = snap.leagueBrowseAll || false
+    root.tournamentName = snap.tournamentName || ""
+    root.tournamentLogo = snap.tournamentLogo || ""
+    root.lastMatchListRefresh = snap.lastMatchListRefresh || 0
+    root._lastMatchListKey = snap._lastMatchListKey || ""
+  }
+
 
   // matchWeekRows/matchWeekLabel are deliberately not reset here: both are
   // `readonly` properties derived from activeMatchCluster (itself derived
@@ -1648,27 +1685,37 @@ Panel {
   // names and logos come from each scoreboard's own `leagues` array, so no
   // separate league request is needed.
   function buildFetchQueue() {
-    var stale = new Date().getTime() - root.competitionRefresh > 6 * 3600 * 1000
-    if (root.competitionSlugs.length === 0 || stale) root.fetchQueue = [{ kind: "discover" }]
-    else root.fetchQueue = []
+    var team = root.safeIdentifier(root.resolvedTeamId !== "" ? root.resolvedTeamId : root.teamId)
+    if (team !== "") {
+      root.fetchQueue = [{ kind: "schedule" }]
+    } else {
+      var stale = new Date().getTime() - root.competitionRefresh > 6 * 3600 * 1000
+      if (root.competitionSlugs.length === 0 || stale) root.fetchQueue = [{ kind: "discover" }]
+      else root.fetchQueue = []
+    }
   }
 
   function startNextFetch() {
     if (root.fetchQueue.length === 0) {
-      root.startScoreboards()
+      root.finishFetch()
       return
     }
     var next = root.fetchQueue.shift()
     root.fetchStage = next.kind
-    var window = root.clubSeasonWindow()
     var team = root.safeIdentifier(root.resolvedTeamId !== "" ? root.resolvedTeamId : root.teamId)
     var leagueCode = root.safeIdentifier(root.league)
     if (next.kind === "teams") {
       if (leagueCode === "") { root.loading = false; return }
       fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
         "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
+    } else if (next.kind === "schedule" || next.kind === "schedule_past" || next.kind === "schedule_future") {
+      if (team === "") { root.loading = false; return }
+      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "4194304",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/teams/" + encodeURIComponent(team) + "/schedule",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/teams/" + encodeURIComponent(team) + "/schedule?fixture=true"]
     } else if (next.kind === "discover") {
-      if (team === "") { root.startScoreboards(); return }
+      if (team === "") { root.finishFetch(); return }
+      var window = root.clubSeasonWindow()
       fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
         "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(team) + "/events?dates=" + encodeURIComponent(window) + "&limit=100"]
     }
@@ -1708,9 +1755,8 @@ Panel {
           var slug = root.safeIdentifier(rawSlug)
           if (slug === "") continue
           root.sbSlugs[i] = slug
-          var window = root.clubSeasonWindow()
           procs[i].command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
-            "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
+            "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?limit=500"]
           procs[i].running = true
           assigned = true
           break
@@ -2022,18 +2068,28 @@ Panel {
         }
       }
     }
-    return root.sanitizeImageUrl(l)
+    return l !== "" ? root.sanitizeImageUrl(l) : "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/default-team-logo-500.png&w=100&h=100"
   }
 
   function scoreFor(event, side) {
     if (!event) return "—"
     if (side === "home" && event.homeScore !== undefined && event.homeScore !== "") return root.sanitizePlainText(String(event.homeScore))
     if (side === "away" && event.awayScore !== undefined && event.awayScore !== "") return root.sanitizePlainText(String(event.awayScore))
-    if (side === "home" && event.home && event.home.score !== undefined && event.home.score !== "") return root.sanitizePlainText(String(event.home.score))
-    if (side === "away" && event.away && event.away.score !== undefined && event.away.score !== "") return root.sanitizePlainText(String(event.away.score))
+    if (side === "home" && event.home && event.home.score !== undefined && event.home.score !== "") {
+      var hs = event.home.score
+      return root.sanitizePlainText(typeof hs === "object" && hs ? String(hs.displayValue !== undefined ? hs.displayValue : (hs.value !== undefined ? hs.value : "0")) : String(hs))
+    }
+    if (side === "away" && event.away && event.away.score !== undefined && event.away.score !== "") {
+      var as_ = event.away.score
+      return root.sanitizePlainText(typeof as_ === "object" && as_ ? String(as_.displayValue !== undefined ? as_.displayValue : (as_.value !== undefined ? as_.value : "0")) : String(as_))
+    }
     var item = competitor(event, side)
-    var raw = item ? String(item.score !== undefined ? item.score : "0") : "—"
-    return root.sanitizePlainText(raw)
+    if (!item || item.score === undefined) return "—"
+    var s = item.score
+    if (typeof s === "object" && s !== null) {
+      return root.sanitizePlainText(String(s.displayValue !== undefined ? s.displayValue : (s.value !== undefined ? s.value : "0")))
+    }
+    return root.sanitizePlainText(String(s))
   }
 
   function kickoffDay(event) {
@@ -2694,40 +2750,225 @@ Panel {
     return changed ? merged : existing
   }
 
+  function parseScoreboardPayload(text) {
+    if (typeof text !== "string" || text.length === 0) return null
+    try {
+      return JSON.parse(text)
+    } catch (e) {}
+
+    var events = []
+    var firstData = null
+    var depth = 0
+    var inString = false
+    var escape = false
+    var start = -1
+    var len = text.length
+
+    for (var i = 0; i < len; i++) {
+      var c = text[i]
+      if (escape) {
+        escape = false
+        continue
+      }
+      if (c === "\\") {
+        escape = true
+        continue
+      }
+      if (c === '"') {
+        inString = !inString
+        continue
+      }
+      if (!inString) {
+        if (c === "{") {
+          if (depth === 0) start = i
+          depth++
+        } else if (c === "}") {
+          depth--
+          if (depth === 0 && start !== -1) {
+            try {
+              var chunk = text.slice(start, i + 1)
+              var parsed = JSON.parse(chunk)
+              if (!firstData) firstData = parsed
+              if (parsed && Array.isArray(parsed.events)) {
+                for (var evIdx = 0; evIdx < parsed.events.length; evIdx++) {
+                  events.push(parsed.events[evIdx])
+                }
+              }
+            } catch (err) {}
+            start = -1
+          }
+        }
+      }
+    }
+
+    if (firstData) {
+      var seen = {}
+      var uniqueEvents = []
+      for (var k = 0; k < events.length; k++) {
+        var ev = events[k]
+        var eid = ev && ev.id ? String(ev.id) : ""
+        if (eid !== "" && !seen[eid]) {
+          seen[eid] = true
+          uniqueEvents.push(ev)
+        } else if (eid === "") {
+          uniqueEvents.push(ev)
+        }
+      }
+      firstData.events = uniqueEvents
+      return firstData
+    }
+    return null
+  }
+
   // Fetches the scoreboard window for the selected league so the League
   // Matches section can show what matters: everything live, the next few
   // upcoming fixtures, and the last few results. Same endpoint class as the
-  // scoreboard pool, so the same 5 MiB bound. One week back, two weeks
-  // ahead, so a round that spills past day +7 (e.g. a Mon/Tue game after a
-  // weekend) is still fetched and clustered with its matchweek.
+  // scoreboard pool, so the same 5 MiB bound. Queries each day of the matchweek
+  // period individually to avoid ESPN's HTTP 400 on hyphenated date ranges.
+  property var _leagueCalendar: ({})
+
+  function groupCalendarDates(dates) {
+    if (!dates || !Array.isArray(dates) || dates.length === 0) return []
+    var cleanDates = []
+    for (var i = 0; i < dates.length; i++) {
+      var ds = String(dates[i]).slice(0, 10).replace(/-/g, "")
+      if (ds.length === 8 && cleanDates.indexOf(ds) === -1) {
+        cleanDates.push(ds)
+      }
+    }
+    cleanDates.sort()
+    if (cleanDates.length === 0) return []
+
+    var weeks = []
+    var curr = [cleanDates[0]]
+    for (var j = 1; j < cleanDates.length; j++) {
+      var prevD = cleanDates[j - 1]
+      var currD = cleanDates[j]
+      var pDate = new Date(parseInt(prevD.slice(0, 4), 10), parseInt(prevD.slice(4, 6), 10) - 1, parseInt(prevD.slice(6, 8), 10))
+      var cDate = new Date(parseInt(currD.slice(0, 4), 10), parseInt(currD.slice(4, 6), 10) - 1, parseInt(currD.slice(6, 8), 10))
+      var diffDays = Math.round((cDate.getTime() - pDate.getTime()) / (86400 * 1000))
+      if (diffDays <= 3) {
+        curr.push(currD)
+      } else {
+        weeks.push(curr)
+        curr = [currD]
+      }
+    }
+    if (curr.length > 0) weeks.push(curr)
+    return weeks
+  }
+
+  function parseCalendarMatchWeeks(text) {
+    if (typeof text !== "string" || text.length === 0) return []
+    try {
+      var data = JSON.parse(text)
+      var rawDates = (data.eventDate && Array.isArray(data.eventDate.dates)) ? data.eventDate.dates : []
+      return root.groupCalendarDates(rawDates)
+    } catch (e) {
+      return []
+    }
+  }
+
+  function getMatchWeekDates(weeks, offset) {
+    if (!weeks || weeks.length === 0) return null
+    var today = Qt.formatDate(new Date(), "yyyyMMdd")
+
+    var pastIdx = -1
+    var currIdx = -1
+    var nextIdx = -1
+
+    for (var i = 0; i < weeks.length; i++) {
+      var w = weeks[i]
+      var startD = w[0]
+      var endD = w[w.length - 1]
+      if (startD <= today && today <= endD) {
+        currIdx = i
+        break
+      } else if (endD < today) {
+        pastIdx = i
+      } else if (startD > today && nextIdx === -1) {
+        nextIdx = i
+      }
+    }
+
+    var baseIdx = currIdx !== -1 ? currIdx : (nextIdx !== -1 ? nextIdx : Math.max(0, weeks.length - 1))
+
+    if (offset === 0) {
+      if (currIdx !== -1) {
+        return weeks[currIdx].slice()
+      } else {
+        // Off-week or gap (like UCL between rounds): automatically fetch BOTH previous matchweek AND next matchweek
+        var out = []
+        if (pastIdx !== -1) {
+          for (var p = 0; p < weeks[pastIdx].length; p++) {
+            if (out.indexOf(weeks[pastIdx][p]) === -1) out.push(weeks[pastIdx][p])
+          }
+        }
+        if (nextIdx !== -1) {
+          for (var nx = 0; nx < weeks[nextIdx].length; nx++) {
+            if (out.indexOf(weeks[nextIdx][nx]) === -1) out.push(weeks[nextIdx][nx])
+          }
+        }
+        return out.length > 0 ? out : (weeks[baseIdx] || null)
+      }
+    } else {
+      var targetIdx = Math.max(0, Math.min(weeks.length - 1, baseIdx + offset))
+      return weeks[targetIdx] || null
+    }
+  }
+
   function loadMatchList(force, isRetry) {
     if (root.needsTeam) return
     var slug = root.safeIdentifier(root.league)
     if (slug === "") return
+
+    // Dynamically query ESPN calendar API if not yet cached for this league
+    if (!root._leagueCalendar[slug] && !leagueCalendarRequest.running) {
+      leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576",
+        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/calendar/ondays"]
+      leagueCalendarRequest.running = true
+    }
+
     var key = slug + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
     var now = Date.now()
-    if (!force && key === root._lastMatchListKey && (root.matchClusters.length > 0 || root.matchWeekRows.length > 0) && root.leagueLive.length === 0 && (now - root.lastMatchListRefresh < 30 * 1000)) {
+    var hasData = root.leagueBrowseAll
+      ? (root.matchClusters.length > 0 || root.matchWeekRows.length > 0)
+      : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0 || root.matchClusters.length > 0)
+    if (!force && key === root._lastMatchListKey && hasData && (now - root.lastMatchListRefresh < 30 * 1000)) {
       return
     }
     matchListRequest.running = false
-    root.matchListLoading = true
+    if (!hasData) root.matchListLoading = true
     root.matchListError = ""
     if (!isRetry) root._matchListRetry = 0
-    // League board covers the local day plus its UTC neighbours: an
-    // evening UTC kickoff lands on the next morning east of Greenwich, so
-    // a strict single-day fetch would miss exactly those live matches.
-    var window
-    if (root.leagueMode && !root.leagueBrowseAll)
-      window = root.rangeDate(-1) + "-" + root.rangeDate(1)
-    else if (root.leagueMode)
-      window = root.rangeDate(-7 + root.matchWindowOffset)
-        + "-" + root.rangeDate(14 + root.matchWindowOffset)
-    else
-      window = root.rangeDate(-7 + root.matchWindowOffset)
-        + "-" + root.rangeDate(14 + root.matchWindowOffset)
-    matchListRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
-      + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
+
+    var days = []
+    var calWeeks = root._leagueCalendar[slug]
+
+    if (root.leagueMode && !root.leagueBrowseAll) {
+      // Daily live board covers yesterday, today, and tomorrow
+      days = [root.rangeDate(-1), root.rangeDate(0), root.rangeDate(1)]
+    } else if (calWeeks && calWeeks.length > 0) {
+      var mwDates = root.getMatchWeekDates(calWeeks, root.matchWindowOffset)
+      if (mwDates && mwDates.length > 0) {
+        days = mwDates
+      }
+    }
+
+    if (days.length === 0) {
+      // Fallback: 8-day window centered on matchWindowOffset
+      var center = root.matchWindowOffset
+      for (var d = -3; d <= 4; d++) {
+        days.push(root.rangeDate(center + d))
+      }
+    }
+
+    var cmd = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880"]
+    for (var i = 0; i < days.length; i++) {
+      cmd.push("https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
+        + "/scoreboard?dates=" + encodeURIComponent(days[i]) + "&limit=500")
+    }
+    matchListRequest.command = cmd
     matchListRequest.running = true
   }
 
@@ -3620,12 +3861,9 @@ Panel {
     var queue = root._livePollQueue.slice()
     var slug = queue.shift()
     root._livePollQueue = queue
-    // Local day +/- 1 UTC neighbour, same reasoning as loadMatchList: an
-    // evening UTC kickoff lands on the next morning east of Greenwich.
-    var window = root.rangeDate(-1) + "-" + root.rangeDate(1)
     livePollProcess.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "5242880",
       "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
-      + "/scoreboard?dates=" + encodeURIComponent(window) + "&limit=500"]
+      + "/scoreboard?limit=500"]
     livePollProcess.running = true
   }
   function handleLivePollResult(text) {
@@ -3898,6 +4136,8 @@ Panel {
     // *before* this function changes them below.
     if (root.teamName !== "" && root.teamKey(root.teamName, root.league) !== root.teamKey(teamVal, leagueVal)) {
       root._teamStateCache[root.teamKey(root.teamName, root.league)] = root.snapshotTeamState()
+    } else if (root.leagueMode && root.league !== "") {
+      root._leagueStateCache[root.league] = root.snapshotLeagueState()
     }
 
     root.resolvedTeamId = teamIdVal
@@ -3913,7 +4153,6 @@ Panel {
     // property anywhere in this file -- assigning to them throws "Cannot
     // assign to non-existent property" and, same as the resetMatchList()
     // bug above, aborted whatever called this. Dead/vestigial, removed.)
-    root.resetMatchList()
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
@@ -3933,18 +4172,12 @@ Panel {
     var cached = root._teamStateCache[root.teamKey(teamVal, leagueVal)]
     if (cached) {
       // Cache hit: show the last-known dashboard instantly, no reset-to-
-      // empty/spinner flash. refresh() below still runs to bring it up to
-      // date -- restoreTeamState() sets _fixtureTeamKey to match, so
-      // refresh() skips its own resetTeamData() and (since collectedEvents
-      // is non-empty again) the loading flag, and buildFetchQueue() skips
-      // rediscovering competitions if competitionSlugs is still fresh --
-      // so this becomes a light "just refetch scoreboards" pass rather
-      // than the full cold-start pipeline.
+      // empty/spinner flash.
       root.restoreTeamState(cached)
       root.loading = false
     } else {
-      // No cache entry -- never loaded this session (first pick, or just
-      // added via "+"). Today's full reset + spinner + fetch from scratch.
+      // No cache entry -- full reset + fetch from scratch.
+      root.resetMatchList()
       root.resetTeamData()
       root._fixtureTeamKey = ""
       root.loading = true
@@ -4187,6 +4420,8 @@ Panel {
     if (activeKey !== destKey) {
       if (!root.leagueMode && root.teamName !== "") {
         root._teamStateCache[activeKey] = root.snapshotTeamState()
+      } else if (root.leagueMode && root.league !== "") {
+        root._leagueStateCache[root.league] = root.snapshotLeagueState()
       }
     }
 
@@ -4195,19 +4430,6 @@ Panel {
     root._queueSetBarWidget("teamName", "")
     root._queueSetBarWidget("teamId", "")
 
-    // Force clean state and immediate fetch for new league
-    root.resetTeamData()
-    root.resetMatchList()
-    root._fixtureTeamKey = ""
-    root.showStandings = false
-    root.showStats = false
-    root.showMatches = true
-    root.showMatchDetail = false
-    root.leagueBrowseAll = false
-    root.matchWindowOffset = 0
-    root.matchListLoading = true
-    root.matchListError = ""
-
     // Cancel in-flight processes
     fixtureRequest.running = false
     sbRequest1.running = false
@@ -4215,7 +4437,29 @@ Panel {
     sbRequest3.running = false
     matchListRequest.running = false
 
-    root.loadMatchList(true)
+    root.resetTeamData()
+    root._fixtureTeamKey = ""
+    root.showStandings = false
+    root.showStats = false
+    root.showMatches = true
+    root.showMatchDetail = false
+    root.matchListError = ""
+
+    var cached = root._leagueStateCache[leagueVal]
+    if (cached) {
+      root.restoreLeagueState(cached)
+      root.matchListLoading = false
+      var now = Date.now()
+      if (now - root.lastMatchListRefresh > 30 * 1000) {
+        root.loadMatchList()
+      }
+    } else {
+      root.resetMatchList()
+      root.leagueBrowseAll = false
+      root.matchWindowOffset = 0
+      root.matchListLoading = true
+      root.loadMatchList(true)
+    }
   }
   // Stores a team id resolved from the /teams list when the team was set
   // through the generic settings UI rather than the picker.
@@ -4467,15 +4711,16 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (typeof text !== "string" || text.length === 0 || text.length > 2097152) {
-          if (typeof text === "string" && text.length > 2097152) {
+        if (typeof text !== "string" || text.length === 0 || text.length > 4194304) {
+          if (typeof text === "string" && text.length > 4194304) {
             console.warn("futbar", root.fetchStage + " response exceeded byte limit")
           }
           root.startNextFetch()
           return
         }
         try {
-          var data = JSON.parse(text)
+          var data = root.parseScoreboardPayload(text)
+          if (!data) throw new Error("Could not parse schedule payload")
           if (root.fetchStage === "teams") {
             var leagues = data.sports && data.sports[0] && data.sports[0].leagues || []
             var list = (leagues[0] && leagues[0].teams) || []
@@ -4504,6 +4749,44 @@ Panel {
               console.warn("futbar", "could not resolve team id for " + root.teamName)
               root.requestError = "Could not resolve team"
               root.loading = false
+              return
+            }
+          } else if (root.fetchStage === "schedule" || root.fetchStage === "schedule_past" || root.fetchStage === "schedule_future") {
+            var events = Array.isArray(data.events) ? data.events : []
+            var merged = root.collectedEvents.slice()
+            var slugs = root.competitionSlugs.slice()
+            var map = Object.assign({}, root.leagueInfo)
+            for (var e = 0; e < events.length; e++) {
+              var ev = events[e]
+              var comp = (ev.competitions && ev.competitions[0]) || {}
+              if (!ev.status && comp.status) ev.status = comp.status
+              var lgSlug = (ev.league && ev.league.slug) ? root.safeIdentifier(ev.league.slug) : root.safeIdentifier(root.league)
+              if (ev.competitionSlug === undefined) ev.competitionSlug = lgSlug
+              if (lgSlug !== "" && slugs.indexOf(lgSlug) === -1) slugs.push(lgSlug)
+              if (lgSlug !== "" && !map[lgSlug] && ev.league) {
+                map[lgSlug] = {
+                  name: root.sanitizePlainText(String(ev.league.name || ev.league.abbreviation || lgSlug)),
+                  logo: root.sanitizeImageUrl(ev.league.logos && ev.league.logos.length ? String(ev.league.logos[0].href || "") : "")
+                }
+              }
+              var existingIndex = -1
+              for (var k = 0; k < merged.length; k++) {
+                if (String(merged[k].id) === String(ev.id)) { existingIndex = k; break }
+              }
+              if (existingIndex !== -1) merged[existingIndex] = ev
+              else merged.push(ev)
+            }
+            root.collectedEvents = merged
+            root.competitionSlugs = slugs
+            root.leagueInfo = map
+            if (merged.length > 0) {
+              root.setFixtures({ events: merged })
+              if (root.clubFixturePage === 0 && root.teamFixtureRows.length > 0) {
+                root.initClubFixturePage()
+              }
+            }
+            if (root.fetchQueue.length === 0) {
+              root.finishFetch()
               return
             }
           } else if (root.fetchStage === "discover") {
@@ -5701,6 +5984,27 @@ onStreamFinished: root.warnStderr("", text)
   }
 
   Process {
+    id: leagueCalendarRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var slug = root.safeIdentifier(root.league)
+        if (typeof text === "string" && text.length > 0 && text.length <= 1048576 && slug !== "") {
+          var weeks = root.parseCalendarMatchWeeks(text)
+          if (weeks && weeks.length > 0) {
+            root._leagueCalendar[slug] = weeks
+            root.loadMatchList()
+          }
+        }
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.warnStderr("calendar", text)
+    }
+  }
+
+  Process {
     id: matchListRequest
     stdout: StdioCollector {
       waitForEnd: true
@@ -5718,13 +6022,18 @@ onStreamFinished: root.warnStderr("", text)
           return
         }
         try {
-          var data = JSON.parse(text)
+          var data = root.parseScoreboardPayload(text)
+          if (!data) throw new Error("Could not parse scoreboard payload")
           var lg = data.leagues && data.leagues[0] ? data.leagues[0] : (data.league || {})
           if (String(lg.name || "") !== "")
             root.tournamentName = root.sanitizePlainText(String(lg.name))
           if (lg.logos && lg.logos[0]) {
             var lgo = root.sanitizeImageUrl(String(lg.logos[0].href || ""))
             if (lgo !== "") root.tournamentLogo = lgo
+          }
+          if (lg.calendar && Array.isArray(lg.calendar) && typeof lg.calendar[0] === "string" && !root._leagueCalendar[root.safeIdentifier(root.league)]) {
+            var parsedWks = root.groupCalendarDates(lg.calendar)
+            if (parsedWks && parsedWks.length > 0) root._leagueCalendar[root.safeIdentifier(root.league)] = parsedWks
           }
           if (root.leagueMode && !root.leagueBrowseAll) {
             var board = root.parseLeagueBoard(data)
@@ -5749,21 +6058,6 @@ onStreamFinished: root.warnStderr("", text)
               for (var li = 0; li < board.live.length; li++)
                 root.enqueueLeagueSummary(board.live[li].id)
               root.pollNextLeagueSummary()
-            }
-            if (board.live.length === 0) {
-              // No live matches in the daily slate: default to the upcoming
-              // matchweek fixtures instead of an empty board. Same landing
-              // as the manual "Show full fixtures" action.
-              root.leagueBrowseAll = true
-              root.matchWindowOffset = 0
-              root.pendingEdge = ""
-              root.navAnchorDay = ""
-              if (root.matchClusters && root.matchClusters.length > 0) {
-                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
-              }
-              root.matchListLoading = false
-              root.loadMatchList(true)
-              return
             }
             root.matchListLoading = false
             return
@@ -9050,8 +9344,49 @@ root.warnStderr("team select failed", text)
       blocked: (leagueDropdown && (leagueDropdown.popupOpen || leagueDropdown.activeFocus))
         || (teamDropdown && (teamDropdown.popupOpen || teamDropdown.activeFocus))
         || (searchBarInput && searchBarInput.activeFocus)
-      onCloseRequested: root.close()
+      onCloseRequested: {
+        if (root.showSettings) root.showSettings = false
+        else if (root.showMatchDetail) root.showMatchDetail = false
+        else if (root.selectedPlayerProfile !== null) root.selectedPlayerProfile = null
+        else if (root.selectedClubProfile !== null) root.selectedClubProfile = null
+        else if (root.showSearch) root.showSearch = false
+        else if (root.editingTeam) { root.editingTeam = false; root.addingTeam = false }
+        else root.close()
+      }
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) {
+        if (dx < 0) {
+          if (matchWeekNav && matchWeekNav.visible && prevWeekButton) prevWeekButton.clicked()
+        } else if (dx > 0) {
+          if (matchWeekNav && matchWeekNav.visible && nextWeekButton) nextWeekButton.clicked()
+        } else if (dy !== 0 && panelScrollArea && panelScrollArea.flickableItem) {
+          panelScrollArea.flickableItem.flick(0, dy > 0 ? -600 : 600)
+        }
+      }
+      onTextKey: function(t) {
+        if (!t) return
+        var c = t.toLowerCase()
+        if (t >= "1" && t <= "9") {
+          var idx = parseInt(t, 10) - 1
+          var tabs = root.allFollowedTabs()
+          if (tabs && idx < tabs.length) {
+            root.switchActiveItem(tabs[idx].teamName, tabs[idx].league, tabs[idx].teamId, tabs[idx].followLeague)
+          }
+        } else if (c === "r") {
+          root.refresh()
+          if (root.leagueMode || root.showMatches) root.loadMatchList(true)
+        } else if (t === "/") {
+          if (searchButton) searchButton.clicked()
+        } else if (c === "t") {
+          if (standingsButton) standingsButton.clicked()
+        } else if (c === "s") {
+          if (statsButton) statsButton.clicked()
+        } else if (c === "m") {
+          if (matchesButton) matchesButton.clicked()
+        } else if (c === "p") {
+          if (settingsButton) settingsButton.clicked()
+        }
+      }
 
       Column {
         id: pinnedHeader
@@ -9089,7 +9424,7 @@ root.warnStderr("team select failed", text)
               text: displayName
               tooltipText: isFirstSlot
                 ? (fullLabel + " · Primary Bar Club" + (isItemActive ? "" : " (Click to view)"))
-                : (isItemActive ? fullLabel : ("Switch to " + fullLabel + " · right-click to remove"))
+                : (isItemActive ? fullLabel : ("Switch to " + fullLabel + " · right-click / middle-click to remove"))
               selected: isItemActive
               fontFamily: root.contentFontFamily
               foreground: isFirstSlot ? "#f59e0b" : root.contentForeground
@@ -9105,6 +9440,14 @@ root.warnStderr("team select failed", text)
               onRightClicked: {
                 if (!isFirstSlot || root.allFollowedTabs().length > 1) {
                   root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
+                }
+              }
+              TapHandler {
+                acceptedButtons: Qt.MiddleButton
+                onTapped: {
+                  if (!isFirstSlot || root.allFollowedTabs().length > 1) {
+                    root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
+                  }
                 }
               }
             }
@@ -9153,7 +9496,7 @@ root.warnStderr("team select failed", text)
             - (standingsButton.visible ? standingsButton.width + parent.spacing : 0)
             - (statsButton.visible ? statsButton.width + parent.spacing : 0)
             - (matchesButton.visible ? matchesButton.width + parent.spacing : 0)
-            - (changeTeamButton.visible ? changeTeamButton.width + parent.spacing : 0)
+            - (settingsButton.visible ? settingsButton.width + parent.spacing : 0)
           spacing: Style.space(2)
 
           Text {
@@ -9208,6 +9551,7 @@ root.warnStderr("team select failed", text)
           onClicked: {
             root.showMatchDetail = false
             root.showClubFixtures = false
+            root.showSettings = false
             root.showSearch = !root.showSearch
             if (root.showSearch) {
               root.showMatches = false
@@ -9238,6 +9582,7 @@ root.warnStderr("team select failed", text)
             root.showMatchDetail = false
             root.showClubFixtures = false
             root.showSearch = false
+            root.showSettings = false
             if (root.leagueMode) {
               if (root.showStandings || root.showStats) {
                 root.showStandings = false
@@ -9298,6 +9643,7 @@ root.warnStderr("team select failed", text)
             root.showMatchDetail = false
             root.showClubFixtures = false
             root.showSearch = false
+            root.showSettings = false
             if (root.showStandings) {
               root.showMatches = false
               root.showStats = false
@@ -9332,6 +9678,7 @@ root.warnStderr("team select failed", text)
             root.showMatchDetail = false
             root.showClubFixtures = false
             root.showSearch = false
+            root.showSettings = false
             if (root.showStats) {
               root.showMatches = false
               root.showStandings = false
@@ -9347,22 +9694,26 @@ root.warnStderr("team select failed", text)
         }
 
         Button {
-          id: changeTeamButton
+          id: settingsButton
           anchors.verticalCenter: parent.verticalCenter
           width: Style.space(32)
           height: Style.space(32)
           iconText: "󰒓"
-          tooltipText: root.leagueMode ? "Change League" : "Change Team"
+          tooltipText: "Settings & Preferences"
           fontFamily: root.contentFontFamily
           foreground: root.contentForeground
           accent: root.contentForeground
           iconSize: Style.font.body
           horizontalPadding: 0
           verticalPadding: 0
+          selected: root.showSettings
           onClicked: {
             root.showSearch = false
             root.showClubFixtures = false
-            root.openTeamPicker()
+            root.showMatchDetail = false
+            root.showStandings = false
+            root.showStats = false
+            root.showSettings = !root.showSettings
           }
         }
       }
@@ -9423,7 +9774,7 @@ root.warnStderr("team select failed", text)
             Text {
               anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
-              text: root.addingTeam ? "Follow Club or Tournament" : "Settings & Preferences"
+              text: root.needsTeam ? "Pick Your Club" : (root.addingTeam ? "Follow Club or Tournament" : "Change Club or Tournament")
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.body
@@ -9435,7 +9786,7 @@ root.warnStderr("team select failed", text)
           SettingsCard {
             id: followCard
             icon: "󰐕"
-            title: root.addingTeam ? "Add Club or Tournament" : "Follow New Club or Tournament"
+            title: root.needsTeam ? "Select Club to Track" : (root.addingTeam ? "Add Club or Tournament" : "Change Club or Tournament")
             expanded: true
 
             Column {
@@ -9558,10 +9909,62 @@ root.warnStderr("team select failed", text)
               }
             }
           }
+        }
 
-          // CARD 2: Display & Formats (shown when not solely adding a team)
+        // Dedicated Settings & Preferences View
+        Column {
+          id: settingsView
+          visible: !root.needsTeam && !root.editingTeam && root.showSettings
+          width: parent.width
+          spacing: Style.space(14)
+
+          // Settings Header with Back Navigation and Status Badge
+          Row {
+            width: parent.width
+            spacing: Style.space(10)
+
+            Button {
+              iconText: "󰅁"
+              text: "Back"
+              tooltipText: "Return to match center"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: Style.space(4)
+              onClicked: root.showSettings = false
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: "Settings & Preferences"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+
+            Item {
+              width: Math.max(0, parent.width - Style.space(80) - Style.space(190) - Style.space(120))
+              height: 1
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              visible: root.settingsJustSaved || root.settingsJustReset
+              text: root.settingsJustSaved ? "Preferences Saved" : "Settings Reset"
+              color: root.settingsJustSaved ? "#4ade80" : "#f59e0b"
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+          }
+
+          // CARD 1: Display & Top Bar Formats
           SettingsCard {
-            visible: !root.addingTeam
             icon: "󰒓"
             title: "Display & Formats"
             expanded: true
@@ -9754,8 +10157,8 @@ root.warnStderr("team select failed", text)
           }
 
           // CARD 3: Notifications & Alerts (shown when not solely adding a team)
+          // CARD 2: Notifications & Alerts
           SettingsCard {
-            visible: !root.addingTeam
             icon: "󰂚"
             title: "Notifications & Alerts"
             expanded: true
@@ -9833,8 +10236,8 @@ root.warnStderr("team select failed", text)
           }
 
           // CARD 4: Match Experience (shown when not solely adding a team)
+          // CARD 3: Match Experience
           SettingsCard {
-            visible: !root.addingTeam
             icon: "󰈈"
             title: "Match Experience"
             expanded: true
@@ -9855,8 +10258,8 @@ root.warnStderr("team select failed", text)
           }
 
           // CARD 5: Performance & Cache (shown when not solely adding a team)
+          // CARD 4: Performance & Cache
           SettingsCard {
-            visible: !root.addingTeam
             icon: "󰒲"
             title: "Performance & Cache"
             expanded: true
@@ -9970,10 +10373,112 @@ root.warnStderr("team select failed", text)
               }
             }
           }
+          // CARD 5: Followed Clubs & Leagues Management
+          SettingsCard {
+            icon: "󰐕"
+            title: "Followed Clubs & Leagues"
+            expanded: true
+
+            Column {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Repeater {
+                model: root.allFollowedTabs()
+                delegate: Rectangle {
+                  id: followedTabRow
+                  required property var modelData
+                  required property int index
+                  width: parent.width
+                  height: Style.space(38)
+                  radius: Style.cornerRadius
+                  color: (index === 0) ? Util.alpha(root.favoriteTeamAccent || Color.accent, 0.12) : Util.alpha(root.contentForeground, 0.05)
+                  border.width: Style.spacing.hairline
+                  border.color: (index === 0) ? (root.favoriteTeamAccent || Color.accent) : Util.alpha(root.contentForeground, 0.1)
+
+                  Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(10)
+                    anchors.rightMargin: Style.space(10)
+                    spacing: Style.space(8)
+
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      textFormat: Text.PlainText
+                      text: index === 0 ? "" : String(index + 1)
+                      color: index === 0 ? "#f59e0b" : Qt.darker(root.contentForeground, 1.5)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      width: Style.space(16)
+                    }
+
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      textFormat: Text.PlainText
+                      text: modelData.followLeague
+                        ? (root.leagueLabel(modelData.league) + " (League)")
+                        : (modelData.teamName + " (" + root.leagueLabel(modelData.league) + ")")
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: index === 0
+                      elide: Text.ElideRight
+                      width: parent.width - Style.space(16) - (index > 0 ? Style.space(72) : Style.space(36)) - parent.spacing * 3
+                    }
+
+                    Button {
+                      anchors.verticalCenter: parent.verticalCenter
+                      visible: index > 0
+                      iconText: "󰐊"
+                      tooltipText: "Set as Primary Bar Club"
+                      fontFamily: root.contentFontFamily
+                      foreground: root.contentForeground
+                      accent: root.contentForeground
+                      fontSize: Style.font.caption
+                      horizontalPadding: Style.space(6)
+                      verticalPadding: Style.space(2)
+                      onClicked: root.promoteToPrimary(modelData.teamName, modelData.league, modelData.teamId, modelData.followLeague)
+                    }
+
+                    Button {
+                      anchors.verticalCenter: parent.verticalCenter
+                      visible: index > 0 || root.allFollowedTabs().length > 1
+                      iconText: "󰅖"
+                      tooltipText: "Remove from followed tabs"
+                      fontFamily: root.contentFontFamily
+                      foreground: "#ef4444"
+                      accent: "#ef4444"
+                      fontSize: Style.font.caption
+                      horizontalPadding: Style.space(6)
+                      verticalPadding: Style.space(2)
+                      onClicked: root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
+                    }
+                  }
+                }
+              }
+
+              Button {
+                width: parent.width
+                iconText: "󰐕"
+                text: "Follow Another Club or League"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.favoriteTeamAccent || Color.accent
+                fontSize: Style.font.caption
+                horizontalPadding: Style.space(10)
+                verticalPadding: Style.space(6)
+                onClicked: {
+                  root.showSettings = false
+                  root.openAddTeamPicker()
+                }
+              }
+            }
+          }
         }
 
       Column {
-        visible: !root.needsTeam && !root.editingTeam
+        visible: !root.needsTeam && !root.editingTeam && !root.showSettings
         width: parent.width
         spacing: Style.space(14)
 
@@ -11003,7 +11508,8 @@ root.warnStderr("team select failed", text)
                 // Empty view has no boundary row: let the landing logic use
                 // the far edge of whatever the shifted window returns.
                 root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[0].day : ""
-                root.matchWindowOffset -= 21
+                var calW = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
+                root.matchWindowOffset -= (calW && calW.length > 0) ? 1 : 7
                 root.pendingEdge = "prev"
                 root.loadMatchList()
               }
@@ -11039,7 +11545,8 @@ root.warnStderr("team select failed", text)
                 if (root.matchClusterIndex < root.matchClusters.length - 1) { root.matchClusterIndex++; return }
                 if (matchListRequest.running) matchListRequest.running = false
                 root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
-                root.matchWindowOffset += 21
+                var calWNext = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
+                root.matchWindowOffset += (calWNext && calWNext.length > 0) ? 1 : 7
                 root.pendingEdge = "next"
                 root.loadMatchList()
               }
@@ -11822,8 +12329,8 @@ root.warnStderr("team select failed", text)
       }
 
     }
+    }
   }
-}
 }
 }
 }

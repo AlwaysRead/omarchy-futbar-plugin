@@ -241,6 +241,36 @@ BarWidget {
     if (raw === "score" || raw === "next" || raw === "icon") return raw
     return "icon"
   }
+  function cycleFollowedTabs(forward) {
+    var p = panelLoader.item
+    if (!p || !p.allFollowedTabs || !p.switchActiveItem) return
+    var tabs = p.allFollowedTabs()
+    if (!tabs || tabs.length <= 1) return
+    var currentKey = p.itemKey(p.leagueMode ? "" : p.teamName, p.league, p.leagueMode)
+    var curIdx = 0
+    for (var i = 0; i < tabs.length; i++) {
+      if (p.itemKey(tabs[i].teamName, tabs[i].league, tabs[i].followLeague) === currentKey) {
+        curIdx = i
+        break
+      }
+    }
+    var nextIdx = forward ? (curIdx + 1) % tabs.length : (curIdx - 1 + tabs.length) % tabs.length
+    var target = tabs[nextIdx]
+    p.switchActiveItem(target.teamName, target.league, target.teamId, target.followLeague)
+  }
+
+  function cycleBarWidgetMode() {
+    var p = panelLoader.item
+    var cur = root.barWidgetMode
+    var next = (cur === "icon") ? "score" : ((cur === "score") ? "next" : "icon")
+    if (p && p.setBarWidgetMode) {
+      p.setBarWidgetMode(next)
+    } else {
+      var payload = Object.assign({}, root.savedFavorite, { barWidgetMode: next })
+      root.savedFavorite = payload
+      favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
+    }
+  }
 
   readonly property string barDisplayText: {
     var p = panelLoader.item
@@ -261,7 +291,7 @@ BarWidget {
           var clk = p.statusFor(lm)
           var hAbbrev = p.teamTabLabel(p.teamNameFor(lm, "home"), root.league, "abbrev")
           var aAbbrev = p.teamTabLabel(p.teamNameFor(lm, "away"), root.league, "abbrev")
-          return (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
+          return "● " + (hAbbrev || "H") + " " + h + "–" + a + " " + (aAbbrev || "A") + (clk ? " " + clk : "")
         }
         var prev = (!p.leagueMode && p.teamName === root.teamName) ? p.previousMatch : (cached ? cached.previousMatch : p.previousMatch)
         if (prev) {
@@ -283,7 +313,7 @@ BarWidget {
           var lhAbbrev = p.teamTabLabel(lm.homeName, p.league, "abbrev") || lm.homeName
           var laAbbrev = p.teamTabLabel(lm.awayName, p.league, "abbrev") || lm.awayName
           var lmore = p.leagueLive.length > 1 ? (" (+" + (p.leagueLive.length - 1) + ")") : ""
-          return (lhAbbrev || "H") + " " + lh + "–" + la + " " + (laAbbrev || "A") + " " + lclk + lmore
+          return "● " + (lhAbbrev || "H") + " " + lh + "–" + la + " " + (laAbbrev || "A") + " " + lclk + lmore
         }
         if (Array.isArray(p.leagueRecent) && p.leagueRecent.length > 0) {
           var rm = p.leagueRecent[0]
@@ -412,9 +442,17 @@ BarWidget {
     tooltipText: root.tooltip
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.MiddleButton) root.refresh()
+      else if (mouseButton === Qt.RightButton) root.cycleBarWidgetMode()
       else {
-        root.refresh()
+        if (!panelLoader.item || !panelLoader.item.fixtureFresh()) root.refresh()
         root.togglePanel()
+      }
+    }
+
+    WheelHandler {
+      onWheel: function(event) {
+        if (event.angleDelta.y < 0) root.cycleFollowedTabs(true)
+        else if (event.angleDelta.y > 0) root.cycleFollowedTabs(false)
       }
     }
   }
