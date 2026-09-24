@@ -13,8 +13,12 @@ Column {
   spacing: Style.space(12)
 
   property bool expandAllStats: false
+  property bool heroScoreRevealed: false
   onVisibleChanged: {
-    if (!visible) expandAllStats = false
+    if (!visible) {
+      expandAllStats = false
+      heroScoreRevealed = false
+    }
   }
 
   function isKeyStat(statName) {
@@ -139,12 +143,56 @@ Column {
 
             // Upper area: Score centered between the crests (height: Style.space(50))
             Item {
+              id: heroScoreArea
               width: parent.width
               height: Style.space(50)
 
+              // Anti-spoiler conceal badge
+              Rectangle {
+                anchors.centerIn: parent
+                visible: !!(root && root.antiSpoiler && !matchDetailView.heroScoreRevealed && root.matchDetail && root.matchDetail.started)
+                width: Style.space(76)
+                height: Style.space(26)
+                radius: Style.cornerRadius
+                color: heroScoreMouse.containsMouse ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.25) : Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12)
+                border.width: Style.spacing.hairline
+                border.color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+
+                Row {
+                  anchors.centerIn: parent
+                  spacing: Style.space(4)
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰈈"
+                    font.pixelSize: Style.font.caption
+                    color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+                  }
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Reveal"
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption - 1
+                    font.bold: true
+                    color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+                  }
+                }
+
+                MouseArea {
+                  id: heroScoreMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: matchDetailView.heroScoreRevealed = true
+                }
+              }
+
               Text {
+                id: heroScoreText
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
+                visible: !(root && root.antiSpoiler && !matchDetailView.heroScoreRevealed && root.matchDetail && root.matchDetail.started)
                 text: (root.matchDetail && root.matchDetail.started && root.matchDetail.home && root.matchDetail.away)
                   ? (root.matchDetail.home.score + " – " + root.matchDetail.away.score) : "vs"
                 color: (root.matchDetail && !root.matchDetail.started) ? Qt.darker(root.contentForeground, 1.5) : root.contentForeground
@@ -818,6 +866,172 @@ Column {
               }
             }
           }
+
+          // Live Attack Momentum Graph Card
+          Rectangle {
+            id: momentumCard
+            width: parent.width
+            height: momentumCol.implicitHeight + Style.space(20)
+            radius: Style.space(8)
+            color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+            border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+            border.width: 1
+            visible: !!(root.matchDetail && root.matchDetail.momentum && root.matchDetail.momentum.length > 0)
+
+            Column {
+              id: momentumCol
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(8)
+
+              // Header
+              Row {
+                width: parent.width
+                Text {
+                  textFormat: Text.PlainText
+                  text: "ATTACK MOMENTUM"
+                  color: Qt.darker(root.contentForeground, 1.6)
+                  font.family: root ? root.contentFontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption - 1
+                  font.letterSpacing: 1
+                  font.bold: true
+                }
+                Item {
+                  width: Math.max(0, parent.width - Style.space(130) - legendRow.implicitWidth)
+                  height: 1
+                }
+                Row {
+                  id: legendRow
+                  spacing: Style.space(10)
+                  anchors.verticalCenter: parent.verticalCenter
+                  Row {
+                    spacing: Style.space(4)
+                    Rectangle {
+                      width: 8
+                      height: 8
+                      radius: 2
+                      color: root.statsHomeColor
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: (root.matchDetail && root.matchDetail.home) ? root.matchDetail.home.name : "Home"
+                      color: Qt.darker(root.contentForeground, 1.4)
+                      font.family: root ? root.contentFontFamily : Style.font.family
+                      font.pixelSize: Style.space(8.5)
+                      font.bold: true
+                    }
+                  }
+                  Row {
+                    spacing: Style.space(4)
+                    Rectangle {
+                      width: 8
+                      height: 8
+                      radius: 2
+                      color: root.statsAwayColor
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: (root.matchDetail && root.matchDetail.away) ? root.matchDetail.away.name : "Away"
+                      color: Qt.darker(root.contentForeground, 1.4)
+                      font.family: root ? root.contentFontFamily : Style.font.family
+                      font.pixelSize: Style.space(8.5)
+                      font.bold: true
+                    }
+                  }
+                }
+              }
+
+              // Momentum Chart Container
+              Item {
+                id: momentumChartArea
+                width: parent.width
+                height: Style.space(84)
+
+                // Background grid & center zero line
+                Rectangle {
+                  id: zeroBaseline
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  height: 1
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.2)
+                }
+
+                // Half-Time 45' vertical guideline
+                Rectangle {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  anchors.top: parent.top
+                  anchors.bottom: parent.bottom
+                  width: 1
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                }
+
+                Text {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  anchors.bottom: parent.bottom
+                  anchors.bottomMargin: Style.space(1)
+                  textFormat: Text.PlainText
+                  text: "HT 45'"
+                  color: Qt.darker(root.contentForeground, 2.0)
+                  font.family: root ? root.contentFontFamily : Style.font.family
+                  font.pixelSize: Style.space(7.5)
+                  font.bold: true
+                }
+
+                // Minute Bars
+                Row {
+                  id: barsRow
+                  anchors.fill: parent
+                  spacing: 1
+
+                  Repeater {
+                    model: (root.matchDetail && root.matchDetail.momentum) ? root.matchDetail.momentum : []
+                    delegate: Item {
+                      id: barItem
+                      required property var modelData
+                      required property int index
+                      width: Math.max(1, (barsRow.width - (barsRow.spacing * (barsRow.children.length - 1))) / Math.max(1, (root.matchDetail && root.matchDetail.momentum ? root.matchDetail.momentum.length : 90)))
+                      height: parent.height
+
+                      readonly property real normVal: Math.max(-1.0, Math.min(1.0, Number(modelData.value || 0) / 100.0))
+                      readonly property bool isHome: normVal >= 0
+
+                      Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: barItem.isHome ? zeroBaseline.top : undefined
+                        anchors.top: barItem.isHome ? undefined : zeroBaseline.bottom
+                        width: Math.max(1.5, parent.width)
+                        height: Math.max(2, Math.abs(barItem.normVal) * (parent.height / 2 - Style.space(6)))
+                        radius: 1
+                        color: barItem.isHome ? root.statsHomeColor : root.statsAwayColor
+                        opacity: mBarMouse.containsMouse ? 1.0 : 0.82
+                      }
+
+                      MouseArea {
+                        id: mBarMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                      }
+
+                      PanelToolTip {
+                        visible: mBarMouse.containsMouse
+                        text: {
+                          var m = barItem.modelData.minute !== undefined ? (barItem.modelData.minute + "'") : ""
+                          var team = barItem.isHome
+                            ? ((root.matchDetail && root.matchDetail.home) ? root.matchDetail.home.name : "Home")
+                            : ((root.matchDetail && root.matchDetail.away) ? root.matchDetail.away.name : "Away")
+                          var valStr = Math.abs(Math.round(barItem.modelData.value || 0))
+                          return (m !== "" ? (m + " · ") : "") + team + " Attack +" + valStr
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
 
         // Timeline Tab
@@ -1421,30 +1635,47 @@ Column {
                     }
                   }
 
-                  // 3. Substitute Out Badge (Bottom-Right - White ▼)
+                  // 3. Substitution Badge (Bottom-Right - Sub minute & in/out indicators)
                   Rectangle {
                     id: subBadge
-                    width: Style.space(13)
+                    width: (pitchPlayerItem.modelData.subMinute && pitchPlayerItem.modelData.subMinute !== "")
+                      ? subMinuteText.implicitWidth + Style.space(12)
+                      : Style.space(13)
                     height: Style.space(13)
-                    radius: width / 2
+                    radius: height / 2
                     anchors.bottom: jerseyContainer.bottom
                     anchors.right: jerseyContainer.right
                     anchors.bottomMargin: -Style.space(2)
                     anchors.rightMargin: -Style.space(3)
-                    color: Qt.rgba(0.08, 0.08, 0.08, 0.95)
-                    border.color: Qt.rgba(1, 1, 1, 0.3)
-                    border.width: 0.7
+                    color: pitchPlayerItem.modelData.subbedIn ? "#14532d" : Qt.rgba(0.08, 0.08, 0.08, 0.95)
+                    border.color: pitchPlayerItem.modelData.subbedIn ? "#22c55e" : (pitchPlayerItem.modelData.subbedOut ? "#ef4444" : Qt.rgba(1, 1, 1, 0.3))
+                    border.width: 0.8
                     z: 20
-                    visible: !!pitchPlayerItem.modelData.subbedOut
+                    visible: !!(pitchPlayerItem.modelData.subbedOut || pitchPlayerItem.modelData.subbedIn)
 
-                    Text {
-                      textFormat: Text.PlainText
+                    Row {
                       anchors.centerIn: parent
-                      text: "▼"
-                      color: "#ffffff"
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.caption - 2
-                      font.bold: true
+                      spacing: Style.space(2)
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: pitchPlayerItem.modelData.subbedIn ? "▲" : "▼"
+                        color: pitchPlayerItem.modelData.subbedIn ? "#4ade80" : "#ef4444"
+                        font.family: root ? root.contentFontFamily : Style.font.family
+                        font.pixelSize: Style.font.caption - 2
+                        font.bold: true
+                      }
+                      Text {
+                        id: subMinuteText
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: !!(pitchPlayerItem.modelData.subMinute && pitchPlayerItem.modelData.subMinute !== "")
+                        text: pitchPlayerItem.modelData.subMinute || ""
+                        color: "#ffffff"
+                        font.family: root ? root.contentFontFamily : Style.font.family
+                        font.pixelSize: Style.space(8)
+                        font.bold: true
+                      }
                     }
                   }
 
@@ -1870,9 +2101,27 @@ Column {
                         anchors.centerIn: parent
                         text: hFormPill.modelData.result
                         color: "#ffffff"
-                        font.family: root.contentFontFamily
+                        font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.font.caption - 2
                         font.bold: true
+                      }
+
+                      MouseArea {
+                        id: hFormMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                      }
+
+                      PanelToolTip {
+                        visible: hFormMouse.containsMouse
+                        text: {
+                          var parts = []
+                          if (hFormPill.modelData.opponent) parts.push("vs " + hFormPill.modelData.opponent)
+                          if (hFormPill.modelData.score) parts.push(hFormPill.modelData.score)
+                          if (hFormPill.modelData.dateFormatted) parts.push(hFormPill.modelData.dateFormatted)
+                          return parts.length > 0 ? parts.join(" · ") : (hFormPill.modelData.result || "")
+                        }
                       }
                     }
                   }
@@ -1938,9 +2187,27 @@ Column {
                         anchors.centerIn: parent
                         text: aFormPill.modelData.result
                         color: "#ffffff"
-                        font.family: root.contentFontFamily
+                        font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.font.caption - 2
                         font.bold: true
+                      }
+
+                      MouseArea {
+                        id: aFormMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                      }
+
+                      PanelToolTip {
+                        visible: aFormMouse.containsMouse
+                        text: {
+                          var parts = []
+                          if (aFormPill.modelData.opponent) parts.push("vs " + aFormPill.modelData.opponent)
+                          if (aFormPill.modelData.score) parts.push(aFormPill.modelData.score)
+                          if (aFormPill.modelData.dateFormatted) parts.push(aFormPill.modelData.dateFormatted)
+                          return parts.length > 0 ? parts.join(" · ") : (aFormPill.modelData.result || "")
+                        }
                       }
                     }
                   }

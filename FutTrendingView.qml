@@ -62,6 +62,55 @@ Column {
     expandedMap = next
   }
 
+  readonly property var flatVisibleMatches: {
+    var list = []
+    var groups = groupedTournaments
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (collapsedMap[g.key]) continue
+      var ms = g.matches || []
+      for (var j = 0; j < ms.length; j++) {
+        list.push(ms[j])
+      }
+    }
+    return list
+  }
+  property int keyboardSelectedMatchIndex: -1
+
+  function navigateMatch(delta) {
+    var total = flatVisibleMatches.length
+    if (total === 0) {
+      keyboardSelectedMatchIndex = -1
+      return
+    }
+    if (keyboardSelectedMatchIndex === -1) {
+      keyboardSelectedMatchIndex = delta > 0 ? 0 : total - 1
+    } else {
+      keyboardSelectedMatchIndex = Math.max(0, Math.min(total - 1, keyboardSelectedMatchIndex + delta))
+    }
+  }
+
+  function activateSelectedMatch() {
+    if (keyboardSelectedMatchIndex >= 0 && keyboardSelectedMatchIndex < flatVisibleMatches.length) {
+      var m = flatVisibleMatches[keyboardSelectedMatchIndex]
+      if (m && root && root.openMatchDetail) {
+        root.openMatchDetail({
+          id: m.id,
+          competitionSlug: m.competitionSlug || m.leagueSlug,
+          competitionName: m.tournamentName,
+          status: m.statusDetail,
+          isLive: m.isLive,
+          started: m.state !== "pre",
+          seriesNote: m.seriesNote || "",
+          roundName: m.roundName || "",
+          shootoutNote: m.shootoutNote || "",
+          home: { name: m.homeName, logo: m.homeLogo, score: m.homeScore },
+          away: { name: m.awayName, logo: m.awayLogo, score: m.awayScore }
+        })
+      }
+    }
+  }
+
   function refresh(showLoading) {
     if (trendingLoading) return
     if (showLoading && rawMatches.length === 0) trendingLoading = true
@@ -236,7 +285,7 @@ Column {
       var kDate = ""
       if (e.date) {
         var dObj = new Date(e.date)
-        kTime = Qt.formatTime(dObj, "HH:mm")
+        kTime = (root && root.kickoffTime) ? root.kickoffTime({ date: dObj }) : Qt.formatTime(dObj, "HH:mm")
         kDate = Qt.formatDate(dObj, "ddd d MMM")
       }
 
@@ -636,6 +685,37 @@ Column {
     }
   }
 
+  // STALE / CACHED STATUS (Subtle banner when refresh failed but cache exists)
+  Rectangle {
+    width: parent.width
+    height: Style.space(22)
+    radius: Style.cornerRadius
+    color: Util.alpha(Color.foreground, 0.05)
+    visible: trendingView.trendingError !== "" && trendingView.rawMatches.length > 0
+
+    Row {
+      anchors.centerIn: parent
+      spacing: Style.space(6)
+
+      Text {
+        textFormat: Text.PlainText
+        anchors.verticalCenter: parent.verticalCenter
+        text: "󰒲"
+        font.pixelSize: Style.font.caption
+        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        anchors.verticalCenter: parent.verticalCenter
+        text: (root && root.formatCachedTimeAgo) ? root.formatCachedTimeAgo(trendingView.lastRefreshTime) : "Cached · Updated recently"
+        font.family: root ? root.contentFontFamily : Style.font.family
+        font.pixelSize: Style.font.caption - 1
+        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+      }
+    }
+  }
+
   // TOURNAMENT-GROUPED MATCHES LIST
   Column {
     id: tournamentGroupsCol
@@ -748,16 +828,21 @@ Column {
               width: tournamentMatchesCol.width
               height: matchInnerCol.implicitHeight + Style.space(12)
               readonly property bool hasFollowedTeam: trendingView.isFollowedTeam(matchRow.modelData.homeName) || trendingView.isFollowedTeam(matchRow.modelData.awayName)
+              readonly property bool isKeyboardSelected: (trendingView.flatVisibleMatches[trendingView.keyboardSelectedMatchIndex] && trendingView.flatVisibleMatches[trendingView.keyboardSelectedMatchIndex].id === matchRow.modelData.id)
 
               Rectangle {
                 anchors.fill: parent
                 radius: Style.space(6)
                 color: root ? root.contentForeground : Color.foreground
-                opacity: matchRow.modelData.isLive
-                  ? 0.08
-                  : (rowMouseArea.containsMouse ? 0.06 : 0.03)
-                border.color: matchRow.hasFollowedTeam ? (root ? root.favoriteTeamAccent : "#facc15") : "transparent"
-                border.width: matchRow.hasFollowedTeam ? 1 : 0
+                opacity: matchRow.isKeyboardSelected
+                  ? 0.12
+                  : (matchRow.modelData.isLive
+                    ? 0.08
+                    : (rowMouseArea.containsMouse ? 0.06 : 0.03))
+                border.color: matchRow.isKeyboardSelected
+                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent)
+                  : (matchRow.hasFollowedTeam ? (root ? root.favoriteTeamAccent : "#facc15") : "transparent")
+                border.width: matchRow.isKeyboardSelected ? 1.5 : (matchRow.hasFollowedTeam ? 1 : 0)
                 Behavior on opacity { NumberAnimation { duration: 120 } }
               }
 
@@ -803,17 +888,17 @@ Column {
                 anchors.topMargin: Style.space(6)
                 spacing: Style.space(3)
 
-                // Match Header info (Followed star, Round/stage name, Date & relative kickoff countdown)
+                // Match Header info (Followed star, Round/stage name, Date & relative kickoff countdown, 1-click notification toggle)
                 Item {
                   width: parent.width
-                  height: visible ? Style.space(11) : 0
-                  visible: matchFollowedStar.visible || matchTopLeftText.text !== "" || matchTopRightText.text !== ""
+                  height: visible ? Style.space(13) : 0
+                  visible: matchFollowedStar.visible || matchTopLeftText.text !== "" || matchTopRightText.visible || matchNotifyBtn.visible
 
                   Row {
                     id: matchTopLeftRow
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.right: matchTopRightText.left
+                    anchors.right: matchTopRightRow.left
                     anchors.rightMargin: Style.space(4)
                     spacing: Style.space(3)
 
@@ -843,26 +928,58 @@ Column {
                     }
                   }
 
-                  Text {
-                    id: matchTopRightText
-                    textFormat: Text.PlainText
+                  Row {
+                    id: matchTopRightRow
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text: {
-                      if (matchRow.modelData.isLive) return ""
-                      var d = matchRow.modelData.dateText || ""
-                      if (matchRow.modelData.state === "pre") {
-                        var rel = root && matchRow.modelData.kickoffMs ? root.relativeKickoffText(matchRow.modelData.kickoffMs) : ""
-                        if (rel !== "") {
-                          return d !== "" ? (d + " (" + rel + ")") : rel
+                    spacing: Style.space(6)
+
+                    Text {
+                      id: matchTopRightText
+                      textFormat: Text.PlainText
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: {
+                        if (matchRow.modelData.isLive) return ""
+                        var d = matchRow.modelData.dateText || ""
+                        if (matchRow.modelData.state === "pre") {
+                          var rel = root && matchRow.modelData.kickoffMs ? root.relativeKickoffText(matchRow.modelData.kickoffMs) : ""
+                          if (rel !== "") {
+                            return d !== "" ? (d + " (" + rel + ")") : rel
+                          }
+                        }
+                        return d
+                      }
+                      color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.55)
+                      font.family: root ? root.contentFontFamily : Style.font.family
+                      font.pixelSize: Style.space(8.5)
+                      font.bold: true
+                      visible: text !== ""
+                    }
+
+                    Button {
+                      id: matchNotifyBtn
+                      z: 5
+                      visible: matchRow.modelData.state !== "post"
+                      anchors.verticalCenter: parent.verticalCenter
+                      iconText: (root && root.isLeagueMatchFollowed && root.isLeagueMatchFollowed(matchRow.modelData.id)) ? "󰴅" : "󰡬"
+                      text: (root && root.isLeagueMatchFollowed && root.isLeagueMatchFollowed(matchRow.modelData.id)) ? "Following" : "Notify"
+                      tooltipText: (root && root.isLeagueMatchFollowed && root.isLeagueMatchFollowed(matchRow.modelData.id))
+                        ? "Stop notifications for this match" : "Notify on goals, cards, and match events"
+                      fontFamily: root ? root.contentFontFamily : Style.font.family
+                      foreground: root ? root.contentForeground : Color.foreground
+                      accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+                      fontSize: Style.space(7.5)
+                      iconSize: Style.space(7.5)
+                      horizontalPadding: Style.space(4)
+                      verticalPadding: 0
+                      height: Style.space(13)
+                      selected: root && root.isLeagueMatchFollowed && root.isLeagueMatchFollowed(matchRow.modelData.id)
+                      onClicked: {
+                        if (root && root.toggleLeagueMatchFollow) {
+                          root.toggleLeagueMatchFollow(matchRow.modelData.id)
                         }
                       }
-                      return d
                     }
-                    color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.55)
-                    font.family: root ? root.contentFontFamily : Style.font.family
-                    font.pixelSize: Style.space(8.5)
-                    font.bold: true
                   }
                 }
 

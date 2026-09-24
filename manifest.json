@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "devbook.futbar",
   "name": "FutBar",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "devbook",
   "license": "MIT",
   "description": "Live match center and football tracker with tactical lineups, real-time scores, league tables, and live event alerts.",
@@ -21,6 +21,8 @@
     "defaults": {
       "tabLabelStyle": "abbrev",
       "barWidgetMode": "icon",
+      "language": "en",
+      "timeFormat": "24h",
       "kickoffTimeFormat": "24h",
       "enableNotifications": true,
       "notifyGoals": true,
@@ -73,6 +75,32 @@
           "next"
         ],
         "defaultValue": "icon"
+      },
+      {
+        "key": "language",
+        "type": "enum",
+        "label": "Language",
+        "description": "User interface language (English, Spanish, Portuguese, German, French, Italian).",
+        "options": [
+          "en",
+          "es",
+          "pt",
+          "de",
+          "fr",
+          "it"
+        ],
+        "defaultValue": "en"
+      },
+      {
+        "key": "timeFormat",
+        "type": "enum",
+        "label": "Time format",
+        "description": "Format for match kickoff times: 24h (20:00) or 12h (8:00 PM).",
+        "options": [
+          "24h",
+          "12h"
+        ],
+        "defaultValue": "24h"
       },
       {
         "key": "kickoffTimeFormat",

@@ -371,7 +371,7 @@ BarWidget {
         if (upMatch) {
           var uhAbbrev = p.teamTabLabel(upMatch.homeName, p.league, "abbrev") || upMatch.homeName
           var uaAbbrev = p.teamTabLabel(upMatch.awayName, p.league, "abbrev") || upMatch.awayName
-          var ut = upMatch.timeText || (upMatch.kickoff ? root.sanitizePlainText(Qt.formatDateTime(new Date(upMatch.kickoff), "HH:mm")) : "")
+          var ut = upMatch.timeText || (upMatch.kickoff ? root.sanitizePlainText(p ? p.kickoffTime({ date: upMatch.kickoff }) : Qt.formatDateTime(new Date(upMatch.kickoff), "HH:mm")) : "")
           return (uhAbbrev || "H") + " vs " + (uaAbbrev || "A") + (ut ? " · " + ut : "")
         }
         if (p.loading || root.loading) return "Checking Fixtures…"

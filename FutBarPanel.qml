@@ -6,6 +6,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "FutData.js" as FutData
+import "FutI18n.js" as FutI18n
 
 // Fixture panel view
 Panel {
@@ -79,9 +80,29 @@ Panel {
     if (raw === "score" || raw === "next" || raw === "icon") return raw
     return "icon"
   }
+  readonly property string language: {
+    var raw = (root.savedFavorite && root.savedFavorite.language !== undefined && root.savedFavorite.language !== "")
+      ? String(root.savedFavorite.language) : setting("language", "en")
+    if (raw === "es" || raw === "pt" || raw === "de" || raw === "fr" || raw === "it") return raw
+    return "en"
+  }
+  function tr(key) { return FutI18n.t(key, root.language) }
+  function setLanguage(lang) {
+    var valid = (lang === "es" || lang === "pt" || lang === "de" || lang === "fr" || lang === "it") ? lang : "en"
+    root.setSettingValue("language", valid)
+  }
+  readonly property string timeFormat: {
+    var raw = (root.savedFavorite && root.savedFavorite.timeFormat !== undefined && root.savedFavorite.timeFormat !== "")
+      ? String(root.savedFavorite.timeFormat) : setting("timeFormat", root.kickoffTimeFormat)
+    if (raw === "12h" || raw === "relative" || raw === "24h") return raw
+    return root.kickoffTimeFormat
+  }
   readonly property string kickoffTimeFormat: {
-    var raw = (root.savedFavorite && root.savedFavorite.kickoffTimeFormat !== undefined && root.savedFavorite.kickoffTimeFormat !== "")
-      ? String(root.savedFavorite.kickoffTimeFormat) : setting("kickoffTimeFormat", "24h")
+    var raw = (root.savedFavorite && root.savedFavorite.timeFormat !== undefined && root.savedFavorite.timeFormat !== "")
+      ? String(root.savedFavorite.timeFormat)
+      : ((root.savedFavorite && root.savedFavorite.kickoffTimeFormat !== undefined && root.savedFavorite.kickoffTimeFormat !== "")
+        ? String(root.savedFavorite.kickoffTimeFormat)
+        : setting("timeFormat", setting("kickoffTimeFormat", "24h")))
     if (raw === "12h" || raw === "relative" || raw === "24h") return raw
     return "24h"
   }
@@ -508,8 +529,14 @@ Panel {
     root.setSettingValue("barWidgetMode", (mode === "score" || mode === "next" || mode === "icon") ? mode : "icon")
   }
 
+  function setTimeFormat(fmt) {
+    var valid = (fmt === "12h" || fmt === "relative" || fmt === "24h") ? fmt : "24h"
+    root.setSettingValue("timeFormat", valid)
+    root.setSettingValue("kickoffTimeFormat", valid)
+  }
+
   function setKickoffTimeFormat(fmt) {
-    root.setSettingValue("kickoffTimeFormat", (fmt === "12h" || fmt === "relative" || fmt === "24h") ? fmt : "24h")
+    root.setTimeFormat(fmt)
   }
 
   function setNotifyScope(scope) {
@@ -565,7 +592,9 @@ Panel {
     }
     payload.tabLabelStyle = root.tabLabelStyle
     payload.barWidgetMode = root.barWidgetMode
+    payload.language = root.language
     payload.kickoffTimeFormat = root.kickoffTimeFormat
+    payload.timeFormat = root.timeFormat
     payload.enableNotifications = root.enableNotifications
     payload.notifyGoals = root.notifyGoals
     payload.notifyEvents = root.notifyEvents
@@ -584,7 +613,7 @@ Panel {
     root.savedFavorite = payload
     if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
-    var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
+    var keys = ["tabLabelStyle", "barWidgetMode", "language", "kickoffTimeFormat", "timeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
       "antiSpoiler", "showOdds", "livePollRate", "enableTrending"]
     for (var i = 0; i < keys.length; i++) {
@@ -611,6 +640,8 @@ Panel {
     payload.tabLabelStyle = "abbrev"
     payload.barWidgetMode = "icon"
     payload.kickoffTimeFormat = "24h"
+    payload.barWidgetMode = "icon"
+    payload.language = "en"
     payload.enableNotifications = true
     payload.notifyGoals = true
     payload.notifyEvents = true
@@ -622,7 +653,7 @@ Panel {
     root.savedFavorite = payload
     if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
-    var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
+    var keys = ["tabLabelStyle", "barWidgetMode", "language", "kickoffTimeFormat", "timeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
       "antiSpoiler", "showOdds", "livePollRate", "enableTrending"]
     for (var i = 0; i < keys.length; i++) {
@@ -1086,8 +1117,69 @@ Panel {
   readonly property real standingsRankWidth: Style.space(24)
   readonly property real standingsRankGap: Style.space(10)
   readonly property real standingsLogoWidth: Style.space(16)
-  readonly property real standingsRowWidth: standingsTable ? standingsTable.width : Style.space(348)
+  readonly property real standingsRowWidth: (standingsView && standingsView.standingsRowWidth) ? standingsView.standingsRowWidth : Style.space(348)
   readonly property real standingsTeamWidth: root.standingsRowWidth - root.standingsRankWidth - root.standingsRankGap - root.standingsLogoWidth - 8 * root.standingsStatWidth
+  property int keyboardSelectedMainMatchIndex: -1
+
+  function getVisibleMainMatches() {
+    var list = []
+    if (root.leagueMode || root.showMatches || root.showClubFixtures) {
+      if (root.leagueBrowseAll || root.showClubFixtures) {
+        if (root.matchClusters && root.matchClusters[root.matchClusterIndex]) {
+          var clusterMatches = root.matchClusters[root.matchClusterIndex].matches || []
+          for (var i = 0; i < clusterMatches.length; i++) {
+            list.push(clusterMatches[i])
+          }
+        }
+      } else {
+        if (root.leagueLive) {
+          for (var l = 0; l < root.leagueLive.length; l++) list.push(root.leagueLive[l])
+        }
+        if (root.leagueUpcoming) {
+          for (var u = 0; u < root.leagueUpcoming.length; u++) list.push(root.leagueUpcoming[u])
+        }
+        if (root.leagueRecent) {
+          for (var r = 0; r < root.leagueRecent.length; r++) list.push(root.leagueRecent[r])
+        }
+      }
+    } else {
+      if (root.liveMatch) list.push(root.liveMatch)
+      if (root.nextMatch) list.push(root.nextMatch)
+      if (root.previousMatch) list.push(root.previousMatch)
+    }
+    return list
+  }
+
+  function navigateMainMatches(delta) {
+    var matches = root.getVisibleMainMatches()
+    if (!matches || matches.length === 0) {
+      root.keyboardSelectedMainMatchIndex = -1
+      return
+    }
+    var nextIdx = root.keyboardSelectedMainMatchIndex + delta
+    if (nextIdx < 0) nextIdx = matches.length - 1
+    else if (nextIdx >= matches.length) nextIdx = 0
+    root.keyboardSelectedMainMatchIndex = nextIdx
+  }
+
+  function activateSelectedMainMatch() {
+    var matches = root.getVisibleMainMatches()
+    if (root.keyboardSelectedMainMatchIndex >= 0 && root.keyboardSelectedMainMatchIndex < matches.length) {
+      root.openMatchDetail(matches[root.keyboardSelectedMainMatchIndex])
+    }
+  }
+
+  function formatCachedTimeAgo(timestampMs) {
+    if (!timestampMs || isNaN(timestampMs) || timestampMs <= 0) return "Cached · Updated recently"
+    var diffMs = Date.now() - timestampMs
+    if (diffMs < 60000) return "Cached · Updated just now"
+    var mins = Math.floor(diffMs / 60000)
+    if (mins < 60) return "Cached · Updated " + mins + "m ago"
+    var hrs = Math.floor(mins / 60)
+    if (hrs < 24) return "Cached · Updated " + hrs + "h ago"
+    var days = Math.floor(hrs / 24)
+    return "Cached · Updated " + days + "d ago"
+  }
   property bool showMatches: false
   property bool showClubFixtures: false
   property bool matchListLoading: false
@@ -2026,10 +2118,13 @@ Panel {
     return event ? root.sanitizePlainText(Qt.formatDate(new Date(event.date), "ddd d MMM")) : ""
   }
   function kickoffTime(event) {
-    if (!event || !event.date) return ""
-    var d = new Date(event.date)
+    if (!event) return ""
+    var rawDate = (event instanceof Date || typeof event === "number" || (typeof event === "string" && !event.date))
+      ? event : (event.date || event.kickoff || null)
+    if (!rawDate) return ""
+    var d = (rawDate instanceof Date) ? rawDate : new Date(rawDate)
     if (isNaN(d.getTime())) return ""
-    var fmt = root.kickoffTimeFormat
+    var fmt = root.timeFormat || root.kickoffTimeFormat
     if (fmt === "12h") {
       var hrs = d.getHours()
       var mins = d.getMinutes()
@@ -3680,6 +3775,7 @@ Panel {
   Component.onCompleted: root.ensureStarted()
   onSavedFavoriteChanged: root.ensureStarted()
   onOpenedChanged: {
+    root.keyboardSelectedMainMatchIndex = -1
     if (!root.opened) {
       root.editingTeam = false
       root.pickerLeagueOnly = false
@@ -5368,6 +5464,22 @@ onStreamFinished: root.warnStderr("", text)
             }
           }
 
+          var parsedMomentum = []
+          var rawMom = Array.isArray(data.momentum) ? data.momentum : (Array.isArray(comp.momentum) ? comp.momentum : [])
+          if (rawMom.length > 0) {
+            for (var mi = 0; mi < rawMom.length; mi++) {
+              var mEntry = rawMom[mi]
+              if (mEntry === null || mEntry === undefined) continue
+              if (typeof mEntry === "number") {
+                parsedMomentum.push({ minute: mi + 1, value: mEntry })
+              } else if (typeof mEntry === "object") {
+                var mMin = mEntry.minute !== undefined ? mEntry.minute : (mEntry.clock !== undefined ? mEntry.clock : (mi + 1))
+                var mVal = mEntry.value !== undefined ? mEntry.value : ((mEntry.home !== undefined && mEntry.away !== undefined) ? (mEntry.home - mEntry.away) : 0)
+                parsedMomentum.push({ minute: mMin, value: mVal })
+              }
+            }
+          }
+
           var statusDesc = (comp.status && comp.status.type && comp.status.type.description) ? String(comp.status.type.description) : "Full Time"
 
           function formatGroupedScorers(items) {
@@ -5598,6 +5710,7 @@ onStreamFinished: root.warnStderr("", text)
                   jerseyImgUrl = String(ath.headshot.href)
                 }
 
+                var subMinStr = ""
                 var eventDetails = []
                 if (Array.isArray(pObj.plays)) {
                   for (var pli = 0; pli < pObj.plays.length; pli++) {
@@ -5617,6 +5730,7 @@ onStreamFinished: root.warnStderr("", text)
                       eventDetails.push("󰀪" + (clk !== "" ? (" " + clk) : ""))
                     }
                     if (pl.substitution) {
+                      if (clk !== "") subMinStr = clk
                       if (isSubbedIn) {
                         eventDetails.push("▲" + (clk !== "" ? (" " + clk) : ""))
                       } else if (isSubbedOut) {
@@ -5652,6 +5766,7 @@ onStreamFinished: root.warnStderr("", text)
                   redCards: redCardsCount,
                   subbedOut: isSubbedOut,
                   subbedIn: isSubbedIn,
+                  subMinute: root.sanitizePlainText(subMinStr),
                   rating: playerRating,
                   eventsText: root.sanitizePlainText(eventDetails.join(" · ")),
                   jerseyImage: root.sanitizeImageUrl(jerseyImgUrl),
@@ -5729,6 +5844,7 @@ onStreamFinished: root.warnStderr("", text)
             homeForm: parsedHomeForm,
             awayForm: parsedAwayForm,
             odds: parsedOdds,
+            momentum: parsedMomentum,
             info: {
               venue: root.sanitizePlainText(venueStr),
               attendance: root.sanitizePlainText(attStr),
@@ -9352,8 +9468,21 @@ root.warnStderr("team select failed", text)
           if (matchWeekNav && matchWeekNav.visible && prevWeekButton) prevWeekButton.clicked()
         } else if (dx > 0) {
           if (matchWeekNav && matchWeekNav.visible && nextWeekButton) nextWeekButton.clicked()
-        } else if (dy !== 0 && panelScrollArea && panelScrollArea.flickableItem) {
-          panelScrollArea.flickableItem.flick(0, dy > 0 ? -600 : 600)
+        } else if (dy !== 0) {
+          if (root.showTrending && trendingView && trendingView.navigateMatch) {
+            trendingView.navigateMatch(dy > 0 ? 1 : -1)
+          } else if (!root.customViewActive) {
+            root.navigateMainMatches(dy > 0 ? 1 : -1)
+          } else if (panelScrollArea && panelScrollArea.flickableItem) {
+            panelScrollArea.flickableItem.flick(0, dy > 0 ? -600 : 600)
+          }
+        }
+      }
+      onActivateRequested: {
+        if (root.showTrending && trendingView && trendingView.activateSelectedMatch) {
+          trendingView.activateSelectedMatch()
+        } else if (!root.customViewActive) {
+          root.activateSelectedMainMatch()
         }
       }
       onTextKey: function(t) {
@@ -9946,575 +10075,9 @@ root.warnStderr("team select failed", text)
           }
         }
 
-        // Dedicated Settings & Preferences View
-        Column {
+        FutSettingsView {
           id: settingsView
-          visible: !root.needsTeam && !root.editingTeam && root.showSettings
-          width: parent.width
-          spacing: Style.space(14)
-
-          // Settings Header with Back Navigation and Status Badge
-          Row {
-            width: parent.width
-            spacing: Style.space(10)
-
-            Button {
-              iconText: "󰅁"
-              text: "Back"
-              tooltipText: "Return to match center"
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              fontSize: Style.font.caption
-              horizontalPadding: Style.space(8)
-              verticalPadding: Style.space(4)
-              onClicked: root.showSettings = false
-            }
-
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              textFormat: Text.PlainText
-              text: "Settings & Preferences"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-
-            Item {
-              width: Math.max(0, parent.width - Style.space(80) - Style.space(190) - Style.space(120))
-              height: 1
-            }
-
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              textFormat: Text.PlainText
-              visible: root.settingsJustSaved || root.settingsJustReset
-              text: root.settingsJustSaved ? "Preferences Saved" : "Settings Reset"
-              color: root.settingsJustSaved ? "#4ade80" : "#f59e0b"
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-            }
-          }
-
-          // CARD 1: Display & Top Bar Formats
-          SettingsCard {
-            icon: "󰒓"
-            title: "Display & Formats"
-            expanded: true
-
-            // Tab Labels Format
-            Column {
-              width: parent.width
-              spacing: Style.space(6)
-
-              Text {
-                textFormat: Text.PlainText
-                text: "Tab Labels Format"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-
-              Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "3 Letters"
-                  tooltipText: "Ultra-compact 3-letter codes (e.g. BAR, UCL, WOL)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.tabLabelStyle === "abbrev"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setTabLabelStyle("abbrev")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "Short"
-                  tooltipText: "Short recognizable names (e.g. Barça, UCL, Wolves)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.tabLabelStyle === "short"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setTabLabelStyle("short")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "Full"
-                  tooltipText: "Full official names (e.g. Barcelona, UEFA Champions League)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.tabLabelStyle === "full"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setTabLabelStyle("full")
-                }
-              }
-            }
-
-            // Top Bar Widget Mode
-            Column {
-              width: parent.width
-              spacing: Style.space(6)
-
-              Text {
-                textFormat: Text.PlainText
-                text: "Top Bar Widget"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-
-              Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "Icon Only"
-                  tooltipText: "Minimal ball icon on desktop bar (󰒸)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.barWidgetMode === "icon"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setBarWidgetMode("icon")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "Live Score"
-                  tooltipText: "Show active live match score on desktop bar"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.barWidgetMode === "score"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setBarWidgetMode("score")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "Next Match"
-                  tooltipText: "Show upcoming fixture and kickoff time on desktop bar"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.barWidgetMode === "next"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setBarWidgetMode("next")
-                }
-              }
-            }
-
-            // Kickoff Time Format
-            Column {
-              width: parent.width
-              spacing: Style.space(6)
-
-              Text {
-                textFormat: Text.PlainText
-                text: "Kickoff Time Format"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-
-              Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "24-Hour"
-                  tooltipText: "24-hour clock (e.g. 20:00)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.kickoffTimeFormat === "24h"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setKickoffTimeFormat("24h")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "12-Hour"
-                  tooltipText: "12-hour clock (e.g. 8:00 PM)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.kickoffTimeFormat === "12h"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setKickoffTimeFormat("12h")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "Relative"
-                  tooltipText: "Relative countdown (e.g. in 2h 15m)"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.kickoffTimeFormat === "relative"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setKickoffTimeFormat("relative")
-                }
-              }
-            }
-          }
-
-          // CARD 3: Notifications & Alerts (shown when not solely adding a team)
-          // CARD 2: Notifications & Alerts
-          SettingsCard {
-            icon: "󰂚"
-            title: "Notifications & Alerts"
-            expanded: true
-
-            SettingToggleRow {
-              title: "Enable Desktop Alerts"
-              description: "Send match notifications via notify-send"
-              checked: root.enableNotifications
-              onToggled: root.setEnableNotifications(!root.enableNotifications)
-            }
-
-            SettingToggleRow {
-              visible: root.enableNotifications
-              title: "Goal Alerts"
-              description: "Notifications on goals with scorer and minute"
-              checked: root.notifyGoals
-              onToggled: root.setNotifyGoals(!root.notifyGoals)
-            }
-
-            SettingToggleRow {
-              visible: root.enableNotifications
-              title: "Red Cards & Match Whistles"
-              description: "Alerts on red cards, kickoff, HT, and FT"
-              checked: root.notifyEvents
-              onToggled: root.setNotifyEvents(!root.notifyEvents)
-            }
-
-            Column {
-              visible: root.enableNotifications
-              width: parent.width
-              spacing: Style.space(6)
-
-              Text {
-                textFormat: Text.PlainText
-                text: "Notification Scope"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-
-              Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                  width: (parent.width - Style.space(6)) / 2
-                  text: "Primary Club Only"
-                  tooltipText: "Alerts only for your primary desktop bar club"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.notifyScope === "primary"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setNotifyScope("primary")
-                }
-
-                Button {
-                  width: (parent.width - Style.space(6)) / 2
-                  text: "All Followed Tabs"
-                  tooltipText: "Alerts for all followed clubs and tournaments"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.notifyScope === "all"
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setNotifyScope("all")
-                }
-              }
-            }
-          }
-
-          // CARD 3: Match Experience
-          SettingsCard {
-            icon: "󰈈"
-            title: "Match Experience"
-            expanded: true
-
-            SettingToggleRow {
-              title: "Trending & Live Matches"
-              description: "Show trending matches page and header button for global games"
-              checked: root.enableTrending
-              onToggled: root.setEnableTrending(!root.enableTrending)
-            }
-
-            SettingToggleRow {
-              title: "Anti-Spoiler Mode"
-              description: "Hide match scores until revealed or clicked"
-              checked: root.antiSpoiler
-              onToggled: root.setAntiSpoiler(!root.antiSpoiler)
-            }
-
-            SettingToggleRow {
-              title: "Show Pre-Match Odds"
-              description: "Display betting odds in fixture details"
-              checked: root.showOdds
-              onToggled: root.setShowOdds(!root.showOdds)
-            }
-          }
-
-          // CARD 4: Performance & Cache
-          SettingsCard {
-            icon: "󰒲"
-            title: "Performance & Cache"
-            expanded: true
-
-            Column {
-              width: parent.width
-              spacing: Style.space(6)
-
-              Text {
-                textFormat: Text.PlainText
-                text: "Live Match Refresh Rate"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-
-              Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "10s (Fast)"
-                  tooltipText: "Real-time live score updates"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.livePollRate === 10
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setLivePollRate(10)
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "30s"
-                  tooltipText: "Balanced polling cadence"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.livePollRate === 30
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setLivePollRate(30)
-                }
-
-                Button {
-                  width: (parent.width - Style.space(12)) / 3
-                  text: "60s (Saver)"
-                  tooltipText: "Battery saver mode for laptops"
-                  fontFamily: root.contentFontFamily
-                  foreground: root.contentForeground
-                  accent: root.contentForeground
-                  fontSize: Style.font.caption
-                  selected: root.livePollRate === 60
-                  horizontalPadding: 0
-                  verticalPadding: Style.space(4)
-                  onClicked: root.setLivePollRate(60)
-                }
-              }
-            }
-
-            Button {
-              width: parent.width
-              iconText: "󰑐"
-              text: "Clear Cache & Reload"
-              tooltipText: "Flush cached standings, rosters, and statistics and fetch fresh data"
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              fontSize: Style.font.caption
-              horizontalPadding: Style.space(10)
-              verticalPadding: Style.space(6)
-              onClicked: root.clearCacheAndReload()
-            }
-
-            Row {
-              width: parent.width
-              spacing: Style.space(8)
-
-              Button {
-                width: (parent.width - parent.spacing) / 2
-                iconText: "󰦛"
-                text: root.settingsJustReset ? "Reset Done" : "Reset"
-                tooltipText: "Reset all preferences back to default values"
-                fontFamily: root.contentFontFamily
-                foreground: root.contentForeground
-                accent: root.contentForeground
-                fontSize: Style.font.caption
-                horizontalPadding: Style.space(8)
-                verticalPadding: Style.space(6)
-                onClicked: root.resetAllSettings()
-              }
-
-              Button {
-                width: (parent.width - parent.spacing) / 2
-                iconText: "󰄬"
-                text: root.settingsJustSaved ? "Confirmed" : "Confirm"
-                tooltipText: "Confirm and apply all preferences to the desktop bar"
-                fontFamily: root.contentFontFamily
-                foreground: root.contentForeground
-                accent: root.favoriteTeamAccent || Color.accent
-                selected: true
-                fontSize: Style.font.caption
-                horizontalPadding: Style.space(8)
-                verticalPadding: Style.space(6)
-                onClicked: root.confirmAllSettings()
-              }
-            }
-          }
-          // CARD 5: Followed Clubs & Leagues Management
-          SettingsCard {
-            icon: "󰐕"
-            title: "Followed Clubs & Leagues"
-            expanded: true
-
-            Column {
-              width: parent.width
-              spacing: Style.space(8)
-
-              Repeater {
-                model: root.allFollowedTabs()
-                delegate: Rectangle {
-                  id: followedTabRow
-                  required property var modelData
-                  required property int index
-                  width: parent.width
-                  height: Style.space(38)
-                  radius: Style.cornerRadius
-                  color: (index === 0) ? Util.alpha(root.favoriteTeamAccent || Color.accent, 0.12) : Util.alpha(root.contentForeground, 0.05)
-                  border.width: Style.spacing.hairline
-                  border.color: (index === 0) ? (root.favoriteTeamAccent || Color.accent) : Util.alpha(root.contentForeground, 0.1)
-
-                  Row {
-                    anchors.fill: parent
-                    anchors.leftMargin: Style.space(10)
-                    anchors.rightMargin: Style.space(10)
-                    spacing: Style.space(8)
-
-                    Text {
-                      anchors.verticalCenter: parent.verticalCenter
-                      textFormat: Text.PlainText
-                      text: index === 0 ? "" : String(index + 1)
-                      color: index === 0 ? "#f59e0b" : Qt.darker(root.contentForeground, 1.5)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.caption
-                      font.bold: true
-                      width: Style.space(16)
-                    }
-
-                    Text {
-                      anchors.verticalCenter: parent.verticalCenter
-                      textFormat: Text.PlainText
-                      text: modelData.followLeague
-                        ? (root.leagueLabel(modelData.league) + " (League)")
-                        : (modelData.teamName + " (" + root.leagueLabel(modelData.league) + ")")
-                      color: root.contentForeground
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.caption
-                      font.bold: index === 0
-                      elide: Text.ElideRight
-                      width: parent.width - Style.space(16) - (index > 0 ? Style.space(72) : Style.space(36)) - parent.spacing * 3
-                    }
-
-                    Button {
-                      anchors.verticalCenter: parent.verticalCenter
-                      visible: index > 0
-                      iconText: "󰐊"
-                      tooltipText: "Set as Primary Bar Club"
-                      fontFamily: root.contentFontFamily
-                      foreground: root.contentForeground
-                      accent: root.contentForeground
-                      fontSize: Style.font.caption
-                      horizontalPadding: Style.space(6)
-                      verticalPadding: Style.space(2)
-                      onClicked: root.promoteToPrimary(modelData.teamName, modelData.league, modelData.teamId, modelData.followLeague)
-                    }
-
-                    Button {
-                      anchors.verticalCenter: parent.verticalCenter
-                      visible: index > 0 || root.allFollowedTabs().length > 1
-                      iconText: "󰅖"
-                      tooltipText: "Remove from followed tabs"
-                      fontFamily: root.contentFontFamily
-                      foreground: "#ef4444"
-                      accent: "#ef4444"
-                      fontSize: Style.font.caption
-                      horizontalPadding: Style.space(6)
-                      verticalPadding: Style.space(2)
-                      onClicked: root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
-                    }
-                  }
-                }
-              }
-
-              Button {
-                width: parent.width
-                iconText: "󰐕"
-                text: "Follow Another Club or League"
-                fontFamily: root.contentFontFamily
-                foreground: root.contentForeground
-                accent: root.favoriteTeamAccent || Color.accent
-                fontSize: Style.font.caption
-                horizontalPadding: Style.space(10)
-                verticalPadding: Style.space(6)
-                onClicked: {
-                  root.showSettings = false
-                  root.openAddTeamPicker()
-                }
-              }
-            }
-          }
+          root: root
         }
 
       Column {
@@ -10798,298 +10361,9 @@ root.warnStderr("team select failed", text)
         root: root
       }
 
-      Column {
+      FutStandingsView {
         id: standingsView
-        width: parent.width
-        spacing: Style.space(12)
-        visible: root.showStandings && !root.showMatchDetail && !root.showTrending
-
-        Item {
-          width: parent.width
-          height: Math.max(Style.space(260), standingsInnerCol.implicitHeight)
-
-          Column {
-            id: standingsInnerCol
-            width: parent.width
-            spacing: Style.space(12)
-            opacity: (root.standingsLoading && root.standings.length === 0) ? 0.15 : (root.standingsLoading ? 0.85 : 1.0)
-            Behavior on opacity { NumberAnimation { duration: 180 } }
-
-            Row {
-              width: parent.width
-              spacing: Style.space(8)
-
-          Button {
-            id: prevSeasonButton
-            width: Style.space(22)
-            height: Style.space(22)
-            iconText: ""
-            tooltipText: "Older season"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            iconSize: Style.font.caption
-            horizontalPadding: 0
-            verticalPadding: 0
-            onClicked: {
-              root.standingsSeasonOffset++
-              root.loadStandings()
-            }
-          }
-
-          Button {
-            id: seasonChip
-            anchors.verticalCenter: parent.verticalCenter
-            width: Style.space(52)
-            height: Style.space(22)
-            text: root.seasonChipLabel(root.standingsSeasonOffset)
-            tooltipText: "Standings season"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: 0
-            verticalPadding: 0
-            onClicked: {
-              root.standingsSeasonOffset = 0
-              root.loadStandings()
-            }
-          }
-
-          Button {
-            id: nextSeasonButton
-            width: Style.space(22)
-            height: Style.space(22)
-            iconText: ""
-            tooltipText: "Newer season"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            iconSize: Style.font.caption
-            horizontalPadding: 0
-            verticalPadding: 0
-            enabled: root.standingsSeasonOffset > 0
-            opacity: enabled ? 1 : 0.35
-            onClicked: {
-              root.standingsSeasonOffset--
-              root.loadStandings()
-            }
-          }
-        }
-
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-          visible: root.standingsGroups.length > 1
-
-          Repeater {
-            model: root.standingsGroups
-
-            Button {
-              height: Style.space(24)
-              text: root.sanitizePlainText(String(modelData.name || modelData.shortName || ""))
-              tooltipText: root.sanitizePlainText(String(modelData.name || ""))
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              fontSize: Style.font.caption
-              horizontalPadding: Style.space(10)
-              verticalPadding: 0
-              selected: root.standingsGroupIndex === index
-              onClicked: root.standingsGroupIndex = index
-            }
-          }
-        }
-
-        Text {
-          textFormat: Text.PlainText
-          width: parent.width
-          opacity: root.standingsLoading ? 0.4 + 0.6 * root._pulse : 1.0
-          text: root.standingsLoading ? "Fetching standings…"
-            : (root.standingsError !== "" ? root.standingsError
-            : (root.standings.length === 0 ? "No standings available" : ""))
-          color: Qt.darker(root.contentForeground, 1.5)
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-          wrapMode: Text.WordWrap
-          visible: text !== ""
-        }
-
-        Flickable {
-          id: standingsTable
-          width: parent.width
-          // Full table, no internal scrolling: every position visible.
-          height: headerRow.implicitHeight + root.standings.length * standingsRowHeight
-          clip: true
-          interactive: false
-          contentHeight: headerRow.implicitHeight + root.standings.length * standingsRowHeight
-          visible: root.standings.length > 0
-
-          Column {
-            width: parent.width
-            spacing: 0
-
-            Row {
-              id: headerRow
-              width: parent.width
-              height: Style.space(26)
-              Text { textFormat: Text.PlainText; width: standingsRankWidth; height: parent.height; text: "#"; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily; font.pixelSize: Style.font.caption; font.bold: true; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
-              Item { width: standingsRankGap; height: 1 }
-              Item { width: standingsLogoWidth; height: 1 }
-              Text { textFormat: Text.PlainText; width: standingsTeamWidth; height: parent.height; text: "Team"; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily; font.pixelSize: Style.font.caption; font.bold: true; verticalAlignment: Text.AlignVCenter }
-              Repeater {
-                model: root.standingsColumns
-                Text {
-                  textFormat: Text.PlainText
-                  width: root.standingsStatWidth; height: parent.height
-                  text: modelData.label
-                  color: Qt.darker(root.contentForeground, 1.6)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                  horizontalAlignment: Text.AlignRight
-                  verticalAlignment: Text.AlignVCenter
-                }
-              }
-            }
-
-            Repeater {
-              model: root.standings
-              width: parent.width
-
-              Rectangle {
-                id: rowRect
-                readonly property var entry: modelData
-                readonly property bool favorite: root.isFavoriteStanding(modelData)
-                readonly property color zoneColor: root.standingsZoneColor(modelData)
-                readonly property bool hasZone: root.standingsZoneFor(modelData) !== ""
-                // A zoned row is tinted with its zone color; otherwise the
-                // favorite theme accent is used. The zone bar is the single
-                // left indicator — the theme bar only shows for a favorite
-                // that has no qualification zone (avoiding two stacked bars).
-                readonly property color rowAccent: favorite
-                  ? (hasZone ? zoneColor : root.favoriteTeamAccent) : "transparent"
-                readonly property color rowTint: favorite
-                  ? (hasZone ? Util.alpha(zoneColor, 0.45) : root.favoriteTeamTint) : "transparent"
-                width: parent.width
-                height: standingsRowHeight
-                radius: Style.cornerRadius
-                color: rowTint
-
-                Rectangle {
-                  id: zoneBar
-                  visible: rowRect.hasZone
-                  width: 3
-                  anchors.top: parent.top
-                  anchors.bottom: parent.bottom
-                  anchors.left: parent.left
-                  radius: 1
-                  color: rowRect.zoneColor
-                }
-
-                Rectangle {
-                  id: zoneFavoriteThemeBar
-                  visible: rowRect.favorite && !rowRect.hasZone
-                  width: 3
-                  anchors.top: parent.top
-                  anchors.bottom: parent.bottom
-                  anchors.left: parent.left
-                  radius: 1
-                  color: root.favoriteTeamAccent
-                }
-
-                Row {
-                  width: parent.width
-                  height: parent.height
-
-                  Text {
-                    textFormat: Text.PlainText
-                    width: standingsRankWidth; height: parent.height
-                    text: rowRect.entry.rank
-                    color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root.contentForeground, 1.5)
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: rowRect.favorite
-                    horizontalAlignment: Text.AlignRight
-                    verticalAlignment: Text.AlignVCenter
-                  }
-                  Item { width: standingsRankGap; height: 1 }
-                  Image {
-                    width: standingsLogoWidth; height: width
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: rowRect.entry.logo
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.width: 64
-                    sourceSize.height: 64
-                    asynchronous: true
-                    cache: true
-                    mipmap: true
-                    smooth: true
-                    visible: String(source) !== ""
-                  }
-                  Text {
-                    textFormat: Text.PlainText
-                    width: standingsTeamWidth; height: parent.height
-                    text: rowRect.entry.teamName
-                    color: rowRect.favorite ? rowRect.rowAccent : root.contentForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: rowRect.favorite
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
-                  }
-                  Repeater {
-                    model: root.standingsColumns
-                    Text {
-                      textFormat: Text.PlainText
-                      width: root.standingsStatWidth; height: rowRect.height
-                      text: root.statFor(rowRect.entry.stats, modelData.name)
-                      color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root.contentForeground, 1.5)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.caption
-                      font.bold: rowRect.favorite
-                      horizontalAlignment: Text.AlignRight
-                      verticalAlignment: Text.AlignVCenter
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        Flow {
-          width: parent.width
-          spacing: Style.space(14)
-          visible: root.standings.length > 0 && root.standingsLegend.length > 0
-          Repeater {
-            model: root.standingsLegend
-            Row {
-              spacing: Style.space(5)
-              Rectangle {
-                width: 8
-                height: 8
-                anchors.verticalCenter: parent.verticalCenter
-                radius: 2
-                color: modelData.color
-              }
-              Text {
-                textFormat: Text.PlainText
-                text: modelData.label
-                color: Qt.darker(root.contentForeground, 1.8)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-              }
-            }
-          }
-        }
-          }
-
-          LoadingOverlay {
-            active: root.standingsLoading && root.standings.length === 0
-            text: "Fetching standings…"
-          }
-        }
+        root: root
       }
 
       // League Matches: what matters for the selected league — everything
@@ -11132,11 +10406,19 @@ root.warnStderr("team select failed", text)
             readonly property bool rowFollowed: root.leagueMode && !root.leagueBrowseAll
               && root.isLeagueMatchFollowed(modelData.id)
 
+            readonly property bool isKeyboardSelected: {
+              if (root.keyboardSelectedMainMatchIndex < 0) return false
+              var matches = root.getVisibleMainMatches()
+              return matches[root.keyboardSelectedMainMatchIndex] && matchRow.modelData && (String(matches[root.keyboardSelectedMainMatchIndex].id) === String(matchRow.modelData.id))
+            }
+
             Rectangle {
               anchors.fill: parent
               radius: Style.space(6)
               color: root.contentForeground
-              opacity: matchRow.modelData.state === "in" ? 0.07 : (rowMouseArea.containsMouse ? 0.06 : 0.03)
+              opacity: matchRow.modelData.state === "in" ? 0.07 : ((rowMouseArea.containsMouse || matchRow.isKeyboardSelected) ? 0.06 : 0.03)
+              border.width: matchRow.isKeyboardSelected ? 2 : 0
+              border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
               Behavior on opacity { NumberAnimation { duration: 120 } }
             }
 
@@ -11636,7 +10918,9 @@ root.warnStderr("team select failed", text)
         Text {
           textFormat: Text.PlainText
           width: parent.width
-          text: root.matchListError
+          text: ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0)
+            ? (root.formatCachedTimeAgo(root.lastMatchListRefresh) + " · " + root.matchListError)
+            : root.matchListError
           color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
@@ -11815,17 +11099,25 @@ root.warnStderr("team select failed", text)
       }
 
       Item {
+        id: liveMatchCard
         width: parent.width
         height: liveColumn.implicitHeight + Style.space(8)
         // The dedicated live card is redundant inside the League Matches / Stats
         // views and below the standings table.
         visible: root.liveMatch && !root.customViewActive
+        readonly property bool isKeyboardSelected: {
+          if (root.keyboardSelectedMainMatchIndex < 0) return false
+          var matches = root.getVisibleMainMatches()
+          return matches[root.keyboardSelectedMainMatchIndex] && root.liveMatch && (String(matches[root.keyboardSelectedMainMatchIndex].id) === String(root.liveMatch.id))
+        }
 
         Rectangle {
           anchors.fill: parent
           radius: Style.space(6)
           color: root.contentForeground
-          opacity: liveCardArea.containsMouse ? 0.08 : 0.07
+          opacity: (liveCardArea.containsMouse || liveMatchCard.isKeyboardSelected) ? 0.09 : 0.07
+          border.width: liveMatchCard.isKeyboardSelected ? 2 : 0
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
         }
 
         MouseArea {
@@ -12039,12 +11331,19 @@ root.warnStderr("team select failed", text)
         width: parent.width
         height: nextMatchCol.implicitHeight + Style.space(16)
         visible: !root.customViewActive && !!root.nextMatch
+        readonly property bool isKeyboardSelected: {
+          if (root.keyboardSelectedMainMatchIndex < 0) return false
+          var matches = root.getVisibleMainMatches()
+          return matches[root.keyboardSelectedMainMatchIndex] && root.nextMatch && (String(matches[root.keyboardSelectedMainMatchIndex].id) === String(root.nextMatch.id))
+        }
 
         Rectangle {
           anchors.fill: parent
           radius: Style.space(6)
           color: root.contentForeground
-          opacity: nextCardArea.containsMouse ? 0.06 : 0.03
+          opacity: (nextCardArea.containsMouse || nextMatchCard.isKeyboardSelected) ? 0.08 : 0.03
+          border.width: nextMatchCard.isKeyboardSelected ? 2 : 0
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
         }
 
         MouseArea {
@@ -12205,12 +11504,19 @@ root.warnStderr("team select failed", text)
         width: parent.width
         height: prevMatchCol.implicitHeight + Style.space(16)
         visible: !root.customViewActive && !!root.previousMatch
+        readonly property bool isKeyboardSelected: {
+          if (root.keyboardSelectedMainMatchIndex < 0) return false
+          var matches = root.getVisibleMainMatches()
+          return matches[root.keyboardSelectedMainMatchIndex] && root.previousMatch && (String(matches[root.keyboardSelectedMainMatchIndex].id) === String(root.previousMatch.id))
+        }
 
         Rectangle {
           anchors.fill: parent
           radius: Style.space(6)
           color: root.contentForeground
-          opacity: prevCardArea.containsMouse ? 0.06 : 0.03
+          opacity: (prevCardArea.containsMouse || prevMatchCard.isKeyboardSelected) ? 0.08 : 0.03
+          border.width: prevMatchCard.isKeyboardSelected ? 2 : 0
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
         }
 
         MouseArea {
@@ -12391,13 +11697,50 @@ root.warnStderr("team select failed", text)
         }
       }
 
-      Text {
-        textFormat: Text.PlainText
+      Rectangle {
         visible: !root.customViewActive && root.requestError !== ""
-        text: root.requestError
-        color: Qt.darker(root.contentForeground, 1.5)
-        font.family: root.contentFontFamily
-        font.pixelSize: Style.font.caption
+        width: parent.width
+        implicitHeight: staleErrCol.implicitHeight + Style.space(12)
+        radius: Style.cornerRadius
+        color: Util.alpha(Color.accent, 0.12)
+
+        Column {
+          id: staleErrCol
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.margins: Style.space(10)
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(3)
+
+          Row {
+            spacing: Style.space(6)
+            Text {
+              textFormat: Text.PlainText
+              text: "󰅢"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: (root.nextMatch || root.previousMatch || root.liveMatch) ? root.formatCachedTimeAgo(root.lastRefresh) : "Network Offline"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: root.requestError
+            color: Qt.darker(root.contentForeground, 1.4)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.space(10)
+            wrapMode: Text.WordWrap
+          }
+        }
       }
         }
 
