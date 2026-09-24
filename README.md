@@ -37,6 +37,7 @@
 - **League Standings & Round Fixtures**: Comprehensive league tables with qualification and relegation zone highlights, plus matchweek round browsing.
 - **Player Leaderboards**: Top scorers, assist leaders, and disciplinary card rankings.
 - **Live Activity Match Tracking**: Toggle match following to receive instant desktop notifications (`notify-send`) on goals, cards, and period changes.
+- **Trending & Live Global Matches**: Dedicated view tracking live, international, and top-tier tournament matches worldwide with live scores, competition badges, quick search, and direct match center navigation.
 - **Seamless Club & League Switching**: In-panel search and dropdown picker to switch followed teams or browse across global competitions.
 
 ---
@@ -72,10 +73,17 @@ omarchy plugin remove devbook.futbar
 | :--- | :--- |
 | **Open / Close Panel** | Click bar icon or configure custom Hyprland keybind |
 | **Quick Tooltip** | Hover over bar icon for live scores & kickoff times |
-| **Instant Refresh** | Middle-click bar icon |
+| **Instant Refresh** | Middle-click bar icon or press <kbd>r</kbd> |
 | **Close Panel** | <kbd>Escape</kbd> |
 | **Cycle Panels** | <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> |
 | **Follow Match** | Click "Follow" button in match card or detail header |
+| **Trending & Live Matches** | Press <kbd>l</kbd> or click flame icon |
+| **Search Club / League** | Press <kbd>/</kbd> |
+| **Standings / Table** | Press <kbd>t</kbd> |
+| **Player / League Stats** | Press <kbd>s</kbd> |
+| **Fixtures / Matches** | Press <kbd>m</kbd> |
+| **Settings / Preferences** | Press <kbd>p</kbd> |
+| **Switch Followed Tabs** | <kbd>1</kbd>–<kbd>9</kbd> |
 
 ---
 

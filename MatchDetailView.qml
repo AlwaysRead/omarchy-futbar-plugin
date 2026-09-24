@@ -12,6 +12,29 @@ Column {
   width: parent ? parent.width : 0
   spacing: Style.space(12)
 
+  property bool expandAllStats: false
+  onVisibleChanged: {
+    if (!visible) expandAllStats = false
+  }
+
+  function isKeyStat(statName) {
+    return statName === "expectedGoals"
+        || statName === "possessionPct"
+        || statName === "totalShots"
+        || statName === "shotsOnTarget"
+        || statName === "passPct"
+        || statName === "wonCorners"
+        || statName === "foulsCommitted"
+        || statName === "saves"
+  }
+
+  readonly property var visibleStats: {
+    var all = (root && root.matchDetail && root.matchDetail.stats) ? root.matchDetail.stats : []
+    if (expandAllStats || all.length <= 8) return all
+    var keyList = all.filter(function(s) { return matchDetailView.isKeyStat(s.name) })
+    return keyList.length >= 4 ? keyList : all.slice(0, 8)
+  }
+
   component LoadingOverlay: FutLoadingOverlay { root: matchDetailView.root }
 
         Row {
@@ -19,29 +42,50 @@ Column {
           spacing: Style.space(8)
 
           Button {
-            width: Style.space(26)
+            id: backBtn
+            width: (root && root.returnToTrendingAfterDetail) ? implicitWidth : Style.space(26)
             height: Style.space(26)
+            text: (root && root.returnToTrendingAfterDetail) ? "Trending" : ""
             iconText: ""
-            tooltipText: "Back to matches"
+            tooltipText: (root && root.returnToTrendingAfterDetail) ? "Back to Trending (l)" : "Back to matches (m)"
             fontFamily: root.contentFontFamily
             foreground: root.contentForeground
             accent: root.contentForeground
+            fontSize: Style.font.caption
             iconSize: Style.font.caption
-            horizontalPadding: 0
+            horizontalPadding: (root && root.returnToTrendingAfterDetail) ? Style.space(8) : 0
             verticalPadding: 0
             onClicked: root.showMatchDetail = false
           }
 
-          Text {
-            textFormat: Text.PlainText
+          Column {
+            id: matchDetailTitleCol
             anchors.verticalCenter: parent.verticalCenter
-            text: root.matchDetail ? (root.matchDetail.competitionName || "Match Details") : "Match Details"
-            color: root.contentForeground
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.body
-            font.bold: true
-            elide: Text.ElideRight
-            width: parent.width - Style.space(26 + 8)
+            width: parent.width - backBtn.width - parent.spacing
+            spacing: Style.space(1)
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.matchDetail ? (root.matchDetail.competitionName || "Match Details") : "Match Details"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+              elide: Text.ElideRight
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              visible: text !== ""
+              text: (root.matchDetail && root.matchDetail.roundName) ? root.matchDetail.roundName : ""
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption - 1
+              font.bold: true
+              elide: Text.ElideRight
+            }
           }
         }
 
@@ -314,35 +358,51 @@ Column {
           }
 
           // Penalty Shootout Result (bottom middle)
-          Column {
+          Item {
             id: shootoutBottomCol
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Style.space(8)
-            spacing: Style.space(1)
+            implicitWidth: shootoutInnerCol.implicitWidth + Style.space(16)
+            implicitHeight: shootoutInnerCol.implicitHeight + Style.space(6)
+            width: implicitWidth
+            height: implicitHeight
             visible: !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
 
-            Text {
-              textFormat: Text.PlainText
-              anchors.horizontalCenter: parent.horizontalCenter
-              text: root.matchDetail ? (root.matchDetail.shootoutText || "After Penalties") : "After Penalties"
-              color: Qt.darker(root.contentForeground, 1.6)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption - 2
-              font.bold: true
-              horizontalAlignment: Text.AlignHCenter
+            Rectangle {
+              anchors.fill: parent
+              radius: Style.space(10)
+              color: root.contentForeground
+              opacity: 0.08
             }
 
-            Text {
-              textFormat: Text.PlainText
-              anchors.horizontalCenter: parent.horizontalCenter
-              text: root.matchDetail ? (root.matchDetail.shootoutScore !== "" ? root.matchDetail.shootoutScore : root.matchDetail.shootoutNote) : ""
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              horizontalAlignment: Text.AlignHCenter
-              visible: text !== ""
+            Column {
+              id: shootoutInnerCol
+              anchors.centerIn: parent
+              spacing: Style.space(1)
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.matchDetail ? (root.matchDetail.shootoutText || "After Penalties") : "After Penalties"
+                color: Qt.darker(root.contentForeground, 1.6)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption - 2
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.matchDetail ? (root.matchDetail.shootoutScore !== "" ? root.matchDetail.shootoutScore : root.matchDetail.shootoutNote) : ""
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                visible: text !== ""
+              }
             }
           }
         }
@@ -466,7 +526,7 @@ Column {
           }
 
           Repeater {
-            model: root.matchDetail ? (root.matchDetail.stats || []) : []
+            model: matchDetailView.visibleStats
 
             delegate: Column {
               id: statRowItem
@@ -544,6 +604,56 @@ Column {
                   color: root.statsAwayColor
                   visible: width > 0
                 }
+              }
+            }
+          }
+
+          // Expand / Collapse all stats toggle button
+          Item {
+            id: expandStatsBtn
+            width: parent.width
+            height: Style.space(24)
+            visible: !!(root.matchDetail && root.matchDetail.stats && (root.matchDetail.stats.length > matchDetailView.visibleStats.length || matchDetailView.expandAllStats))
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Style.space(4)
+              color: root ? root.contentForeground : Color.foreground
+              opacity: expandStatsMouseArea.containsMouse ? 0.08 : 0.03
+              Behavior on opacity { NumberAnimation { duration: 120 } }
+            }
+
+            MouseArea {
+              id: expandStatsMouseArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: matchDetailView.expandAllStats = !matchDetailView.expandAllStats
+            }
+
+            Row {
+              anchors.centerIn: parent
+              spacing: Style.space(4)
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchDetailView.expandAllStats
+                  ? "Show less stats"
+                  : "Show all stats"
+                color: root ? root.contentForeground : Color.foreground
+                font.family: root ? root.contentFontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchDetailView.expandAllStats ? "󰅃" : "󰅂"
+                color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+                font.family: root ? root.contentFontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
               }
             }
           }

@@ -10,7 +10,7 @@ Column {
   property var root: null
   width: parent ? parent.width : 0
   spacing: Style.space(12)
-  visible: root ? (root.showStats && !root.showMatchDetail) : false
+  visible: root ? (root.showStats && !root.showMatchDetail && !root.showTrending) : false
 
   component LoadingOverlay: FutLoadingOverlay { root: statsView.root }
 

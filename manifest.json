@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "devbook.futbar",
   "name": "FutBar",
-  "version": "2.1.6",
+  "version": "2.2.0",
   "author": "devbook",
   "license": "MIT",
   "description": "Live match center and football tracker with tactical lineups, real-time scores, league tables, and live event alerts.",
@@ -28,7 +28,8 @@
       "notifyScope": "primary",
       "antiSpoiler": false,
       "showOdds": true,
-      "livePollRate": 10
+      "livePollRate": 10,
+      "enableTrending": true
     },
     "schema": [
       {
@@ -142,6 +143,13 @@
           60
         ],
         "defaultValue": 10
+      },
+      {
+        "key": "enableTrending",
+        "type": "boolean",
+        "label": "Trending & live matches",
+        "description": "Show trending matches page and header button for live games and marquee tournaments across all leagues.",
+        "defaultValue": true
       }
     ]
   }

@@ -2239,12 +2239,15 @@ Column {
                       width: Style.space(16)
                       height: width
                       radius: Style.space(3)
-                      readonly property color badgeClr: modelData === "W" ? "#22c55e" : (modelData === "D" ? "#eab308" : "#ef4444")
-                      color: Util.alpha(badgeClr, 0.18)
+                      color: {
+                        var r = String(modelData).toUpperCase()
+                        return r === "W" ? "#16a34a" : (r === "D" ? "#475569" : "#dc2626")
+                      }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.centerIn: parent
-                        text: modelData
+                        text: String(modelData).toUpperCase()
                         font.bold: true
                         font.pixelSize: Style.space(8)
                         font.family: root.contentFontFamily

@@ -7,8 +7,7 @@ import qs.Commons
 import qs.Ui
 import "FutData.js" as FutData
 
-// The expandable fixture view. It deliberately loads a small date range only
-// when opened, rather than making the compact bar widget poll every fixture.
+// Fixture panel view
 Panel {
   id: root
   moduleName: "devbook.futbar"
@@ -18,11 +17,8 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
-  // The last team the user chose is remembered in a small state file, so a
   readonly property var searchPlayerOverviewRequest: searchPlayerOverviewRequest
   readonly property var searchClubRosterRequest: searchClubRosterRequest
-  // reload never falls back to the manifest default (Barcelona) when the
-  // shell.json setting is missing or arrives late.
   readonly property string favoritePath: Quickshell.env("HOME") + "/.local/state/omarchy/futbar.json"
   property var savedFavorite: ({})
   property bool _favoriteLoaded: false
@@ -42,9 +38,6 @@ Panel {
     }
     return null
   }
-  // The state file is authoritative: the shell's injected settings can be
-  // stale at reload (it hands over the previous in-memory team before syncing
-  // shell.json), so prefer the remembered favorite over settings.
   readonly property string teamName: {
     if (root.leagueMode) return ""
     var raw = (root.savedFavorite && root.savedFavorite.teamName !== undefined && root.savedFavorite.teamName !== "")
@@ -92,11 +85,7 @@ Panel {
     if (raw === "12h" || raw === "relative" || raw === "24h") return raw
     return "24h"
   }
-  // Coerces a setting to a real boolean. The shell.json mirror written via
-  // setBarWidget IPC historically stored booleans as JSON strings ("true" /
-  // "false"), and a non-empty string is truthy in QML/JS -- so a stored
-  // "false" would still read as ON without this. Accepts real booleans,
-  // their string forms, and 1/0; anything else falls back.
+  // Coerce setting to real boolean
   function toBool(val, fallback) {
     if (val === true || val === 1) return true
     if (val === false || val === 0) return false
@@ -149,6 +138,13 @@ Panel {
     if (raw === 30 || raw === 60 || raw === 10) return raw
     return 10
   }
+  readonly property bool enableTrending: {
+    if (root.savedFavorite && root.savedFavorite.enableTrending !== undefined) {
+      return root.toBool(root.savedFavorite.enableTrending, root.toBool(setting("enableTrending", true), true))
+    }
+    return root.toBool(setting("enableTrending", true), true)
+  }
+  onEnableTrendingChanged: if (!enableTrending && showTrending) showTrending = false
   // Bar widgets expose their text color as barForeground. Using `foreground`
   // here resolves to an invalid (transparent) color on the popup.
   readonly property color contentForeground: bar ? bar.barForeground : Color.foreground
@@ -340,14 +336,9 @@ Panel {
       }
     }
   }
-  // First run: no team has been stored in shell.json yet. The manifest default
-  // only feeds the settings UI, so an untouched widget has an undefined value.
-  // A remembered favorite (the state file) counts as a team too.
   property bool needsTeam: root.leagueMode
     ? false
     : (root.teamName === "")
-  // League-follow mode: the user tracks a whole competition instead of a
-  // single club. Stored in the favorite file (authoritative on reload).
   readonly property bool leagueMode: {
     if (root.savedFavorite && root.savedFavorite.followLeague !== undefined) {
       return root.savedFavorite.followLeague === true
@@ -360,12 +351,6 @@ Panel {
     }
     return setting("teamName", "") === "" && (root.league !== "" || setting("league", "") !== "")
   }
-  // True once the widget has started fetching with a real team. Reloads must
-  // not fetch (or worse, resolve+persist) with stale in-memory settings before
-  // the shell finishes syncing the current shell.json — the shell hands the
-  // old team first, then the real one. The first refresh is gated until the
-  // team inputs stay identical across two consecutive checks (~1.2s), so the
-  // stale injection is never used.
   property bool _started: false
   property string _startupSig: ""
   function hasRealTeam() {
@@ -376,8 +361,6 @@ Panel {
   }
   function ensureStarted() {
     if (root._started) return
-    // Wait until the state file has actually been read (it is authoritative),
-    // otherwise the injected (possibly stale) settings would win the race.
     if (!root._favoriteLoaded) return
     if (!root.hasRealTeam() && !root.leagueMode) return
     var sig = root.teamSignature()
@@ -469,28 +452,16 @@ Panel {
     onTriggered: favoriteStore.reload()
   }
 
-  // followedTeamsOverride (5th arg): pass the list explicitly when it's
-  // changing in the same logical action as the active club (e.g. adding a
-  // club switches to it *and* pushes the outgoing active club onto the tab
-  // strip) -- writing both in one setText() avoids a second, separate write
-  // racing this one (two back-to-back writes previously let addFollowedTeam
-  // persist "adding Liverpool, tab-list gets Ajax" as two steps, where a
-  // reload between them could leave the active club still Ajax with Ajax
-  // *also* now in the tab list -- "two Ajax tabs" instead of Ajax+Liverpool).
+  // Persist followed club/league to favorite file
   function saveFavorite(teamName, league, teamId, followedTeamsOverride) {
     var name = teamName !== undefined ? teamName : root.teamName
     var lg = league !== undefined ? league : root.league
     var tid = teamId !== undefined ? teamId : (root.teamId !== "" ? root.teamId : root.resolvedTeamId)
-    // A truthy 5th argument (asLeague, shifted down since followedTeamsOverride
-    // took slot 4) saves a league-follow instead of a club; it also clears
-    // stale club fields so the favorite file stays consistent.
     var asLeague = arguments.length > 4 && arguments[4] === true
     var payload = asLeague
       ? { teamName: "", league: lg, teamId: "", followLeague: true }
       : { teamName: name, league: lg, teamId: tid }
-    // Preserve fields this function doesn't know about across a plain save --
-    // it used to fully replace the payload, silently dropping followMatchIds
-    // (and now followedTeams) whenever the active club changed.
+    // Preserve existing extra fields across save
     if (root.savedFavorite && typeof root.savedFavorite === "object") {
       for (var key in root.savedFavorite) {
         if (key !== "teamName" && key !== "league" && key !== "teamId" && key !== "followLeague") {
@@ -565,6 +536,12 @@ Panel {
     root.setSettingValue("showOdds", root.toBool(on, true))
   }
 
+  function setEnableTrending(on) {
+    var val = root.toBool(on, true)
+    if (!val && root.showTrending) root.showTrending = false
+    root.setSettingValue("enableTrending", val)
+  }
+
   // Transient confirmation flags for settings actions.
   property bool settingsJustSaved: false
   Timer {
@@ -580,10 +557,7 @@ Panel {
     onTriggered: root.settingsJustReset = false
   }
 
-  // Writes every display/notification/refresh preference to BOTH stores at
-  // once: the local favorite file (authoritative for the panel) and shell.json
-  // (authoritative for `omarchy plugin config` and the bar widget's
-  // injected settings).
+  // Persist settings to both state and shell config
   function saveAllSettings() {
     var payload = {}
     if (root.savedFavorite && typeof root.savedFavorite === "object") {
@@ -599,6 +573,7 @@ Panel {
     payload.antiSpoiler = root.antiSpoiler
     payload.showOdds = root.showOdds
     payload.livePollRate = root.livePollRate
+    payload.enableTrending = root.enableTrending
     if (!Array.isArray(payload.tabOrder) || payload.tabOrder.length === 0) {
       var currentTabs = root.allFollowedTabs()
       if (currentTabs.length > 0) {
@@ -611,7 +586,7 @@ Panel {
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
     var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
-      "antiSpoiler", "showOdds", "livePollRate"]
+      "antiSpoiler", "showOdds", "livePollRate", "enableTrending"]
     for (var i = 0; i < keys.length; i++) {
       root._queueSetBarWidget(keys[i], payload[keys[i]])
     }
@@ -643,12 +618,13 @@ Panel {
     payload.antiSpoiler = false
     payload.showOdds = true
     payload.livePollRate = 10
+    payload.enableTrending = true
     root.savedFavorite = payload
     if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
     var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
-      "antiSpoiler", "showOdds", "livePollRate"]
+      "antiSpoiler", "showOdds", "livePollRate", "enableTrending"]
     for (var i = 0; i < keys.length; i++) {
       root._queueSetBarWidget(keys[i], payload[keys[i]])
     }
@@ -680,12 +656,7 @@ Panel {
     root.notify("Cache Flushed", "Cleared local cache and reloading fresh match data", "󰑐")
   }
 
-  // Items you're tracking besides the active one -- rendered as tabs in the
-  // panel header. Can be either a club ({ teamName, league, teamId, followLeague: false })
-  // or an entire league ({ teamName: "", league, teamId: "", followLeague: true }).
-  // The active item is never stored here; it's implicit (it's whatever
-  // teamName/league/teamId/followLeague currently resolve to), so an existing
-  // user's favorite file needs no migration at all.
+  // Item key helper for tracked clubs and leagues
   function itemKey(name, league, followLeague) {
     var lg = String(league || "").trim().toLowerCase()
     if (followLeague === true || (String(name || "").trim() === "" && lg !== "")) {
@@ -738,8 +709,6 @@ Panel {
   function isTeamFollowed(teamName, teamId) {
     return root.findFollowedTab(teamName, "", teamId, false) !== null
   }
-  // Normalizes to well-formed { teamName, league, teamId, followLeague } objects
-  // so every consumer -- switchActiveItem, the tab Repeater -- can trust entry fields.
   function followedTeamsList() {
     var raw = Array.isArray(root.savedFavorite.followedTeams) ? root.savedFavorite.followedTeams : []
     var out = []
@@ -760,13 +729,11 @@ Panel {
     return out
   }
 
-  // Stable ordered list of all followed tabs
   function allFollowedTabs() {
     var rawOrder = []
     if (Array.isArray(root.savedFavorite.tabOrder) && root.savedFavorite.tabOrder.length > 0) {
       rawOrder = root.savedFavorite.tabOrder
     } else {
-      // Legacy fallback: ensure primary active club/league is first, followed by legacy followedTeams
       var primaryName = root.leagueMode ? "" : root.teamName
       var primaryLeague = root.league
       var primaryIsLg = root.leagueMode
@@ -1086,36 +1053,18 @@ Panel {
   property string activityMatchId: ""
   property var activityFlags: ({ started: false, halftime: false, secondhalf: false, fulltime: false })
   // False until the first summary poll has seeded the flags from the match's
-  // current state, so enabling Live Activity mid-match never retro-reports
-  // events that already happened.
   property bool activityInitialized: false
-  // True while Live Activity has seen the half-time break, so the moment play
-  // resumes can be announced as the start of the second half. Needed because
-  // soccer keeps both halves and the break under state "in".
   property bool activityWasHT: false
-  // True once a knockout match has entered extra time, detected from the
-  // "Start Extra Time" key event. The summary header carries no period field,
-  // so this flag keeps the regular half-time logic from firing during ET.
   property bool activityET: false
-  // How long before kickoff a not-yet-live match can be followed. Tracking
-  // before kickoff is what makes the "Match Started" notification possible:
-  // enabling during play adopts the current phase silently instead.
   readonly property int followLeadMs: 30 * 60 * 1000
   property var activityEvents: []
-  // Goal toasts held back while ESPN's header score lags its key events (the
-  // race that made a fresh goal announce the previous scoreline). Maps
-  // liveActivityKey → { tries, title, minute, glyph }; resolved once the two
-  // sources agree, or after activityPendingMaxTries polls as a safety valve.
   property var activityPending: ({})
   readonly property int activityPendingMaxTries: 3
-  // League standings for the selected league, shown from the header button.
   property bool showSettings: false
   property bool showStandings: false
-  // How many seasons back the table is viewing (0 = live season). Reset
-  // when the popup closes.
+  property bool showTrending: false
+  property bool returnToTrendingAfterDetail: false
   property int standingsSeasonOffset: 0
-  // Soccer seasons straddle calendar years; a July flip covers the main
-  // European and American calendars well enough for a label.
   readonly property int standingsSeasonYear: {
     var now = new Date()
     return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
@@ -1137,29 +1086,18 @@ Panel {
   readonly property real standingsRankWidth: Style.space(24)
   readonly property real standingsRankGap: Style.space(10)
   readonly property real standingsLogoWidth: Style.space(16)
-  // Table width tracks the actual standings viewport (bound to the live
-  // item below, whose width comes from the panel's real interior), so the
-  // rightmost columns (GD, Pts) are never clipped by the Flickable.
   readonly property real standingsRowWidth: standingsTable ? standingsTable.width : Style.space(348)
   readonly property real standingsTeamWidth: root.standingsRowWidth - root.standingsRankWidth - root.standingsRankGap - root.standingsLogoWidth - 8 * root.standingsStatWidth
-  // Matches for the selected league's current matchweek, shown from a
-  // header button. ESPN carries no round field on soccer events, so the
-  // matchweek is detected as the cluster of fixture days around today;
-  // chevron arrows page through the other rounds in the window.
   property bool showMatches: false
   property bool showClubFixtures: false
   property bool matchListLoading: false
   property string matchListError: ""
   property var matchClusters: []
   property int matchClusterIndex: 0
-  // League-follow board: everything live plus a slice of results/upcoming.
   property var leagueLive: []
   property var leagueRecent: []
   property var leagueUpcoming: []
-  // One-line summary for the bar tooltip ("2 live · Real Madrid 1–0 Barça").
   property string leagueBoardSummary: ""
-  // When true, the board lists every fixture across the shifted window
-  // (past and upcoming) instead of just today's slate.
   property bool leagueBrowseAll: false
   property bool showStats: false
   property int statsSeasonOffset: 0
@@ -1190,7 +1128,14 @@ Panel {
   property bool matchDetailCrestsLoaded: false
   onMatchDetailTabChanged: root.resetPanelScroll()
   onMatchDetailLineupTeamChanged: root.resetPanelScroll()
-  onShowMatchDetailChanged: root.resetPanelScroll()
+  onShowMatchDetailChanged: {
+    root.resetPanelScroll()
+    if (!root.showMatchDetail && root.returnToTrendingAfterDetail) {
+      root.returnToTrendingAfterDetail = false
+      root.showTrending = true
+    }
+  }
+  onShowTrendingChanged: root.resetPanelScroll()
   property bool showSearch: false
   property string searchQuery: ""
   property bool searchLoading: false
@@ -1281,9 +1226,7 @@ Panel {
     return list.slice(start, end)
   }
 
-  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.leagueMode
-  // Per-match league tracking: each followed live fixture notifies its own
-  // goals and cards independently (no phase notifications).
+  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.showTrending || root.leagueMode
   property var followedLeagueMatches: []
   property var leagueSummaryQueue: []
   property string leagueCurrentId: ""
@@ -1291,21 +1234,14 @@ Panel {
     ? matchClusters[Math.max(0, Math.min(matchClusterIndex, matchClusters.length - 1))] : null
   readonly property string matchWeekLabel: activeMatchCluster ? activeMatchCluster.label : ""
   readonly property var matchWeekRows: activeMatchCluster ? activeMatchCluster.rows : []
-  // Manual matchweek paging extends the scoreboard window by this many days
-  // per step past its edge, so older/future rounds stay reachable one press
-  // at a time without preloading the whole season.
   property int matchWindowOffset: 0
   property string pendingEdge: ""
-  // Boundary day of the round being viewed when the window was extended;
-  // the refreshed payload lands on the round directly beyond it.
   property string navAnchorDay: ""
   readonly property real matchRowHeight: Style.space(52)
   readonly property real matchLogoSize: Style.space(26)
   readonly property real matchScoreWidth: Style.space(92)
-  // Favorite team gets a green highlight in the standings for quick scanning.
   readonly property color favoriteTeamAccent: Color.accent
   readonly property color favoriteTeamTint: Util.alpha(Color.accent, 0.45)
-  // True for the standings row belonging to the selected club.
   function isFavoriteStanding(entry) {
     if (!entry) return false
     var tid = String(entry.teamId || "")
@@ -1480,6 +1416,7 @@ Panel {
     root.statsSeasonOffset = 0
     root.showStats = false
     root.showMatchDetail = false
+    root.showTrending = false
   }
   function toggle() { if (root.opened) root.close(); else root.open() }
 
@@ -1644,12 +1581,7 @@ Panel {
       root._fixtureTeamKey = key
       root.resetTeamData()
     } else if (root.scoreboardsRunning()) {
-      // A fetch cycle is already in flight: let it finish instead of
-      // killing it mid-flight. Killing delivers truncated stdout to the
-      // scoreboard handlers (chronic JSON.parse failures) and, with the
-      // 10s popup/live refresh beating multi-MB downloads, the cycle can
-      // never complete -- matchweek paging then has nothing to page.
-      // Stalled curls self-terminate via --max-time, so this cannot wedge.
+      // A fetch cycle is already in flight: let it finish.
       return
     }
     if (root.collectedEvents.length === 0) {
@@ -1725,10 +1657,7 @@ Panel {
   // Slugs waiting to be fetched by the parallel scoreboard pool.
   property var scoreboardQueue: []
   property var sbSlugs: ["", "", ""]
-  // Per-cycle fetch attempts per slug. A killed or truncated download
-  // delivers partial stdout (JSON.parse fails on it), so failed slugs are
-  // retried instead of dropped -- otherwise one truncated 3 MB board wipes
-  // the whole cycle's fixtures and the bar blinks back to icon-only.
+  // Per-cycle fetch attempts per slug for failed download retries
   property var _sbRetry: ({})
 
   function startScoreboards() {
@@ -1907,7 +1836,8 @@ Panel {
     for (var i = 0; i < root.leagues.length; i++) {
       if (root.leagues[i].value === slug) return String(root.leagues[i].label)
     }
-    if (slug === "" || slug === root.league) return root.leagueLabel()
+    if (event && event.competitionName && event.competitionName !== "all") return root.sanitizePlainText(String(event.competitionName))
+    if (slug === "" || slug === root.league || slug === "all") return root.leagueLabel()
     return root.safeIdentifier(slug)
   }
 
@@ -2142,6 +2072,35 @@ Panel {
     return ""
   }
 
+  function seriesSummaryFor(event) {
+    if (!event) return ""
+    var comp = (event.competitions && event.competitions[0]) || event
+    if (comp.series && comp.series.summary) return root.sanitizePlainText(String(comp.series.summary))
+    if (comp.series && comp.series.title) return root.sanitizePlainText(String(comp.series.title))
+    return ""
+  }
+
+  function roundNameFor(event) {
+    if (!event) return ""
+    var comp = (event.competitions && event.competitions[0]) || event
+    if (Array.isArray(comp.notes) && comp.notes.length > 0 && comp.notes[0] && comp.notes[0].headline) {
+      var h = String(comp.notes[0].headline).trim()
+      if (h !== "" && h.toLowerCase().indexOf("penalty") === -1) return root.sanitizePlainText(h)
+    }
+    return ""
+  }
+
+  function relativeKickoffText(ms) {
+    if (!ms || isNaN(ms)) return ""
+    var diff = ms - Date.now()
+    if (diff <= 0 || diff > 7200000) return ""
+    var mins = Math.round(diff / 60000)
+    if (mins < 60) return "in " + Math.max(1, mins) + "m"
+    var hrs = Math.floor(mins / 60)
+    var rem = mins % 60
+    return "in " + hrs + "h" + (rem > 0 ? " " + rem + "m" : "")
+  }
+
   function statusFor(event) {
     if (!event) return ""
     var status = event.status || (event.competitions && event.competitions[0] && event.competitions[0].status)
@@ -2325,6 +2284,7 @@ Panel {
     root.showStats = false
     root.showMatches = false
     root.showClubFixtures = false
+    root.showTrending = false
     root.matchDetailLoading = true
     root.matchDetailError = ""
     root.matchDetailTab = isLive ? "commentary" : (isStarted ? "stats" : "info")
@@ -2352,7 +2312,7 @@ Panel {
     var hLogo = match.homeLogo || (match.competitions ? root.teamLogoFor(match, "home") : (match.home ? match.home.logo : ""))
     var aName = match.awayName || (match.competitions ? root.teamNameFor(match, "away") : (match.away ? (match.away.name || match.away.displayName) : "Away"))
     var aLogo = match.awayLogo || (match.competitions ? root.teamLogoFor(match, "away") : (match.away ? match.away.logo : ""))
-    var cName = root.competitionNameFor(match) || match.competitionName || root.tournamentName || root.leagueLabel()
+    var cName = (match.competitionName && match.competitionName !== "all") ? match.competitionName : (root.competitionNameFor(match) || root.tournamentName || root.leagueLabel())
     var cLogo = root.competitionLogoFor(match) || match.competitionLogo || root.tournamentLogo
 
     var hScore = isStarted ? (match.homeScore !== undefined ? String(match.homeScore) : root.scoreFor(match, "home")) : ""
@@ -2407,10 +2367,11 @@ Panel {
       homeForm: [],
       awayForm: [],
       odds: null,
-      seriesNote: "",
-      shootoutNote: "",
-      shootoutScore: "",
-      shootoutText: "",
+      seriesNote: (match && match.seriesNote) ? root.sanitizePlainText(String(match.seriesNote)) : "",
+      roundName: (match && match.roundName) ? root.sanitizePlainText(String(match.roundName)) : "",
+      shootoutNote: (match && match.shootoutNote) ? root.sanitizePlainText(String(match.shootoutNote)) : "",
+      shootoutScore: (match && match.shootoutScore) ? root.sanitizePlainText(String(match.shootoutScore)) : "",
+      shootoutText: (match && match.shootoutText) ? root.sanitizePlainText(String(match.shootoutText)) : "",
       info: { venue: "", attendance: "", officials: "" }
     }
 
@@ -3000,6 +2961,8 @@ Panel {
         day: Qt.formatDate(new Date(e.date), "yyyy-MM-dd"),
         status: status,
         shootoutNote: root.shootoutSummaryFor(e),
+        seriesNote: root.seriesSummaryFor(e),
+        roundName: root.roundNameFor(e),
         homeName: root.teamNameFor(e, "home"),
         awayName: root.teamNameFor(e, "away"),
         homeScore: root.scoreFor(e, "home"),
@@ -3071,11 +3034,7 @@ Panel {
     var events = data && Array.isArray(data.events) ? data.events : []
     var rows = root.matchRowsFromEvents(events)
     if (rows.length === 0) return null
-    // Group fixtures into fixed-size rounds: half the league's team count
-    // per group (10 for a 20-team league), filled in kickoff order. ESPN
-    // publishes no round numbers for soccer and congested calendars make
-    // date-based round detection ambiguous, so equal chunks are the one
-    // rule that always yields the same match count and never hides a game.
+    // Group fixtures into fixed-size rounds filled in kickoff order
     var teamTotal = {}
     for (var t = 0; t < rows.length; t++) {
       teamTotal[rows[t].homeName] = true
@@ -4146,18 +4105,13 @@ Panel {
     root._queueSetBarWidget("league", leagueVal)
     root._queueSetBarWidget("teamId", teamIdVal)
 
-    // View/navigation state always resets on a club switch, cache hit or
-    // not -- whatever detail view was open belonged to the outgoing club.
-    // (standingsRows/statsRows/standingsLeagueKey/statsLeagueKey used to be
-    // "reset" here too, but none of the four is an actually-declared
-    // property anywhere in this file -- assigning to them throws "Cannot
-    // assign to non-existent property" and, same as the resetMatchList()
-    // bug above, aborted whatever called this. Dead/vestigial, removed.)
+    // View/navigation state always resets on a club switch
     root.showStandings = false
     root.showStats = false
     root.showMatches = false
     root.showClubFixtures = false
     root.showMatchDetail = false
+    root.showTrending = false
     root.clubFixturePage = 0
     root.requestError = ""
 
@@ -4443,6 +4397,7 @@ Panel {
     root.showStats = false
     root.showMatches = true
     root.showMatchDetail = false
+    root.showTrending = false
     root.matchListError = ""
 
     var cached = root._leagueStateCache[leagueVal]
@@ -5146,8 +5101,30 @@ onStreamFinished: root.warnStderr("", text)
             for (var sj = 0; sj < aStatsList.length; sj++) {
               if (aStatsList[sj] && aStatsList[sj].name) aMap[aStatsList[sj].name] = aStatsList[sj].displayValue
             }
+            if (Array.isArray(data.leaders)) {
+              for (var ldi = 0; ldi < data.leaders.length; ldi++) {
+                var ldt = data.leaders[ldi]
+                if (!ldt) continue
+                var isHld = (homeTeam.id && ldt.team && String(ldt.team.id) === String(homeTeam.id)) || (ldi === 0)
+                var clist = Array.isArray(ldt.leaders) ? ldt.leaders : []
+                for (var ci = 0; ci < clist.length; ci++) {
+                  var alist = Array.isArray(clist[ci].leaders) ? clist[ci].leaders : []
+                  for (var ai = 0; ai < alist.length; ai++) {
+                    var slist = Array.isArray(alist[ai].statistics) ? alist[ai].statistics : []
+                    for (var sli = 0; sli < slist.length; sli++) {
+                      var so = slist[sli]
+                      if (so && (so.name === "expectedGoals" || so.name === "expectedGoalsConceded")) {
+                        (isHld ? hMap : aMap)[so.name] = so.displayValue
+                      }
+                    }
+                  }
+                }
+              }
+            }
 
             var statDefs = [
+              { name: "expectedGoals", label: "Expected Goals (xG)", suffix: "" },
+              { name: "expectedGoalsConceded", label: "xG Conceded (xGC)", suffix: "" },
               { name: "possessionPct", label: "Possession", suffix: "%" },
               { name: "totalShots", altName: "shots", label: "Total Shots", suffix: "" },
               { name: "shotsOnTarget", label: "Shots on Target", suffix: "" },
@@ -5155,6 +5132,9 @@ onStreamFinished: root.warnStderr("", text)
               { name: "totalPasses", label: "Total Passes", suffix: "" },
               { name: "passPct", label: "Pass Accuracy", suffix: "%" },
               { name: "wonCorners", altName: "cornerKicks", label: "Corner Kicks", suffix: "" },
+              { name: "crossPct", label: "Cross Accuracy", suffix: "%" },
+              { name: "longballPct", label: "Long Ball Accuracy", suffix: "%" },
+              { name: "blockedShots", label: "Blocked Shots", suffix: "" },
               { name: "effectiveTackles", altName: "totalTackles", label: "Tackles Won", suffix: "" },
               { name: "tacklePct", label: "Tackles Won %", suffix: "%" },
               { name: "interceptions", label: "Interceptions", suffix: "" },
@@ -5262,19 +5242,21 @@ onStreamFinished: root.warnStderr("", text)
               shootoutText = "After Penalties"
             }
           }
-          if (shootoutNote === "" && Array.isArray(comp.notes)) {
+          var roundName = (root.matchDetail && root.matchDetail.roundName) ? root.matchDetail.roundName : ""
+          if (Array.isArray(comp.notes)) {
             for (var nti = 0; nti < comp.notes.length; nti++) {
               var nt = comp.notes[nti]
-              var ntText = nt ? String(nt.text || nt.headline || "") : ""
+              var ntText = nt ? String(nt.headline || nt.text || "") : ""
               var mPen = ntText.match(/(\d+)\s*[-–]\s*(\d+)\s+on\s+penalties/i) || ntText.match(/penalties.*?(\d+)\s*[-–]\s*(\d+)/i)
-              if (mPen) {
+              if (mPen && shootoutNote === "") {
                 shootoutScore = mPen[1] + " – " + mPen[2]
                 shootoutNote = mPen[1] + "–" + mPen[2] + " Pens"
                 shootoutText = "After Penalties"
-                break
-              } else if (ntText.toLowerCase().indexOf("penalties") !== -1) {
+              } else if (ntText.toLowerCase().indexOf("penalties") !== -1 && shootoutNote === "") {
                 shootoutNote = ntText
                 shootoutText = "After Penalties"
+              } else if (roundName === "" && ntText !== "") {
+                roundName = ntText
               }
             }
           }
@@ -5722,6 +5704,7 @@ onStreamFinished: root.warnStderr("", text)
             competitionLogo: root.sanitizeImageUrl((hdr.league && hdr.league.logos && hdr.league.logos[0] ? hdr.league.logos[0].href : "") || (root.matchDetail && root.matchDetail.competitionLogo) || ""),
             status: root.sanitizePlainText(statusDesc),
             seriesNote: root.sanitizePlainText(seriesNote),
+            roundName: root.sanitizePlainText(roundName),
             shootoutNote: root.sanitizePlainText(shootoutNote),
             shootoutScore: root.sanitizePlainText(shootoutScore),
             shootoutText: root.sanitizePlainText(shootoutText),
@@ -6074,6 +6057,7 @@ onStreamFinished: root.warnStderr("", text)
             root.matchListLoading = false
             return
           }
+          var prevLabel = root.matchWeekLabel
           root.matchClusters = root.mergeMatchClusters(root.matchClusters, week.clusters)
           // A navigation-driven window extension lands on the newly opened
           // edge round; otherwise auto-refresh must never yank the view back
@@ -6094,6 +6078,7 @@ onStreamFinished: root.warnStderr("", text)
             // Coming from an empty stretch, the nearest fixtures are the
             // first rounds of the shifted window.
             if (!landed) root.matchClusterIndex = 0
+            root.resetPanelScroll()
           } else if (root.pendingEdge === "prev") {
             if (root.navAnchorDay !== "") {
               for (var p = week.clusters.length - 1; p >= 0 && !landed; p--) {
@@ -6105,15 +6090,22 @@ onStreamFinished: root.warnStderr("", text)
               }
             }
             if (!landed) root.matchClusterIndex = week.clusters.length - 1
+            root.resetPanelScroll()
           } else {
-            if (root.matchWindowOffset === 0) {
+            var keep = -1
+            if (prevLabel !== "") {
+              for (var k = 0; k < week.clusters.length && keep === -1; k++) {
+                if (week.clusters[k].label === prevLabel) keep = k
+              }
+            }
+            if (keep !== -1) {
+              root.matchClusterIndex = keep
+            } else if (prevLabel !== "" && root.matchClusterIndex >= 0 && root.matchClusterIndex < week.clusters.length) {
+              root.matchClusterIndex = root.matchClusterIndex
+            } else if (root.matchWindowOffset === 0) {
               root.matchClusterIndex = week.index
             } else {
-              var keep = -1
-              for (var k = 0; k < week.clusters.length && keep === -1; k++) {
-                if (week.clusters[k].label === root.matchWeekLabel) keep = k
-              }
-              root.matchClusterIndex = keep !== -1 ? keep : week.index
+              root.matchClusterIndex = Math.max(0, Math.min(root.matchClusterIndex, week.clusters.length - 1))
             }
           }
           root.pendingEdge = ""
@@ -9332,24 +9324,25 @@ root.warnStderr("team select failed", text)
     focusTarget: keyCatcher
     // Keep the card tied to its bar button instead of centering it on the bar.
     centerOnBar: false
-    contentWidth: popup.fittedContentWidth(Style.space(390))
+    contentWidth: popup.fittedContentWidth(root.showTrending ? Style.space(440) : Style.space(410))
     contentHeight: popup.fittedContentHeight((pinnedHeader.visible ? pinnedHeader.implicitHeight + Style.space(14) : 0) + content.implicitHeight, (root.showMatchDetail || root.selectedPlayerProfile !== null || root.selectedClubProfile !== null) ? Style.space(720) : Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      // While a club-picker dropdown is open or focused, let it handle the
       // While a club-picker dropdown or search field is open/focused, let it handle the
       // keys (Escape/arrows/Enter) instead of the panel's close/switch keys.
-      blocked: (leagueDropdown && (leagueDropdown.popupOpen || leagueDropdown.activeFocus))
+      blocked: !!((leagueDropdown && (leagueDropdown.popupOpen || leagueDropdown.activeFocus))
         || (teamDropdown && (teamDropdown.popupOpen || teamDropdown.activeFocus))
         || (searchBarInput && searchBarInput.activeFocus)
+        || (trendingView && trendingView.searchFocused))
       onCloseRequested: {
         if (root.showSettings) root.showSettings = false
         else if (root.showMatchDetail) root.showMatchDetail = false
         else if (root.selectedPlayerProfile !== null) root.selectedPlayerProfile = null
         else if (root.selectedClubProfile !== null) root.selectedClubProfile = null
         else if (root.showSearch) root.showSearch = false
+        else if (root.showTrending) root.showTrending = false
         else if (root.editingTeam) { root.editingTeam = false; root.addingTeam = false }
         else root.close()
       }
@@ -9366,7 +9359,9 @@ root.warnStderr("team select failed", text)
       onTextKey: function(t) {
         if (!t) return
         var c = t.toLowerCase()
-        if (t >= "1" && t <= "9") {
+        if (root.showTrending && trendingView && (c >= "1" && c <= "4")) {
+          trendingView.activeCategory = c === "1" ? "all" : (c === "2" ? "live" : (c === "3" ? "international" : "club"))
+        } else if (t >= "1" && t <= "9") {
           var idx = parseInt(t, 10) - 1
           var tabs = root.allFollowedTabs()
           if (tabs && idx < tabs.length) {
@@ -9377,6 +9372,8 @@ root.warnStderr("team select failed", text)
           if (root.leagueMode || root.showMatches) root.loadMatchList(true)
         } else if (t === "/") {
           if (searchButton) searchButton.clicked()
+        } else if (c === "l") {
+          if (trendingButton && trendingButton.visible) trendingButton.clicked()
         } else if (c === "t") {
           if (standingsButton) standingsButton.clicked()
         } else if (c === "s") {
@@ -9396,13 +9393,7 @@ root.warnStderr("team select failed", text)
         visible: !root.needsTeam && !root.editingTeam
         spacing: Style.space(14)
 
-        // Club tabs: only shown once a second club has been added, so a
-        // single-team setup (everyone before this feature existed) looks
-        // exactly as before. Click switches; right-click removes (the active
-        // club has no remove -- it isn't stored in followedTeams to begin
-        // with, so there's nothing to remove it from).
-        // Follow tabs: lets you track multiple clubs and whole leagues.
-        // Click switches; right-click removes (the active item cannot be removed).
+        // Followed tabs bar
         Flow {
           visible: !root.needsTeam && !root.editingTeam
           width: parent.width
@@ -9467,253 +9458,297 @@ root.warnStderr("team select failed", text)
         }
         Row {
           width: parent.width
-          spacing: Style.space(10)
+          spacing: Style.space(8)
 
-        Image {
-          id: tournamentLogoImage
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(36)
-          height: width
-          // League identity while browsing matchweeks, stats, table, or in league-follow;
-          // club identity otherwise.
-          source: root.showClubFixtures
-            ? (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl())
-            : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
-              ? (root.leagueLogoUrl() !== "" ? root.leagueLogoUrl() : root.clubLogoUrl())
-              : (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl()))
-          fillMode: Image.PreserveAspectFit
-          asynchronous: true
-          cache: true
-          mipmap: true
-          smooth: true
-          visible: String(source) !== ""
-        }
-
-        Column {
-          anchors.verticalCenter: parent.verticalCenter
-          width: parent.width - (tournamentLogoImage.visible ? tournamentLogoImage.width + parent.spacing : 0)
-            - (searchButton.visible ? searchButton.width + parent.spacing : 0)
-            - (standingsButton.visible ? standingsButton.width + parent.spacing : 0)
-            - (statsButton.visible ? statsButton.width + parent.spacing : 0)
-            - (matchesButton.visible ? matchesButton.width + parent.spacing : 0)
-            - (settingsButton.visible ? settingsButton.width + parent.spacing : 0)
-          spacing: Style.space(2)
-
-          Text {
-            textFormat: Text.PlainText
-            width: parent.width
-            text: root.showClubFixtures
-              ? (root.teamName + " Fixtures")
+          Image {
+            id: tournamentLogoImage
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(30)
+            height: width
+            source: root.showClubFixtures
+              ? (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl())
               : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
-                ? (root.tournamentName || root.leagueLabel())
-                : (root.teamName || root.tournamentName || root.leagueLabel()))
-            color: root.contentForeground
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.body
-            font.bold: true
-            wrapMode: Text.WordWrap
-            maximumLineCount: 2
-            elide: Text.ElideRight
+                ? (root.leagueLogoUrl() !== "" ? root.leagueLogoUrl() : root.clubLogoUrl())
+                : (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl()))
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            cache: true
+            mipmap: true
+            smooth: true
+            visible: !root.showTrending && String(source) !== ""
           }
 
-          Text {
-            textFormat: Text.PlainText
-            width: parent.width
-            text: root.showClubFixtures
-              ? root.leagueLabel()
-              : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
-                ? (root.leagueMode ? "" : root.teamName)
-                : root.leagueLabel())
-            color: Qt.darker(root.contentForeground, 1.25)
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            wrapMode: Text.WordWrap
-            maximumLineCount: 2
-            elide: Text.ElideRight
-            visible: text !== ""
+          Column {
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.max(Style.space(80), parent.width
+              - (tournamentLogoImage.visible ? tournamentLogoImage.width + parent.spacing : 0)
+              - (headerActionButtons.visible ? headerActionButtons.implicitWidth + parent.spacing : 0))
+            spacing: Style.space(1)
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.showTrending
+                ? "Trending Matches"
+                : (root.showClubFixtures
+                  ? (root.teamName + " Fixtures")
+                  : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+                    ? (root.tournamentName || root.leagueLabel())
+                    : (root.teamName || root.tournamentName || root.leagueLabel())))
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: text.length > 22 ? Style.font.caption : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
+              font.bold: true
+              wrapMode: Text.Wrap
+              maximumLineCount: 3
+              elide: Text.ElideNone
+              lineHeight: 0.95
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.showTrending
+                ? "Live & Marquee Global Matches"
+                : (root.showClubFixtures
+                  ? root.leagueLabel()
+                  : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
+                    ? (root.leagueMode ? "" : root.teamName)
+                    : root.leagueLabel()))
+              color: Qt.darker(root.contentForeground, 1.25)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              wrapMode: Text.Wrap
+              maximumLineCount: 2
+              elide: Text.ElideNone
+              lineHeight: 0.95
+              visible: text !== ""
+            }
           }
-        }
-        Button {
-          id: searchButton
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(32)
-          height: Style.space(32)
-          iconText: "󰍉"
-          tooltipText: "Search Players & Clubs"
-          fontFamily: root.contentFontFamily
-          foreground: root.contentForeground
-          accent: root.contentForeground
-          iconSize: Style.font.body
-          horizontalPadding: 0
-          verticalPadding: 0
-          selected: root.showSearch
-          onClicked: {
-            root.showMatchDetail = false
-            root.showClubFixtures = false
-            root.showSettings = false
-            root.showSearch = !root.showSearch
-            if (root.showSearch) {
+
+          Row {
+            id: headerActionButtons
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+          Button {
+            id: searchButton
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            height: Style.space(28)
+            iconText: "󰍉"
+            tooltipText: "Search Players & Clubs (/)"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.space(13)
+            horizontalPadding: 0
+            verticalPadding: 0
+            selected: root.showSearch
+            onClicked: {
+              root.showMatchDetail = false
+              root.showClubFixtures = false
+              root.showSettings = false
+              root.showTrending = false
+              root.showSearch = !root.showSearch
+              if (root.showSearch) {
+                root.showMatches = false
+                root.showStandings = false
+                root.showStats = false
+                Qt.callLater(function() {
+                  if (searchBarInput) searchBarInput.forceActiveFocus()
+                })
+              }
+            }
+          }
+
+          Button {
+            id: trendingButton
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            height: Style.space(28)
+            iconText: "󰈸"
+            tooltipText: "Trending & Live Matches (l)"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.space(13)
+            horizontalPadding: 0
+            verticalPadding: 0
+            visible: root.enableTrending
+            selected: root.showTrending
+            onClicked: {
+              root.showMatchDetail = false
+              root.showClubFixtures = false
+              root.showSearch = false
+              root.showSettings = false
               root.showMatches = false
               root.showStandings = false
               root.showStats = false
-              Qt.callLater(function() {
-                if (searchBarInput) searchBarInput.forceActiveFocus()
-              })
+              root.showTrending = !root.showTrending
+              if (root.showTrending && trendingView) {
+                trendingView.refresh(true)
+              }
             }
           }
-        }
 
-        Button {
-          id: matchesButton
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(32)
-          height: Style.space(32)
-          iconText: "󰕲"
-          tooltipText: root.leagueMode ? (root.leagueBrowseAll ? "Daily Slate" : "All League Fixtures") : "League Fixtures"
-          fontFamily: root.contentFontFamily
-          foreground: root.contentForeground
-          accent: root.contentForeground
-          iconSize: Style.font.body
-          horizontalPadding: 0
-          verticalPadding: 0
-          selected: root.leagueMode ? (!root.showStandings && !root.showStats && root.leagueBrowseAll) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures)
-          onClicked: {
-            root.showMatchDetail = false
-            root.showClubFixtures = false
-            root.showSearch = false
-            root.showSettings = false
-            if (root.leagueMode) {
+          Button {
+            id: matchesButton
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            height: Style.space(28)
+            iconText: "󰕲"
+            tooltipText: root.leagueMode ? (root.leagueBrowseAll ? "Daily Slate (m)" : "All League Fixtures (m)") : "League Fixtures (m)"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.space(13)
+            horizontalPadding: 0
+            verticalPadding: 0
+            selected: root.leagueMode ? (!root.showStandings && !root.showStats && root.leagueBrowseAll) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures)
+            onClicked: {
+              root.showMatchDetail = false
+              root.showClubFixtures = false
+              root.showSearch = false
+              root.showSettings = false
+              root.showTrending = false
+              if (root.leagueMode) {
+                if (root.showStandings || root.showStats) {
+                  root.showStandings = false
+                  root.showStats = false
+                  root.leagueBrowseAll = true
+                } else {
+                  root.leagueBrowseAll = !root.leagueBrowseAll
+                }
+                root.matchWindowOffset = 0
+                root.pendingEdge = ""
+                root.navAnchorDay = ""
+                if (root.matchClusters && root.matchClusters.length > 0) {
+                  root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+                }
+                root.loadMatchList(true)
+                return
+              }
               if (root.showStandings || root.showStats) {
                 root.showStandings = false
                 root.showStats = false
-                root.leagueBrowseAll = true
-              } else {
-                root.leagueBrowseAll = !root.leagueBrowseAll
+                root.showMatches = true
+                root.matchWindowOffset = 0
+                root.pendingEdge = ""
+                root.navAnchorDay = ""
+                if (root.matchClusters && root.matchClusters.length > 0) {
+                  root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+                }
+                root.loadMatchList(true)
+                return
               }
-              root.matchWindowOffset = 0
-              root.pendingEdge = ""
-              root.navAnchorDay = ""
-              if (root.matchClusters && root.matchClusters.length > 0) {
-                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+              root.showMatches = !root.showMatches
+              if (root.showMatches) {
+                root.matchWindowOffset = 0
+                root.pendingEdge = ""
+                root.navAnchorDay = ""
+                if (root.matchClusters && root.matchClusters.length > 0) {
+                  root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
+                }
+                root.loadMatchList(true)
               }
-              root.loadMatchList(true)
-              return
-            }
-            if (root.showStandings || root.showStats) {
-              root.showStandings = false
-              root.showStats = false
-              root.showMatches = true
-              root.matchWindowOffset = 0
-              root.pendingEdge = ""
-              root.navAnchorDay = ""
-              if (root.matchClusters && root.matchClusters.length > 0) {
-                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
-              }
-              root.loadMatchList(true)
-              return
-            }
-            root.showMatches = !root.showMatches
-            if (root.showMatches) {
-              root.matchWindowOffset = 0
-              root.pendingEdge = ""
-              root.navAnchorDay = ""
-              if (root.matchClusters && root.matchClusters.length > 0) {
-                root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
-              }
-              root.loadMatchList(true)
             }
           }
-        }
-        Button {
-          id: standingsButton
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(32)
-          height: Style.space(32)
-          iconText: "󰕶"
-          tooltipText: "League Table"
-          fontFamily: root.contentFontFamily
-          foreground: root.contentForeground
-          accent: root.contentForeground
-          iconSize: Style.font.body
-          horizontalPadding: 0
-          verticalPadding: 0
-          selected: root.showStandings
-          onClicked: {
-            root.showMatchDetail = false
-            root.showClubFixtures = false
-            root.showSearch = false
-            root.showSettings = false
-            if (root.showStandings) {
-              root.showMatches = false
-              root.showStats = false
-              root.loadStandings(true)
-            } else {
-              // Open the table in both club and tournament-follow mode.
-              root.showStandings = true
-              root.showStats = false
-              root.showMatches = false
-              root.matchWindowOffset = 0
-              root.pendingEdge = ""
-              root.navAnchorDay = ""
-              root.loadStandings(true)
-            }
-          }
-        }
-        Button {
-          id: statsButton
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(32)
-          height: Style.space(32)
-          iconText: "󰄪"
-          tooltipText: "Stats"
-          fontFamily: root.contentFontFamily
-          foreground: root.contentForeground
-          accent: root.contentForeground
-          iconSize: Style.font.body
-          horizontalPadding: 0
-          verticalPadding: 0
-          selected: root.showStats
-          onClicked: {
-            root.showMatchDetail = false
-            root.showClubFixtures = false
-            root.showSearch = false
-            root.showSettings = false
-            if (root.showStats) {
-              root.showMatches = false
-              root.showStandings = false
-              root.loadStats(true)
-            } else {
-              // Open the leaderboard in both club and tournament-follow mode.
-              root.showStats = true
-              root.showMatches = false
-              root.showStandings = false
-              root.loadStats(true)
-            }
-          }
-        }
 
-        Button {
-          id: settingsButton
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(32)
-          height: Style.space(32)
-          iconText: "󰒓"
-          tooltipText: "Settings & Preferences"
-          fontFamily: root.contentFontFamily
-          foreground: root.contentForeground
-          accent: root.contentForeground
-          iconSize: Style.font.body
-          horizontalPadding: 0
-          verticalPadding: 0
-          selected: root.showSettings
-          onClicked: {
-            root.showSearch = false
-            root.showClubFixtures = false
-            root.showMatchDetail = false
-            root.showStandings = false
-            root.showStats = false
-            root.showSettings = !root.showSettings
+          Button {
+            id: standingsButton
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            height: Style.space(28)
+            iconText: "󰕶"
+            tooltipText: "League Table (t)"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.space(13)
+            horizontalPadding: 0
+            verticalPadding: 0
+            selected: root.showStandings
+            onClicked: {
+              root.showMatchDetail = false
+              root.showClubFixtures = false
+              root.showSearch = false
+              root.showSettings = false
+              root.showTrending = false
+              if (root.showStandings) {
+                root.showMatches = false
+                root.showStats = false
+                root.loadStandings(true)
+              } else {
+                // Open the table in both club and tournament-follow mode.
+                root.showStandings = true
+                root.showStats = false
+                root.showMatches = false
+                root.matchWindowOffset = 0
+                root.pendingEdge = ""
+                root.navAnchorDay = ""
+                root.loadStandings(true)
+              }
+            }
+          }
+
+          Button {
+            id: statsButton
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            height: Style.space(28)
+            iconText: "󰄪"
+            tooltipText: "Player & Club Stats (s)"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.space(13)
+            horizontalPadding: 0
+            verticalPadding: 0
+            selected: root.showStats
+            onClicked: {
+              root.showMatchDetail = false
+              root.showClubFixtures = false
+              root.showSearch = false
+              root.showSettings = false
+              root.showTrending = false
+              if (root.showStats) {
+                root.showMatches = false
+                root.showStandings = false
+                root.loadStats(true)
+              } else {
+                // Open the leaderboard in both club and tournament-follow mode.
+                root.showStats = true
+                root.showMatches = false
+                root.showStandings = false
+                root.loadStats(true)
+              }
+            }
+          }
+
+          Button {
+            id: settingsButton
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            height: Style.space(28)
+            iconText: "󰒓"
+            tooltipText: "Settings & Preferences (p)"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.space(13)
+            horizontalPadding: 0
+            verticalPadding: 0
+            selected: root.showSettings
+            onClicked: {
+              root.showSearch = false
+              root.showClubFixtures = false
+              root.showMatchDetail = false
+              root.showStandings = false
+              root.showStats = false
+              root.showTrending = false
+              root.showSettings = !root.showSettings
+            }
           }
         }
       }
@@ -10235,12 +10270,18 @@ root.warnStderr("team select failed", text)
             }
           }
 
-          // CARD 4: Match Experience (shown when not solely adding a team)
           // CARD 3: Match Experience
           SettingsCard {
             icon: "󰈈"
             title: "Match Experience"
             expanded: true
+
+            SettingToggleRow {
+              title: "Trending & Live Matches"
+              description: "Show trending matches page and header button for global games"
+              checked: root.enableTrending
+              onToggled: root.setEnableTrending(!root.enableTrending)
+            }
 
             SettingToggleRow {
               title: "Anti-Spoiler Mode"
@@ -10257,7 +10298,6 @@ root.warnStderr("team select failed", text)
             }
           }
 
-          // CARD 5: Performance & Cache (shown when not solely adding a team)
           // CARD 4: Performance & Cache
           SettingsCard {
             icon: "󰒲"
@@ -10753,11 +10793,16 @@ root.warnStderr("team select failed", text)
         root: root
       }
 
+      FutTrendingView {
+        id: trendingView
+        root: root
+      }
+
       Column {
         id: standingsView
         width: parent.width
         spacing: Style.space(12)
-        visible: root.showStandings && !root.showMatchDetail
+        visible: root.showStandings && !root.showMatchDetail && !root.showTrending
 
         Item {
           width: parent.width
@@ -11065,14 +11110,17 @@ root.warnStderr("team select failed", text)
               if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") d = matchRow.modelData.dateText
               else if (matchRow.modelData.kickoff) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM"))
               else if (matchRow.modelData.date) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM"))
+              var rnd = matchRow.modelData.roundName ? (matchRow.modelData.roundName + (d !== "" ? " · " : "")) : ""
               if (d !== "" && matchRow.modelData.state === "pre") {
                 var t = matchRow.modelData.timeText || (matchRow.modelData.kickoff ? root.kickoffTime({ date: matchRow.modelData.kickoff }) : "")
-                if (t && t !== "") return d + " · " + t
+                var rel = matchRow.modelData.kickoff ? root.relativeKickoffText(matchRow.modelData.kickoff) : ""
+                if (rel !== "") t = t !== "" ? (t + " (" + rel + ")") : rel
+                if (t && t !== "") return rnd + d + " · " + t
               }
-              return d
+              return rnd + d
             }
 
-            readonly property bool hasSubText: matchRow.modelData.state === "in" || matchRow.modelData.state === "post" || (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "")
+            readonly property bool hasSubText: matchRow.modelData.state === "in" || matchRow.modelData.state === "post" || (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") || (matchRow.modelData.seriesNote && matchRow.modelData.seriesNote !== "")
 
             // Slim compact card height preserving original thickness with match date included
             height: matchColumn.implicitHeight + rowVPadding * 2 + (hasSubText ? Style.space(4) : 0)
@@ -11089,6 +11137,7 @@ root.warnStderr("team select failed", text)
               radius: Style.space(6)
               color: root.contentForeground
               opacity: matchRow.modelData.state === "in" ? 0.07 : (rowMouseArea.containsMouse ? 0.06 : 0.03)
+              Behavior on opacity { NumberAnimation { duration: 120 } }
             }
 
             MouseArea {
@@ -11153,8 +11202,9 @@ root.warnStderr("team select failed", text)
 
               // Matchup Row: Home Crest & Name - Center Score / Status - Away Name & Crest
               Row {
+                id: panelMatchupRow
                 width: parent.width
-                height: root.matchLogoSize
+                height: Math.max(root.matchLogoSize, panelHomeNameText.implicitHeight, panelAwayNameText.implicitHeight, centerScoreItem.height)
                 spacing: Style.space(6)
 
                 Item {
@@ -11179,15 +11229,18 @@ root.warnStderr("team select failed", text)
                 }
 
                 Text {
+                  id: panelHomeNameText
                   textFormat: Text.PlainText
                   width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
                   anchors.verticalCenter: parent.verticalCenter
                   text: matchRow.modelData.homeName
                   color: root.contentForeground
                   font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.body
+                  font.pixelSize: text.length > 22 ? Style.space(10) : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
                   font.bold: matchRow.modelData.state === "in"
-                  elide: Text.ElideRight
+                  wrapMode: Text.Wrap
+                  maximumLineCount: 2
+                  lineHeight: 0.95
                   horizontalAlignment: Text.AlignRight
                 }
 
@@ -11195,59 +11248,72 @@ root.warnStderr("team select failed", text)
                 Item {
                   id: centerScoreItem
                   width: root.matchScoreWidth
-                  height: root.matchLogoSize
+                  height: Math.max(root.matchLogoSize, panelScoreCol.implicitHeight)
                   anchors.verticalCenter: parent.verticalCenter
 
-                  Text {
-                    id: matchScoreText
-                    textFormat: Text.PlainText
+                  Column {
+                    id: panelScoreCol
                     anchors.centerIn: parent
-                    property bool revealed: false
-                    text: matchRow.modelData.state === "pre"
-                      ? (matchRow.modelData.timeText || "VS")
-                      : ((root.antiSpoiler && !revealed)
-                        ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
-                        : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
-                    color: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
-                      ? (root.favoriteTeamAccent || root.contentForeground)
-                      : root.contentForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
-                      ? Style.font.caption
-                      : Style.font.body
-                    font.bold: matchRow.modelData.state !== "post"
-                    horizontalAlignment: Text.AlignHCenter
-                  }
+                    spacing: Style.space(1)
 
-                  Text {
-                    id: matchRowSubText
-                    textFormat: Text.PlainText
-                    anchors.top: matchScoreText.bottom
-                    anchors.topMargin: -Style.space(1)
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
-                    text: {
-                      if (matchRow.modelData.state === "in") return matchRow.modelData.status || "Live"
-                      if (matchRow.modelData.state === "post") {
-                        var s = matchRow.modelData.status || "FT"
-                        if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
-                          s += " (" + matchRow.modelData.shootoutNote + ")"
-                        }
-                        return s
-                      }
-                      if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
-                        return matchRow.modelData.shootoutNote
-                      }
-                      return ""
+                    Text {
+                      id: matchScoreText
+                      textFormat: Text.PlainText
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      property bool revealed: false
+                      text: matchRow.modelData.state === "pre"
+                        ? (matchRow.modelData.timeText || "VS")
+                        : ((root.antiSpoiler && !revealed)
+                          ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
+                          : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
+                      color: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
+                        ? (root.favoriteTeamAccent || root.contentForeground)
+                        : root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: (root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
+                        ? Style.font.caption
+                        : Style.font.body
+                      font.bold: matchRow.modelData.state !== "post"
+                      horizontalAlignment: Text.AlignHCenter
                     }
-                    color: matchRow.modelData.state === "in"
-                      ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.space(8)
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    width: root.matchScoreWidth
+
+                    Text {
+                      id: matchRowSubText
+                      textFormat: Text.PlainText
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
+                      text: {
+                        if (matchRow.modelData.state === "in") {
+                          var liveS = matchRow.modelData.status || "Live"
+                          if (matchRow.modelData.seriesNote) liveS += " (" + matchRow.modelData.seriesNote + ")"
+                          return liveS
+                        }
+                        if (matchRow.modelData.state === "post") {
+                          var s = matchRow.modelData.status || "FT"
+                          if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
+                            s += " (" + matchRow.modelData.shootoutNote + ")"
+                          } else if (matchRow.modelData.seriesNote && matchRow.modelData.seriesNote !== "") {
+                            s += " (" + matchRow.modelData.seriesNote + ")"
+                          }
+                          return s
+                        }
+                        if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
+                          return matchRow.modelData.shootoutNote
+                        }
+                        if (matchRow.modelData.seriesNote && matchRow.modelData.seriesNote !== "") {
+                          return matchRow.modelData.seriesNote
+                        }
+                        return ""
+                      }
+                      color: matchRow.modelData.state === "in"
+                        ? "#4ade80" : Qt.darker(root.contentForeground, 1.6)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.space(8)
+                      font.bold: true
+                      horizontalAlignment: Text.AlignHCenter
+                      elide: Text.ElideRight
+                      width: root.matchScoreWidth
+                    }
                   }
 
                   MouseArea {
@@ -11259,15 +11325,18 @@ root.warnStderr("team select failed", text)
                 }
 
                 Text {
+                  id: panelAwayNameText
                   textFormat: Text.PlainText
                   width: (parent.width - parent.spacing * 4 - root.matchScoreWidth - root.matchLogoSize * 2) / 2
                   anchors.verticalCenter: parent.verticalCenter
                   text: matchRow.modelData.awayName
                   color: root.contentForeground
                   font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.body
+                  font.pixelSize: text.length > 22 ? Style.space(10) : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
                   font.bold: matchRow.modelData.state === "in"
-                  elide: Text.ElideRight
+                  wrapMode: Text.Wrap
+                  maximumLineCount: 2
+                  lineHeight: 0.95
                   horizontalAlignment: Text.AlignLeft
                 }
 
@@ -11306,7 +11375,7 @@ root.warnStderr("team select failed", text)
         id: clubFixturesView
         width: parent.width
         spacing: Style.space(12)
-        visible: !root.leagueMode && root.showClubFixtures && !root.showStandings && !root.showStats && !root.showMatchDetail
+        visible: !root.leagueMode && root.showClubFixtures && !root.showStandings && !root.showStats && !root.showMatchDetail && !root.showTrending
 
         Item {
           width: parent.width
@@ -11426,7 +11495,7 @@ root.warnStderr("team select failed", text)
         id: leagueMatchesView
         width: parent.width
         spacing: Style.space(12)
-        visible: (root.leagueMode ? (!root.showStandings && !root.showStats && !root.showMatchDetail && !root.showSearch) : (root.showMatches && !root.showStandings && !root.showStats && !root.showMatchDetail && !root.showClubFixtures && !root.showSearch))
+        visible: (root.leagueMode ? (!root.showStandings && !root.showStats && !root.showMatchDetail && !root.showSearch && !root.showTrending) : (root.showMatches && !root.showStandings && !root.showStats && !root.showMatchDetail && !root.showClubFixtures && !root.showSearch && !root.showTrending))
 
         Item {
           width: parent.width
@@ -11503,7 +11572,11 @@ root.warnStderr("team select failed", text)
                 // drops any stalled in-flight fetch instead of swallowing
                 // the tap while a retry storm is running.
                 if (root.pendingEdge !== "") return
-                if (root.matchClusterIndex > 0) { root.matchClusterIndex--; return }
+                if (root.matchClusterIndex > 0) {
+                  root.matchClusterIndex--
+                  root.resetPanelScroll()
+                  return
+                }
                 if (matchListRequest.running) matchListRequest.running = false
                 // Empty view has no boundary row: let the landing logic use
                 // the far edge of whatever the shifted window returns.
@@ -11511,6 +11584,7 @@ root.warnStderr("team select failed", text)
                 var calW = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
                 root.matchWindowOffset -= (calW && calW.length > 0) ? 1 : 7
                 root.pendingEdge = "prev"
+                root.resetPanelScroll()
                 root.loadMatchList()
               }
             }
@@ -11542,12 +11616,17 @@ root.warnStderr("team select failed", text)
               verticalPadding: 0
               onClicked: {
                 if (root.pendingEdge !== "") return
-                if (root.matchClusterIndex < root.matchClusters.length - 1) { root.matchClusterIndex++; return }
+                if (root.matchClusterIndex < root.matchClusters.length - 1) {
+                  root.matchClusterIndex++
+                  root.resetPanelScroll()
+                  return
+                }
                 if (matchListRequest.running) matchListRequest.running = false
                 root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
                 var calWNext = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
                 root.matchWindowOffset += (calWNext && calWNext.length > 0) ? 1 : 7
                 root.pendingEdge = "next"
+                root.resetPanelScroll()
                 root.loadMatchList()
               }
             }

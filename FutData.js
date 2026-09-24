@@ -504,5 +504,63 @@ var leagues = [
     "uefa.w.europa": "https://a.espncdn.com/i/leaguelogos/soccer/500/2310.png",
     "usa.usl.l1.cup": "https://a.espncdn.com/i/leaguelogos/soccer/500/2452.png",
     "fifa.friendly_u21": "https://a.espncdn.com/i/leaguelogos/soccer/500/53.png",
-    "caf.w.nations": "https://a.espncdn.com/i/leaguelogos/soccer/500/76.png",
+    "caf.w.nations": "https://a.espncdn.com/i/leaguelogos/soccer/500/76.png"
   };
+
+  var leagueIdToSlugMap = {
+    "2395": "uefa.nations",
+    "3922": "fifa.friendly",
+    "19834": "club.friendly",
+    "20114": "uefa.euro_u21_qual",
+    "8315": "caf.nations_qual",
+    "8312": "chi.copa_chi",
+    "650": "col.1",
+    "3928": "gua.1",
+    "3932": "mex.2",
+    "19267": "concacaf.nations.league",
+    "23107": "afc.asian.cup"
+  };
+  (function() {
+    for (var slug in leagueLogoMap) {
+      var match = String(leagueLogoMap[slug]).match(/\/(\d+)\.png$/);
+      if (match && !leagueIdToSlugMap[match[1]]) {
+        leagueIdToSlugMap[match[1]] = slug;
+      }
+    }
+  })();
+
+  function leagueSlugForId(id) {
+    return leagueIdToSlugMap[String(id)] || "";
+  }
+
+  function leagueLabelForSlug(slug) {
+    if (!slug) return "";
+    for (var i = 0; i < leagues.length; i++) {
+      if (leagues[i].value === slug) return leagues[i].label;
+    }
+    return slug;
+  }
+
+  function isInternationalCompetition(slug, leagueId) {
+    var s = String(slug || "").toLowerCase();
+    if (s.indexOf("club") !== -1) return false;
+    var intlPrefixes = ["fifa.", "uefa.euro", "uefa.nations", "conmebol.america", "concacaf.gold", "concacaf.nations", "caf.nations", "afc.asian", "fifa.friendly", "global.", "intl."];
+    for (var i = 0; i < intlPrefixes.length; i++) {
+      if (s.indexOf(intlPrefixes[i]) !== -1) return true;
+    }
+    var intlIds = ["2395", "3922", "8315", "20114", "19267", "23107"];
+    return intlIds.indexOf(String(leagueId)) !== -1;
+  }
+
+  function isMajorLeagueCompetition(slug) {
+    var s = String(slug || "").toLowerCase();
+    var majorSlugs = [
+      "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
+      "eng.fa", "eng.league_cup", "esp.copa_del_rey", "ger.dfb_pokal", "ita.coppa_italia",
+      "uefa.champions", "uefa.europa", "uefa.europa.conf", "uefa.super_cup",
+      "conmebol.libertadores", "conmebol.sudamericana",
+      "usa.1", "ksa.1", "bra.1", "ned.1", "por.1", "mex.1",
+      "uefa.nations", "uefa.euro", "fifa.world", "fifa.cwc", "fifa.friendly"
+    ];
+    return majorSlugs.indexOf(s) !== -1;
+  }
