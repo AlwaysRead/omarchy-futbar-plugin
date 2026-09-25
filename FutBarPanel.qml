@@ -2401,7 +2401,10 @@ Panel {
     var pendingKey = root._tournamentBracketPendingKey
     if (pendingKey === "") return
     root._tournamentBracketPendingKey = ""
-    if (pendingKey !== root.tournamentBracketKey()) root.loadTournamentBracket(true)
+    // Only dispatch the queued request when it is still for the currently
+    // selected season. The previous request's response is intentionally
+    // ignored once navigation has changed the key.
+    if (pendingKey === root.tournamentBracketKey()) root.loadTournamentBracket(true)
   }
   function loadTournamentBracket(force) {
     if (root.needsTeam) return
