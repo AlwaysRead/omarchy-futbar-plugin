@@ -14,10 +14,12 @@ Column {
 
   property bool expandAllStats: false
   property bool heroScoreRevealed: false
+  property var selectedFormMatch: null
   onVisibleChanged: {
     if (!visible) {
       expandAllStats = false
       heroScoreRevealed = false
+      selectedFormMatch = null
     }
   }
 
@@ -529,6 +531,20 @@ Column {
             visible: !!(root.matchDetail && ((root.matchDetail.h2h && root.matchDetail.h2h.length > 0) || (root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0) || (root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)))
             selected: root.matchDetailTab === "h2h"
             onClicked: root.matchDetailTab = "h2h"
+          }
+
+          Button {
+            height: Style.space(24)
+            text: "Bracket"
+            fontFamily: root ? root.contentFontFamily : Style.font.family
+            foreground: root ? root.contentForeground : Color.foreground
+            accent: root ? root.contentForeground : Color.foreground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            visible: !!(root.matchDetail && root.matchDetail.bracketAvailable)
+            selected: root.matchDetailTab === "bracket"
+            onClicked: root.matchDetailTab = "bracket"
           }
 
           Button {
@@ -1677,6 +1693,26 @@ Column {
                         font.bold: true
                       }
                     }
+
+                    MouseArea {
+                      id: subBadgeMouse
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                    }
+
+                    PanelToolTip {
+                      visible: subBadgeMouse.containsMouse
+                      text: {
+                        if (pitchPlayerItem.modelData.subDesc && pitchPlayerItem.modelData.subDesc !== "") {
+                          return pitchPlayerItem.modelData.subDesc
+                        }
+                        if (pitchPlayerItem.modelData.subPartner && pitchPlayerItem.modelData.subPartner !== "") {
+                          return (pitchPlayerItem.modelData.subbedIn ? "Replaced " : "Replaced by ") + pitchPlayerItem.modelData.subPartner + (pitchPlayerItem.modelData.subMinute ? (" (" + pitchPlayerItem.modelData.subMinute + ")") : "")
+                        }
+                        return pitchPlayerItem.modelData.subbedIn ? "Subbed on" : "Subbed off"
+                      }
+                    }
                   }
 
                   // 4. Card Badge (Bottom-Left - Yellow / Red Card)
@@ -2111,6 +2147,7 @@ Column {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onClicked: matchDetailView.selectedFormMatch = hFormPill.modelData
                       }
 
                       PanelToolTip {
@@ -2197,6 +2234,7 @@ Column {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onClicked: matchDetailView.selectedFormMatch = aFormPill.modelData
                       }
 
                       PanelToolTip {
@@ -2349,6 +2387,14 @@ Column {
               }
             }
           }
+        }
+
+        // Knockout Bracket Tab
+        FutBracketView {
+          id: matchDetailBracketView
+          root: matchDetailView.root
+          bracketData: (root.matchDetail && root.matchDetail.knockoutBracket) ? root.matchDetail.knockoutBracket : []
+          visible: (root.matchDetailTab === "bracket")
         }
 
         // Info Tab (stadium, referee, broadcast, odds, editorial recap)
@@ -2557,6 +2603,108 @@ Column {
           LoadingOverlay {
             active: root.matchDetailLoading && !root.matchDetail
             text: "Fetching match details…"
+          }
+
+          // Form Match Detail Quick Popup Modal
+          Rectangle {
+            id: formMatchModal
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Style.space(20)
+            visible: matchDetailView.selectedFormMatch !== null
+            width: Math.min(parent.width - Style.space(24), Style.space(280))
+            height: formModalCol.implicitHeight + Style.space(20)
+            radius: Style.space(8)
+            color: Qt.rgba(0.08, 0.08, 0.08, 0.96)
+            border.color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+            border.width: 1
+            z: 200
+
+            Column {
+              id: formModalCol
+              anchors.fill: parent
+              anchors.margins: Style.space(12)
+              spacing: Style.space(8)
+
+              Row {
+                width: parent.width
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: "MATCH RESULT"
+                  color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+                  font.family: root ? root.contentFontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption - 1
+                  font.bold: true
+                  font.letterSpacing: 0.8
+                }
+
+                Item {
+                  width: Math.max(0, parent.width - Style.space(110) - closeFormBtn.implicitWidth)
+                  height: 1
+                }
+
+                Button {
+                  id: closeFormBtn
+                  width: Style.space(16)
+                  height: Style.space(16)
+                  iconText: "✕"
+                  fontFamily: Style.font.family
+                  foreground: root ? root.contentForeground : Color.foreground
+                  iconSize: Style.space(8)
+                  horizontalPadding: 0
+                  verticalPadding: 0
+                  onClicked: matchDetailView.selectedFormMatch = null
+                }
+              }
+
+              Row {
+                width: parent.width
+                spacing: Style.space(8)
+
+                Rectangle {
+                  width: Style.space(26)
+                  height: Style.space(26)
+                  radius: Style.space(4)
+                  anchors.verticalCenter: parent.verticalCenter
+                  color: (matchDetailView.selectedFormMatch && matchDetailView.selectedFormMatch.result === "W")
+                    ? "#16a34a"
+                    : ((matchDetailView.selectedFormMatch && matchDetailView.selectedFormMatch.result === "D") ? "#475569" : "#dc2626")
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: matchDetailView.selectedFormMatch ? matchDetailView.selectedFormMatch.result : ""
+                    color: "#ffffff"
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                }
+
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(2)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: matchDetailView.selectedFormMatch ? ("vs " + (matchDetailView.selectedFormMatch.opponent || "Opponent")) : ""
+                    color: root ? root.contentForeground : Color.foreground
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: matchDetailView.selectedFormMatch ? (matchDetailView.selectedFormMatch.score + (matchDetailView.selectedFormMatch.dateFormatted ? (" · " + matchDetailView.selectedFormMatch.dateFormatted) : "")) : ""
+                    color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.space(8.5)
+                  }
+                }
+              }
+            }
           }
         }
       }

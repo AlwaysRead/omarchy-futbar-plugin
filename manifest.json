@@ -21,7 +21,6 @@
     "defaults": {
       "tabLabelStyle": "abbrev",
       "barWidgetMode": "icon",
-      "language": "en",
       "timeFormat": "24h",
       "kickoffTimeFormat": "24h",
       "enableNotifications": true,
@@ -75,21 +74,6 @@
           "next"
         ],
         "defaultValue": "icon"
-      },
-      {
-        "key": "language",
-        "type": "enum",
-        "label": "Language",
-        "description": "User interface language (English, Spanish, Portuguese, German, French, Italian).",
-        "options": [
-          "en",
-          "es",
-          "pt",
-          "de",
-          "fr",
-          "it"
-        ],
-        "defaultValue": "en"
       },
       {
         "key": "timeFormat",

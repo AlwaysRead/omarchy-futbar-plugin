@@ -6,7 +6,6 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "FutData.js" as FutData
-import "FutI18n.js" as FutI18n
 
 // Fixture panel view
 Panel {
@@ -80,17 +79,6 @@ Panel {
     if (raw === "score" || raw === "next" || raw === "icon") return raw
     return "icon"
   }
-  readonly property string language: {
-    var raw = (root.savedFavorite && root.savedFavorite.language !== undefined && root.savedFavorite.language !== "")
-      ? String(root.savedFavorite.language) : setting("language", "en")
-    if (raw === "es" || raw === "pt" || raw === "de" || raw === "fr" || raw === "it") return raw
-    return "en"
-  }
-  function tr(key) { return FutI18n.t(key, root.language) }
-  function setLanguage(lang) {
-    var valid = (lang === "es" || lang === "pt" || lang === "de" || lang === "fr" || lang === "it") ? lang : "en"
-    root.setSettingValue("language", valid)
-  }
   readonly property string timeFormat: {
     var raw = (root.savedFavorite && root.savedFavorite.timeFormat !== undefined && root.savedFavorite.timeFormat !== "")
       ? String(root.savedFavorite.timeFormat) : setting("timeFormat", root.kickoffTimeFormat)
@@ -106,6 +94,7 @@ Panel {
     if (raw === "12h" || raw === "relative" || raw === "24h") return raw
     return "24h"
   }
+  readonly property bool isFriendlyLeague: !!(root.league && (root.league.indexOf("friendly") !== -1 || root.league === "fifa.friendly"))
   // Coerce setting to real boolean
   function toBool(val, fallback) {
     if (val === true || val === 1) return true
@@ -592,7 +581,6 @@ Panel {
     }
     payload.tabLabelStyle = root.tabLabelStyle
     payload.barWidgetMode = root.barWidgetMode
-    payload.language = root.language
     payload.kickoffTimeFormat = root.kickoffTimeFormat
     payload.timeFormat = root.timeFormat
     payload.enableNotifications = root.enableNotifications
@@ -613,7 +601,7 @@ Panel {
     root.savedFavorite = payload
     if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
-    var keys = ["tabLabelStyle", "barWidgetMode", "language", "kickoffTimeFormat", "timeFormat",
+    var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat", "timeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
       "antiSpoiler", "showOdds", "livePollRate", "enableTrending"]
     for (var i = 0; i < keys.length; i++) {
@@ -640,8 +628,7 @@ Panel {
     payload.tabLabelStyle = "abbrev"
     payload.barWidgetMode = "icon"
     payload.kickoffTimeFormat = "24h"
-    payload.barWidgetMode = "icon"
-    payload.language = "en"
+    payload.timeFormat = "24h"
     payload.enableNotifications = true
     payload.notifyGoals = true
     payload.notifyEvents = true
@@ -653,7 +640,7 @@ Panel {
     root.savedFavorite = payload
     if (root.hostWidget && typeof root.hostWidget === "object") root.hostWidget.savedFavorite = payload
     favoriteStore.setText(JSON.stringify(payload, null, 2) + "\n")
-    var keys = ["tabLabelStyle", "barWidgetMode", "language", "kickoffTimeFormat", "timeFormat",
+    var keys = ["tabLabelStyle", "barWidgetMode", "kickoffTimeFormat", "timeFormat",
       "enableNotifications", "notifyGoals", "notifyEvents", "notifyScope",
       "antiSpoiler", "showOdds", "livePollRate", "enableTrending"]
     for (var i = 0; i < keys.length; i++) {
@@ -680,10 +667,18 @@ Panel {
     root._teamShortCache = {}
     root._teamStateCache = {}
     root._leagueStateCache = {}
+    root._tournamentBracketCache = {}
+    root.tournamentSeasonBracket = []
+    root._tournamentBracketPendingKey = ""
+    root._tournamentBracketRequestKey = ""
+    root._tournamentBracketRequestLeague = ""
+    root._tournamentBracketRequestSeasonYear = 0
+    root.tournamentBracketError = ""
     root.resetTeamData()
     root.resetMatchList()
     root.refresh()
     root.loadMatchList(true)
+    if (root.showStandings && root.opened && standingsView && standingsView.viewMode === "bracket") root.loadTournamentBracket(true)
     root.notify("Cache Flushed", "Cleared local cache and reloading fresh match data", "󰑐")
   }
 
@@ -1096,12 +1091,73 @@ Panel {
   property bool showTrending: false
   property bool returnToTrendingAfterDetail: false
   property int standingsSeasonOffset: 0
+  onStandingsSeasonOffsetChanged: {
+    root.tournamentSeasonBracket = []
+    if (root.showStandings && root.opened && standingsView && standingsView.viewMode === "bracket" && root.loadTournamentBracket) {
+      root.loadTournamentBracket(true)
+    }
+  }
+  function isDomesticLeagueSlug(slug) {
+    var lg = String(slug || "").trim().toLowerCase()
+    if (lg === "") return false
+    if (/^[a-z]{2,4}\.(w\.)?[1-4]$/.test(lg)) return true
+    if (/^[a-z]{2,4}\.(w\.)?[1-4]\./.test(lg)) return true
+    return lg === "usa.nwsl" || lg === "usa.usl.1" || lg === "usa.usl.l1" || lg === "usa.w.usl.1" ||
+      lg === "can.w.nsl" || lg === "usa.ncaa.m.1" || lg === "usa.ncaa.w.1"
+  }
+  function isTournamentCompetition(slug) {
+    var lg = String(slug || "").trim().toLowerCase()
+    if (lg === "" || lg.indexOf("friendly") !== -1) return false
+    return !root.isDomesticLeagueSlug(lg)
+  }
+  function isCrossYearCompetition(slug) {
+    var lg = String(slug || "").trim().toLowerCase()
+    if (!root.isTournamentCompetition(lg)) return false
+    if (lg.indexOf("fifa.") === 0 || lg.indexOf("global.") === 0 || lg.indexOf("conmebol.") === 0) return false
+    var calendarPrefixes = ["arg.", "bra.", "chi.", "col.", "bol.", "ecu.", "mex.", "par.", "per.", "uru.", "usa."]
+    for (var i = 0; i < calendarPrefixes.length; i++) {
+      if (lg.indexOf(calendarPrefixes[i]) === 0) return false
+    }
+    var calendarSlugs = [
+      "concacaf.leagues.cup", "concacaf.gold", "concacaf.w.gold", "sco.cis", "eng.charity",
+      "esp.super_cup", "ita.super_cup", "ger.super_cup", "fra.super_cup", "ned.supercup"
+    ]
+    for (var j = 0; j < calendarSlugs.length; j++) {
+      if (lg === calendarSlugs[j] || lg.indexOf(calendarSlugs[j] + ".") === 0) return false
+    }
+    if (lg === "uefa.euro" || lg === "uefa.weuro" || lg.indexOf("uefa.euro.u") === 0 || lg.indexOf("uefa.euro_u") === 0) return false
+    return true
+  }
+  function isQuadrennialCompetition(slug) {
+    var lg = String(slug || "").trim().toLowerCase()
+    var quadSlugs = [
+      "fifa.world", "fifa.wwc", "fifa.world.u17", "fifa.world.u20", "fifa.olympics", "fifa.w.olympics",
+      "fifa.cwc", "fifa.intercontinental_cup", "fifa.intercontinental.cup", "uefa.euro", "uefa.weuro",
+      "uefa.euro.u19", "uefa.euro_u21", "conmebol.america", "conmebol.america.femenina", "afc.asian.cup",
+      "afc.w.asian.cup", "caf.nations", "caf.w.nations"
+    ]
+    for (var i = 0; i < quadSlugs.length; i++) {
+      if (lg === quadSlugs[i]) return true
+    }
+    return false
+  }
+  function tournamentCurrentSeasonYear() {
+    var now = new Date()
+    var year = now.getFullYear()
+    return root.isCrossYearCompetition(root.league) && now.getMonth() < 6 ? year - 1 : year
+  }
+  function seasonReferenceYear() {
+    return root.isTournamentCompetition(root.league) ? root.tournamentCurrentSeasonYear() : root.standingsSeasonYear
+  }
+  readonly property bool isQuadrennialTournament: root.isQuadrennialCompetition(root.league)
+  function seasonStep() { return root.isQuadrennialTournament ? 4 : 1 }
   readonly property int standingsSeasonYear: {
     var now = new Date()
     return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
   }
   function seasonChipLabel(offset) {
-    var y = root.standingsSeasonYear - offset
+    var y = root.seasonReferenceYear() - offset
+    if (root.isQuadrennialTournament || (root.isTournamentCompetition(root.league) && !root.isCrossYearCompetition(root.league))) return String(y)
     return String(y % 100).padStart(2, "0") + "/" + String((y + 1) % 100).padStart(2, "0")
   }
   property bool standingsLoading: false
@@ -2272,10 +2328,6 @@ Panel {
     return root.sanitizePlainText(parts.join(" · "))
   }
 
-  // Fetches the live match's play-by-play so scorers and red cards can be shown
-  // with their minutes. The summary lives under the match's own competition,
-  // not necessarily the team's home league. Existing scorers are kept until the
-  // new list arrives so the card does not flicker empty on every refresh.
   function loadLiveSummary() {
     if (!root.liveMatch) {
       root.liveEvents = []
@@ -2296,8 +2348,6 @@ Panel {
     panelSummaryRequest.running = true
   }
 
-  // Fetches the league standings table for the selected league. ESPN's site
-  // API has no standings children for soccer; the web API does.
   function loadStandings(force) {
     if (root.needsTeam) return
     var leagueCode = root.safeIdentifier(root.league)
@@ -2317,7 +2367,323 @@ Panel {
     standingsRequest.running = true
   }
 
-  // Fetches player stats (goals and assists) and player card leaders (yellow and red cards).
+  property var _tournamentBracketCache: ({})
+  property var tournamentSeasonBracket: []
+  property bool tournamentBracketLoading: false
+  property string tournamentBracketError: ""
+  property string _tournamentBracketRequestKey: ""
+  property string _tournamentBracketRequestLeague: ""
+  property int _tournamentBracketRequestSeasonYear: 0
+  property string _tournamentBracketPendingKey: ""
+  property var _tournamentBracketAcc: null
+
+  function tournamentBracketSeasonYear() {
+    return root.tournamentCurrentSeasonYear() - root.standingsSeasonOffset
+  }
+  function tournamentBracketKey() {
+    return root.safeIdentifier(root.league) + "|" + String(root.tournamentBracketSeasonYear())
+  }
+  function tournamentBracketQueryYear(seasonYear) {
+    return root.isCrossYearCompetition(root.league) ? (seasonYear + 1) : seasonYear
+  }
+  function tournamentBracketWindowQueryYear(seasonYear, windowId) {
+    if (windowId === "early") return seasonYear
+    return root.tournamentBracketQueryYear(seasonYear)
+  }
+  function tournamentBracketWindowCount(leagueCode) {
+    return root.isCrossYearCompetition(leagueCode) ? 2 : 1
+  }
+  function tournamentBracketBusy() {
+    return tournamentBracketRequest.running || tournamentBracketRequestEarly.running
+  }
+  function startPendingTournamentBracket() {
+    if (root.tournamentBracketBusy()) return
+    var pendingKey = root._tournamentBracketPendingKey
+    if (pendingKey === "") return
+    root._tournamentBracketPendingKey = ""
+    if (pendingKey !== root.tournamentBracketKey()) root.loadTournamentBracket(true)
+  }
+  function loadTournamentBracket(force) {
+    if (root.needsTeam) return
+    var leagueCode = root.safeIdentifier(root.league)
+    if (leagueCode === "") return
+    var seasonYear = root.tournamentBracketSeasonYear()
+    var bKey = root.tournamentBracketKey()
+    var cached = root._tournamentBracketCache ? root._tournamentBracketCache[bKey] : null
+    if (!force && cached && cached.length > 0) {
+      root.tournamentSeasonBracket = cached
+      root.tournamentBracketLoading = false
+      root.tournamentBracketError = ""
+      return
+    }
+    if (root.tournamentBracketBusy()) {
+      root._tournamentBracketPendingKey = bKey
+      return
+    }
+    root.tournamentBracketError = ""
+    root.tournamentSeasonBracket = []
+    root._tournamentBracketPendingKey = ""
+    root._tournamentBracketRequestKey = bKey
+    root._tournamentBracketRequestLeague = leagueCode
+    root._tournamentBracketRequestSeasonYear = seasonYear
+    root.tournamentBracketLoading = true
+    // A cross-year competition's season straddles two calendar years, and ESPN
+    // only serves one calendar year per request, so both halves are fetched and
+    // merged. seenSeries is shared so ties landing in both windows collapse.
+    root._tournamentBracketAcc = {
+      key: bKey,
+      league: leagueCode,
+      seasonYear: seasonYear,
+      remaining: root.tournamentBracketWindowCount(leagueCode),
+      map: ({}),
+      seenSeries: ({})
+    }
+    var earlyYear = root.tournamentBracketWindowQueryYear(seasonYear, "early")
+    var lateYear = root.tournamentBracketWindowQueryYear(seasonYear, "late")
+    var base = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/scoreboard?limit=500&dates="
+    if (root._tournamentBracketAcc.remaining > 1 && earlyYear !== lateYear) {
+      tournamentBracketRequestEarly.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", base + encodeURIComponent(String(earlyYear))]
+      tournamentBracketRequestEarly.running = true
+    }
+    tournamentBracketRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", base + encodeURIComponent(String(lateYear))]
+    tournamentBracketRequest.running = true
+  }
+
+  function tournamentRoundName(ev) {
+    if (!ev) return ""
+    var comp = (ev.competitions && ev.competitions[0]) || {}
+    var notes = Array.isArray(comp.notes) ? comp.notes : []
+    var season = ev.season || {}
+    var series = comp.series || null
+    var noteTexts = []
+    for (var ni = 0; ni < notes.length; ni++) {
+      if (notes[ni] && (notes[ni].headline || notes[ni].text)) noteTexts.push(notes[ni].headline || notes[ni].text)
+    }
+    var sTitle = series && series.title ? String(series.title) : (Array.isArray(series) && series[0] && series[0].title ? String(series[0].title) : "")
+    var slug = String(season.slug || "").toLowerCase()
+    var combo = (noteTexts.join(" ") + " " + sTitle + " " + String(ev.name || "") + " " + slug + " " + String(season.name || "")).toLowerCase()
+    if (combo.indexOf("league phase") !== -1 || combo.indexOf("group stage") !== -1 || combo.indexOf("group phase") !== -1 || combo.indexOf("regular season") !== -1 || combo.indexOf("matchweek") !== -1 || combo.indexOf("gameweek") !== -1) return ""
+    var earlyRounds = [
+      ["preliminary", "preliminary", "Preliminary"],
+      ["qualifying", "qualif", "Qualifying"],
+      ["first-round", "first round", "First Round"],
+      ["second-round", "second round", "Second Round"],
+      ["third-round", "third round", "Third Round"],
+      ["fourth-round", "fourth round", "Fourth Round"],
+      ["fifth-round", "fifth round", "Fifth Round"],
+      ["sixth-round", "sixth round", "Sixth Round"]
+    ]
+    for (var ei = 0; ei < earlyRounds.length; ei++) {
+      if (slug.indexOf(earlyRounds[ei][0]) !== -1 || combo.indexOf(earlyRounds[ei][1]) !== -1) return earlyRounds[ei][2]
+    }
+    if (slug.indexOf("playoff") !== -1 || combo.indexOf("playoff") !== -1 || combo.indexOf("play-off") !== -1) return "Playoffs"
+    var numberedRounds = [
+      ["round-of-64", "round of 64", "r64", "Round of 64"],
+      ["round-of-32", "round of 32", "r32", "Round of 32"],
+      ["round-of-16", "round of 16", "r16", "Round of 16"],
+      ["round-of-8", "round of 8", "r8", "Round of 8"],
+      ["quarterfinal", "quarter", "", "Quarterfinals"],
+      ["semifinal", "semi", "", "Semifinals"]
+    ]
+    for (var ni2 = 0; ni2 < numberedRounds.length; ni2++) {
+      if (slug.indexOf(numberedRounds[ni2][0]) !== -1 || combo.indexOf(numberedRounds[ni2][1]) !== -1 ||
+          (numberedRounds[ni2][2] !== "" && combo.indexOf(numberedRounds[ni2][2]) !== -1)) return numberedRounds[ni2][3]
+    }
+    if (combo.indexOf("third place") !== -1 || combo.indexOf("3rd place") !== -1) return "Third Place"
+    if (combo.indexOf("final") !== -1) return "Final"
+    return ""
+  }
+
+  function collectTournamentBracketRounds(events, acc) {
+    if (!acc || !Array.isArray(events)) return
+    for (var ei = 0; ei < events.length; ei++) {
+      var ev = events[ei]
+      if (!ev) continue
+      var eventSeasonYear = Number(ev.season && ev.season.year)
+      if (eventSeasonYear && eventSeasonYear !== acc.seasonYear) continue
+      var comp = (ev.competitions && ev.competitions[0]) || {}
+      var notes = Array.isArray(comp.notes) ? comp.notes : []
+      var series = comp.series || null
+      var noteTexts = []
+      for (var ni = 0; ni < notes.length; ni++) {
+        if (notes[ni] && (notes[ni].headline || notes[ni].text)) noteTexts.push(notes[ni].headline || notes[ni].text)
+      }
+      var rName = root.tournamentRoundName(ev)
+      if (!rName) continue
+      if (!acc.map[rName]) acc.map[rName] = []
+
+      var comps = Array.isArray(comp.competitors) ? comp.competitors : []
+      if (comps.length < 2) continue
+      var h = comps[0].homeAway === "home" ? comps[0] : comps[1]
+      var a = comps[0].homeAway === "home" ? comps[1] : comps[0]
+
+      var hTeam = h.team || {}
+      var aTeam = a.team || {}
+      var hName = String(hTeam.shortDisplayName || hTeam.displayName || "Home")
+      var aName = String(aTeam.shortDisplayName || aTeam.displayName || "Away")
+      var hId = String(hTeam.id || h.id || "")
+      var aId = String(aTeam.id || a.id || "")
+      var hLogo = hId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + hId + ".png") : String(hTeam.logo || (hTeam.logos && hTeam.logos[0] ? hTeam.logos[0].href : ""))
+      var aLogo = aId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aId + ".png") : String(aTeam.logo || (aTeam.logos && aTeam.logos[0] ? aTeam.logos[0].href : ""))
+
+      var pairKey = [hName, aName].sort().join("|") + "|" + rName
+      var noteLower = noteTexts.join(" ").toLowerCase()
+      var isLeg2 = noteLower.indexOf("2nd leg") !== -1 || noteLower.indexOf("advance") !== -1
+      var isLeg1 = noteLower.indexOf("1st leg") !== -1
+      var hScore = String(h.score !== undefined ? h.score : "")
+      var aScore = String(a.score !== undefined ? a.score : "")
+      var hAgg = h.aggregateScore !== undefined ? String(h.aggregateScore) : ""
+      var aAgg = a.aggregateScore !== undefined ? String(a.aggregateScore) : ""
+      if (!acc.seenSeries[pairKey]) {
+        acc.seenSeries[pairKey] = {
+          roundName: rName,
+          teamA: hName, idA: hId, logoA: hLogo, leg1_A: "", leg2_A: "", agg_A: "", winnerA: false,
+          teamB: aName, idB: aId, logoB: aLogo, leg1_B: "", leg2_B: "", agg_B: "", winnerB: false,
+          statusText: noteTexts.length > 0 ? noteTexts[0] : "Completed",
+          completed: comp.status && comp.status.type ? comp.status.type.completed === true : true
+        }
+        // Push the shared series object once; the second leg mutates it in place.
+        acc.map[rName].push(acc.seenSeries[pairKey])
+      }
+
+      var s = acc.seenSeries[pairKey]
+      if (isLeg1) {
+        if (hName === s.teamA) { s.leg1_A = hScore; s.leg1_B = aScore }
+        else { s.leg1_B = hScore; s.leg1_A = aScore }
+      } else if (isLeg2) {
+        if (hName === s.teamA) {
+          s.leg2_A = hScore; s.leg2_B = aScore
+          if (hAgg !== "") s.agg_A = hAgg
+          if (aAgg !== "") s.agg_B = aAgg
+          if (h.winner) s.winnerA = true
+          if (a.winner) s.winnerB = true
+        } else {
+          s.leg2_B = hScore; s.leg2_A = aScore
+          if (aAgg !== "") s.agg_B = aAgg
+          if (hAgg !== "") s.agg_A = hAgg
+          if (a.winner) s.winnerB = true
+          if (h.winner) s.winnerA = true
+        }
+        s.completed = comp.status && comp.status.type ? comp.status.type.completed === true : true
+        s.statusText = noteTexts.length > 0 ? noteTexts[0] : "Completed"
+      } else {
+        // Single-leg tie: keep the higher aggregate/score as the shown result.
+        if (hName === s.teamA) {
+          if (hAgg !== "") s.agg_A = hAgg
+          if (aAgg !== "") s.agg_B = aAgg
+          if (h.winner) s.winnerA = true
+          if (a.winner) s.winnerB = true
+        } else {
+          if (aAgg !== "") s.agg_B = aAgg
+          if (hAgg !== "") s.agg_A = hAgg
+          if (a.winner) s.winnerB = true
+          if (h.winner) s.winnerA = true
+        }
+        s.completed = comp.status && comp.status.type ? comp.status.type.completed === true : true
+        if (noteTexts.length > 0) s.statusText = noteTexts[0]
+      }
+    }
+  }
+
+  function finishTournamentBracketRequest() {
+    var acc = root._tournamentBracketAcc
+    root._tournamentBracketAcc = null
+    if (!acc) return
+    if (acc.key !== root.tournamentBracketKey()) return
+    var roundsMap = acc.map
+    var orderedNames = [
+      "Qualifying", "Preliminary", "Playoffs", "First Round", "Second Round", "Third Round",
+      "Fourth Round", "Fifth Round", "Sixth Round", "Round of 64", "Round of 32", "Round of 16",
+      "Round of 8", "Quarterfinals", "Semifinals", "Third Place", "Final"
+    ]
+    var knownRound = {}
+    for (var ri = 0; ri < orderedNames.length; ri++) knownRound[orderedNames[ri]] = true
+    for (var rk in roundsMap) {
+      if (!knownRound[rk] && roundsMap[rk] && roundsMap[rk].length > 0) orderedNames.push(rk)
+    }
+    var builtBracket = []
+    for (var oi = 0; oi < orderedNames.length; oi++) {
+      var on = orderedNames[oi]
+      if (roundsMap[on] && roundsMap[on].length > 0) {
+        var roundMatchups = []
+        var seriesList = roundsMap[on]
+        for (var si = 0; si < seriesList.length; si++) {
+          var sObj = seriesList[si]
+          var wName = ""
+          if (sObj.winnerA) wName = sObj.teamA
+          else if (sObj.winnerB) wName = sObj.teamB
+          var has2Legs = sObj.leg1_A !== "" || sObj.leg1_B !== ""
+          roundMatchups.push({
+            homeName: root.sanitizePlainText(sObj.teamA),
+            homeId: sObj.idA,
+            homeLogo: root.sanitizeImageUrl(sObj.logoA),
+            homeLeg1: root.sanitizePlainText(sObj.leg1_A),
+            homeLeg2: root.sanitizePlainText(sObj.leg2_A),
+            homeAgg: root.sanitizePlainText(sObj.agg_A !== "" ? sObj.agg_A : (has2Legs ? String(Number(sObj.leg1_A || 0) + Number(sObj.leg2_A || 0)) : sObj.leg1_A)),
+            awayName: root.sanitizePlainText(sObj.teamB),
+            awayLogo: root.sanitizeImageUrl(sObj.logoB),
+            awayLeg1: root.sanitizePlainText(sObj.leg1_B),
+            awayLeg2: root.sanitizePlainText(sObj.leg2_B),
+            awayAgg: root.sanitizePlainText(sObj.agg_B !== "" ? sObj.agg_B : (has2Legs ? String(Number(sObj.leg1_B || 0) + Number(sObj.leg2_B || 0)) : sObj.leg1_B)),
+            isCurrent: false,
+            statusText: root.sanitizePlainText(sObj.statusText),
+            completed: sObj.completed,
+            winner: wName,
+            hasTwoLegs: has2Legs
+          })
+        }
+        builtBracket.push({
+          roundName: on,
+          roundIndex: builtBracket.length,
+          isCurrentRound: false,
+          matchups: roundMatchups
+        })
+      }
+    }
+    if (builtBracket.length > 0) {
+      var cMap = Object.assign({}, root._tournamentBracketCache)
+      cMap[acc.key] = builtBracket
+      root._tournamentBracketCache = cMap
+      root.tournamentBracketError = ""
+    } else if (!root.tournamentBracketError) {
+      root.tournamentBracketError = "No knockout rounds found for this season"
+    }
+    root.tournamentSeasonBracket = builtBracket
+    root.tournamentBracketLoading = false
+    root._tournamentBracketRequestKey = ""
+    root._tournamentBracketRequestLeague = ""
+    root._tournamentBracketRequestSeasonYear = 0
+  }
+
+  function handleTournamentBracketPayload(payloadText, windowId) {
+    var acc = root._tournamentBracketAcc
+    if (!acc) return
+    if (acc.key !== root.tournamentBracketKey()) return
+    var text = typeof payloadText === "string" ? payloadText : ""
+    if (text.length > 0 && text.length <= 2097152) {
+      try {
+        var data = JSON.parse(text)
+        root.collectTournamentBracketRounds(Array.isArray(data.events) ? data.events : [], acc)
+      } catch (e) {
+        root.tournamentBracketError = "Could not parse tournament bracket"
+        console.warn("futbar", "tournament bracket parse error: " + e)
+      }
+    } else if (text.length > 2097152) {
+      root.tournamentBracketError = "Tournament bracket response too large"
+    }
+    acc.remaining = Math.max(0, acc.remaining - 1)
+    if (acc.remaining === 0) root.finishTournamentBracketRequest()
+  }
+
+  function failTournamentBracketWindow(reason) {
+    var acc = root._tournamentBracketAcc
+    if (!acc) return
+    if (acc.key !== root.tournamentBracketKey()) return
+    if (reason) root.tournamentBracketError = reason
+    acc.remaining = Math.max(0, acc.remaining - 1)
+    if (acc.remaining === 0) root.finishTournamentBracketRequest()
+  }
+
   function loadStats(force) {
     if (root.needsTeam) return
     var leagueCode = root.safeIdentifier(root.league)
@@ -2327,18 +2693,10 @@ Panel {
     if (!force && key === root._lastStatsKey && (root.statsGoals.length > 0 || root.statsYellow.length > 0) && (now - root.lastStatsRefresh < 30 * 1000)) {
       return
     }
-    statsRequest.running = false
-    cardLeadersRequest.running = false
-    athletesRequest.running = false
-    athleteStatsRequest.running = false
+    statsRequest.running = false; cardLeadersRequest.running = false; athletesRequest.running = false; athleteStatsRequest.running = false
     root.statsLoading = true
     root.statsError = ""
-    root.statsGoals = []
-    root.statsAssists = []
-    root.rawYellowLeaders = []
-    root.rawRedLeaders = []
-    root.statsYellow = []
-    root.statsRed = []
+    root.statsGoals = []; root.statsAssists = []; root.rawYellowLeaders = []; root.rawRedLeaders = []; root.statsYellow = []; root.statsRed = []
     root.athleteMap = ({})
     var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
     var statsUrl = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/statistics"
@@ -3823,6 +4181,13 @@ Panel {
     root.lastStandingsRefresh = 0
     root.lastStatsRefresh = 0
     root.lastMatchListRefresh = 0
+    root.tournamentSeasonBracket = []
+    root.tournamentBracketLoading = false
+    root.tournamentBracketError = ""
+    root._tournamentBracketPendingKey = ""
+    root._tournamentBracketRequestKey = ""
+    root._tournamentBracketRequestLeague = ""
+    root._tournamentBracketRequestSeasonYear = 0
     root.refresh()
     if (root.leagueMode) {
       if (!matchListRequest.running) root.loadMatchList(true)
@@ -3837,6 +4202,9 @@ Panel {
         root.navAnchorDay = ""
         root.loadMatchList(true)
       }
+    }
+    if (root.showStandings && root.opened && standingsView && standingsView.viewMode === "bracket" && root.loadTournamentBracket) {
+      root.loadTournamentBracket(true)
     }
   }
 
@@ -4213,6 +4581,13 @@ Panel {
 
     // Cancel in-flight processes -- their result would belong to whichever
     // club was active when they were fired, not this one.
+    root.tournamentSeasonBracket = []
+    root.tournamentBracketLoading = false
+    root.tournamentBracketError = ""
+    root._tournamentBracketPendingKey = ""
+    root._tournamentBracketRequestKey = ""
+    root._tournamentBracketRequestLeague = ""
+    root._tournamentBracketRequestSeasonYear = 0
     fixtureRequest.running = false
     sbRequest1.running = false
     sbRequest2.running = false
@@ -4481,6 +4856,13 @@ Panel {
     root._queueSetBarWidget("teamId", "")
 
     // Cancel in-flight processes
+    root.tournamentSeasonBracket = []
+    root.tournamentBracketLoading = false
+    root.tournamentBracketError = ""
+    root._tournamentBracketPendingKey = ""
+    root._tournamentBracketRequestKey = ""
+    root._tournamentBracketRequestLeague = ""
+    root._tournamentBracketRequestSeasonYear = 0
     fixtureRequest.running = false
     sbRequest1.running = false
     sbRequest2.running = false
@@ -5085,6 +5467,56 @@ onStreamFinished: root.warnStderr("", text)
   }
 
   Process {
+    id: tournamentBracketRequest
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.handleTournamentBracketPayload(typeof text === "string" ? text : "", "late")
+        root.startPendingTournamentBracket()
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var detail = String(text || "").trim()
+        if (detail !== "") {
+          root.warnStderr("tournament bracket", detail)
+          root.failTournamentBracketWindow("Could not load tournament bracket")
+        }
+      }
+    }
+    onExited: function(code) {
+      if (code !== 0) root.failTournamentBracketWindow("Could not load tournament bracket")
+      root.startPendingTournamentBracket()
+    }
+  }
+
+  Process {
+    id: tournamentBracketRequestEarly
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.handleTournamentBracketPayload(typeof text === "string" ? text : "", "early")
+        root.startPendingTournamentBracket()
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var detail = String(text || "").trim()
+        if (detail !== "") {
+          root.warnStderr("tournament bracket (early window)", detail)
+          root.failTournamentBracketWindow("Could not load tournament bracket")
+        }
+      }
+    }
+    onExited: function(code) {
+      if (code !== 0) root.failTournamentBracketWindow("Could not load tournament bracket")
+      root.startPendingTournamentBracket()
+    }
+  }
+
+  Process {
     id: matchDetailRequest
     stdout: StdioCollector {
       waitForEnd: true
@@ -5628,6 +6060,49 @@ onStreamFinished: root.warnStderr("", text)
             awaySubs: []
           }
 
+          var subMap = {}
+          var rawKeyEvs = Array.isArray(data.keyEvents) ? data.keyEvents : []
+          for (var kei = 0; kei < rawKeyEvs.length; kei++) {
+            var ke = rawKeyEvs[kei]
+            if (!ke) continue
+            var keType = (ke.type && ke.type.text) ? String(ke.type.text).toLowerCase() : ""
+            var keText = String(ke.text || "")
+            var isSubEvent = keType.indexOf("sub") !== -1 || keText.toLowerCase().indexOf("substitut") !== -1 || keText.toLowerCase().indexOf("replaces") !== -1
+            if (!isSubEvent) continue
+            var keClk = (ke.clock && ke.clock.displayValue) ? String(ke.clock.displayValue).trim() : ""
+            var parts = Array.isArray(ke.participants) ? ke.participants : []
+            if (parts.length >= 2) {
+              var pInAth = parts[0] && (parts[0].athlete || parts[0])
+              var pOutAth = parts[1] && (parts[1].athlete || parts[1])
+              var pInName = pInAth ? String(pInAth.displayName || pInAth.shortName || pInAth.fullName || "") : ""
+              var pOutName = pOutAth ? String(pOutAth.displayName || pOutAth.shortName || pOutAth.fullName || "") : ""
+              var pInId = pInAth ? String(pInAth.id || "") : ""
+              var pOutId = pOutAth ? String(pOutAth.id || "") : ""
+              if (pOutName !== "") {
+                var outEntry = {
+                  partnerName: pInName,
+                  partnerId: pInId,
+                  minute: keClk,
+                  type: "out",
+                  desc: pInName !== "" ? ("Replaced by " + pInName + (keClk !== "" ? (" (" + keClk + ")") : "")) : ("Subbed off" + (keClk !== "" ? (" (" + keClk + ")") : ""))
+                }
+                if (pOutId !== "") subMap[pOutId] = outEntry
+                subMap[pOutName.toLowerCase()] = outEntry
+              }
+              if (pInName !== "") {
+                var inEntry = {
+                  partnerName: pOutName,
+                  partnerId: pOutId,
+                  minute: keClk,
+                  type: "in",
+                  desc: pOutName !== "" ? ("Replaced " + pOutName + (keClk !== "" ? (" (" + keClk + ")") : "")) : ("Subbed on" + (keClk !== "" ? (" (" + keClk + ")") : ""))
+                }
+                if (pInId !== "") subMap[pInId] = inEntry
+                subMap[pInName.toLowerCase()] = inEntry
+              }
+            }
+          }
+
           if (Array.isArray(data.rosters) && data.rosters.length > 0) {
             for (var rIdx = 0; rIdx < data.rosters.length; rIdx++) {
               var rTeam = data.rosters[rIdx]
@@ -5689,16 +6164,7 @@ onStreamFinished: root.warnStderr("", text)
                   if (rawRating !== null && !isNaN(rawRating) && rawRating > 0) {
                     playerRating = Math.max(4.0, Math.min(10.0, rawRating))
                   } else {
-                    var baseR = 6.0
-                    var gBonus = goalsCount * 1.2
-                    var aBonus = assistsCount * 0.7
-                    var saveBonus = (pStats.saves || 0) * 0.3
-                    var shotBonus = (pStats.shotsOnTarget || 0) * 0.2
-                    var faBonus = (pStats.foulsSuffered || 0) * 0.1
-                    var yPenalty = yellowCardsCount * 0.5
-                    var rPenalty = redCardsCount * 1.5
-                    var fcPenalty = (pStats.foulsCommitted || 0) * 0.1
-                    var calcR = baseR + gBonus + aBonus + saveBonus + shotBonus + faBonus - yPenalty - rPenalty - fcPenalty
+                    var calcR = 6.0 + goalsCount * 1.2 + assistsCount * 0.7 + (pStats.saves || 0) * 0.3 + (pStats.shotsOnTarget || 0) * 0.2 + (pStats.foulsSuffered || 0) * 0.1 - yellowCardsCount * 0.5 - redCardsCount * 1.5 - (pStats.foulsCommitted || 0) * 0.1
                     playerRating = Math.max(4.0, Math.min(10.0, Math.round(calcR * 10) / 10))
                   }
                 }
@@ -5751,6 +6217,12 @@ onStreamFinished: root.warnStderr("", text)
                   if (isSubbedOut) eventDetails.push("▼")
                   else if (isSubbedIn) eventDetails.push("▲")
                 }
+                var athIdStr = String(ath.id || "")
+                var subInfo = (athIdStr !== "" ? subMap[athIdStr] : null) || subMap[pName.toLowerCase()] || subMap[pShort.toLowerCase()] || null
+                var subPartner = subInfo ? subInfo.partnerName : ""
+                var subPartnerId = subInfo ? subInfo.partnerId : ""
+                var subDesc = subInfo ? subInfo.desc : (isSubbedIn ? "Subbed on" : (isSubbedOut ? "Subbed off" : ""))
+                if (subInfo && subInfo.minute && subMinStr === "") subMinStr = subInfo.minute
 
                 var pItem = {
                   name: pName,
@@ -5767,6 +6239,9 @@ onStreamFinished: root.warnStderr("", text)
                   subbedOut: isSubbedOut,
                   subbedIn: isSubbedIn,
                   subMinute: root.sanitizePlainText(subMinStr),
+                  subPartner: root.sanitizePlainText(subPartner),
+                  subPartnerId: root.sanitizePlainText(subPartnerId),
+                  subDesc: root.sanitizePlainText(subDesc),
                   rating: playerRating,
                   eventsText: root.sanitizePlainText(eventDetails.join(" · ")),
                   jerseyImage: root.sanitizeImageUrl(jerseyImgUrl),
@@ -5809,6 +6284,211 @@ onStreamFinished: root.warnStderr("", text)
             }
           }
           root.matchDetailJerseyUrls = allJerseyUrls
+          var slugLower = String((root.matchDetail && root.matchDetail.competitionSlug) || root.league || (hdr.league && hdr.league.slug) || "").toLowerCase()
+
+          var stageTextParts = [
+            String(comp.altGameNote || ""),
+            String(hdr.season && (hdr.season.name || hdr.season.displayName) || ""),
+            String(data.season && data.season.name || ""),
+            roundName, seriesNote,
+            String(comp.series && (comp.series.title || (Array.isArray(comp.series) && comp.series[0] ? comp.series[0].title : "")) || "")
+          ]
+          if (Array.isArray(comp.notes)) {
+            for (var cni = 0; cni < comp.notes.length; cni++) {
+              var cnItem = comp.notes[cni]
+              if (cnItem && (cnItem.headline || cnItem.text)) stageTextParts.push(String(cnItem.headline || cnItem.text))
+            }
+          }
+          var stageCombined = stageTextParts.join(" ").toLowerCase()
+
+          var isDomesticLeague = /^[a-z]{3}\.[1-4]$/.test(slugLower) || slugLower.indexOf(".1") !== -1 ||
+            slugLower === "eng.1" || slugLower === "esp.1" || slugLower === "ita.1" || slugLower === "ger.1" || slugLower === "fra.1" || slugLower === "usa.1"
+
+          var isNonKnockoutStage = stageCombined.indexOf("league phase") !== -1 || stageCombined.indexOf("group stage") !== -1 ||
+            stageCombined.indexOf("group phase") !== -1 || stageCombined.indexOf("regular season") !== -1 ||
+            stageCombined.indexOf("matchweek") !== -1 || stageCombined.indexOf("gameweek") !== -1 ||
+            stageCombined.indexOf("round robin") !== -1 || /\bgroup\s+([a-l]|[1-9])\b/i.test(stageCombined)
+
+          var hasConfirmedKnockoutText = /(round of (16|32|64|8)|rd of 16|r16|quarter|semi|final|third place|3rd place|knockout)/i.test(stageCombined)
+          var isDomesticCup = /(fa|league_cup|copa_del_rey|coppa_italia|dfb_pokal|coupe_de_france|open_cup)/i.test(slugLower)
+          var hasCupRoundText = isDomesticCup && /(round|proper|qualifying)/i.test(stageCombined)
+          var hasExplicitSeries = !!(comp.series && (comp.series.title || (Array.isArray(comp.series) && comp.series.length > 0 && comp.series[0].title)))
+
+          var isConfirmedKnockout = !isNonKnockoutStage && (!isDomesticLeague || hasExplicitSeries) &&
+            (hasConfirmedKnockoutText || hasCupRoundText || hasExplicitSeries)
+
+          var parsedBracketAvailable = false
+          var parsedBracket = []
+
+          if (isConfirmedKnockout) {
+            parsedBracketAvailable = true
+
+            // Determine active round name
+            var activeRoundTitle = "Quarterfinals"
+            if (stageCombined.indexOf("round of 16") !== -1 || stageCombined.indexOf("rd of 16") !== -1 || stageCombined.indexOf("r16") !== -1) {
+              activeRoundTitle = "Round of 16"
+            } else if (stageCombined.indexOf("quarter") !== -1) {
+              activeRoundTitle = "Quarterfinals"
+            } else if (stageCombined.indexOf("semi") !== -1) {
+              activeRoundTitle = "Semifinals"
+            } else if (stageCombined.indexOf("final") !== -1) activeRoundTitle = "Final"
+            else if (comp.series && comp.series.title) activeRoundTitle = String(comp.series.title)
+            else if (roundName !== "") activeRoundTitle = roundName
+
+            var isUclSwiss = (slugLower.indexOf("champions") !== -1 || slugLower.indexOf("europa") !== -1) && (stageCombined.indexOf("playoff") !== -1 || (data.season && data.season.year >= 2024))
+            var roundOrder = (isUclSwiss || stageCombined.indexOf("playoff") !== -1) ? ["Playoffs", "Round of 16", "Quarterfinals", "Semifinals", "Final"] : (stageCombined.indexOf("round of 32") !== -1 ? ["Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final"] : ["Round of 16", "Quarterfinals", "Semifinals", "Final"])
+            var activeRoundIdx = 1
+            for (var roi = 0; roi < roundOrder.length; roi++) {
+              if (activeRoundTitle.toLowerCase().indexOf(roundOrder[roi].toLowerCase().replace("round of 16", "16").replace("quarterfinals", "quarter").replace("semifinals", "semi")) !== -1) {
+                activeRoundIdx = roi
+                break
+              }
+            }
+
+            var curHomeScore = isActuallyStarted ? String(homeComp && homeComp.score !== undefined ? homeComp.score : "0") : ""
+            var curAwayScore = isActuallyStarted ? String(awayComp && awayComp.score !== undefined ? awayComp.score : "0") : ""
+            var curAggHome = curHomeScore
+            var curAggAway = curAwayScore
+            var curSeriesWinner = ""
+            var curSeriesSummary = seriesNote
+
+            if (comp.series) {
+              var sObj = Array.isArray(comp.series) ? comp.series[0] : comp.series
+              if (sObj && Array.isArray(sObj.competitors)) {
+                for (var sci = 0; sci < sObj.competitors.length; sci++) {
+                  var scEntry = sObj.competitors[sci]
+                  if (!scEntry) continue
+                  var scId = String(scEntry.id || "")
+                  if (homeTeam.id && scId === String(homeTeam.id)) {
+                    if (scEntry.aggregateScore !== undefined) curAggHome = String(scEntry.aggregateScore)
+                    if (scEntry.winner) curSeriesWinner = homeTeam.displayName || homeTeam.name
+                  } else if (awayTeam.id && scId === String(awayTeam.id)) {
+                    if (scEntry.aggregateScore !== undefined) curAggAway = String(scEntry.aggregateScore)
+                    if (scEntry.winner) curSeriesWinner = awayTeam.displayName || awayTeam.name
+                  }
+                }
+              }
+            }
+
+            var isSeriesCompleted = !isActuallyLive && (curSeriesWinner !== "" || (statusDesc && statusDesc.toLowerCase().indexOf("final") !== -1))
+            if (isSeriesCompleted && curSeriesWinner === "") {
+              var hN = parseInt(curAggHome)
+              var aN = parseInt(curAggAway)
+              if (!isNaN(hN) && !isNaN(aN)) {
+                if (hN > aN) curSeriesWinner = homeTeam.displayName || homeTeam.name
+                else if (aN > hN) curSeriesWinner = awayTeam.displayName || awayTeam.name
+              }
+            }
+
+            var hasTwoLegs = false
+            var curHomeLeg1 = ""
+            var curHomeLeg2 = ""
+            var curAwayLeg1 = ""
+            var curAwayLeg2 = ""
+            if (comp.series) {
+              var sObj2 = Array.isArray(comp.series) ? comp.series[0] : comp.series
+              if (sObj2 && (sObj2.totalCompetitions === 2 || sObj2.leg !== undefined)) {
+                hasTwoLegs = true
+                var isLeg2Comp = (sObj2.leg === 2) || (stageCombined.indexOf("2nd leg") !== -1) || (stageCombined.indexOf("advance") !== -1)
+                if (isLeg2Comp) {
+                  curHomeLeg2 = curHomeScore
+                  curAwayLeg2 = curAwayScore
+                  var hA = parseInt(curAggHome)
+                  var hS = parseInt(curHomeScore)
+                  var aA = parseInt(curAggAway)
+                  var aS = parseInt(curAwayScore)
+                  curHomeLeg1 = (!isNaN(hA) && !isNaN(hS)) ? String(hA - hS) : ""
+                  curAwayLeg1 = (!isNaN(aA) && !isNaN(aS)) ? String(aA - aS) : ""
+                } else {
+                  curHomeLeg1 = curHomeScore
+                  curAwayLeg1 = curAwayScore
+                  curHomeLeg2 = "—"
+                  curAwayLeg2 = "—"
+                }
+              }
+            }
+
+            var currentMatchup = {
+              homeName: root.sanitizePlainText(String(homeTeam.displayName || homeTeam.name || "Home")),
+              homeLogo: root.sanitizeImageUrl(String((homeTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(homeTeam.id)) + ".png") : "") || homeTeam.logo || (homeTeam.logos && homeTeam.logos[0] ? homeTeam.logos[0].href : ""))),
+              homeScore: root.sanitizePlainText(curHomeScore),
+              homeLeg1: root.sanitizePlainText(curHomeLeg1),
+              homeLeg2: root.sanitizePlainText(curHomeLeg2),
+              homeAgg: root.sanitizePlainText(curAggHome),
+              awayName: root.sanitizePlainText(String(awayTeam.displayName || awayTeam.name || "Away")),
+              awayLogo: root.sanitizeImageUrl(String((awayTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(awayTeam.id)) + ".png") : "") || awayTeam.logo || (awayTeam.logos && awayTeam.logos[0] ? awayTeam.logos[0].href : ""))),
+              awayScore: root.sanitizePlainText(curAwayScore),
+              awayLeg1: root.sanitizePlainText(curAwayLeg1),
+              awayLeg2: root.sanitizePlainText(curAwayLeg2),
+              awayAgg: root.sanitizePlainText(curAggAway),
+              hasTwoLegs: hasTwoLegs,
+              isCurrent: true,
+              statusText: curSeriesSummary !== "" ? curSeriesSummary : (isActuallyStarted ? (statusDesc || "In Progress") : "Upcoming"),
+              completed: isSeriesCompleted,
+              winner: curSeriesWinner
+            }
+
+            for (var ri = 0; ri < roundOrder.length; ri++) {
+              var rName = roundOrder[ri]
+              var isCurrentRound = (ri === activeRoundIdx)
+              var matchupsCount = rName === "Round of 16" ? 8 : (rName === "Quarterfinals" ? 4 : (rName === "Semifinals" ? 2 : 1))
+              var matchups = []
+
+              for (var mi = 0; mi < matchupsCount; mi++) {
+                if (isCurrentRound && mi === 0) {
+                  matchups.push(currentMatchup)
+                } else if (ri > activeRoundIdx && mi === 0) {
+                  var advTeamName = curSeriesWinner !== "" ? curSeriesWinner : ("Winner of " + currentMatchup.homeName + " vs " + currentMatchup.awayName)
+                  var advTeamLogo = curSeriesWinner !== "" ? (curSeriesWinner === currentMatchup.homeName ? currentMatchup.homeLogo : currentMatchup.awayLogo) : ""
+                  var advStatus = curSeriesWinner !== "" ? "Advanced" : "Next Round"
+                  matchups.push({
+                    homeName: root.sanitizePlainText(advTeamName),
+                    homeLogo: root.sanitizeImageUrl(advTeamLogo),
+                    homeScore: "",
+                    homeAgg: "",
+                    awayName: "TBD",
+                    awayLogo: "",
+                    awayScore: "",
+                    awayAgg: "",
+                    isCurrent: false,
+                    statusText: advStatus,
+                    completed: false,
+                    winner: ""
+                  })
+                }
+              }
+
+              parsedBracket.push({
+                roundName: rName,
+                roundIndex: ri,
+                isCurrentRound: isCurrentRound,
+                matchups: matchups
+              })
+            }
+            if (root.tournamentSeasonBracket && root.tournamentSeasonBracket.length > 0) {
+              var fullBracket = JSON.parse(JSON.stringify(root.tournamentSeasonBracket))
+              var curH = String(homeTeam.displayName || homeTeam.name || "").toLowerCase()
+              var curA = String(awayTeam.displayName || awayTeam.name || "").toLowerCase()
+              var matched = false
+              for (var fbi = 0; fbi < fullBracket.length; fbi++) {
+                var fbR = fullBracket[fbi]
+                for (var fbmi = 0; fbmi < (fbR.matchups || []).length; fbmi++) {
+                  var mE = fbR.matchups[fbmi]
+                  var mH = String(mE.homeName || "").toLowerCase()
+                  var mA = String(mE.awayName || "").toLowerCase()
+                  if ((mH.indexOf(curH) !== -1 || curH.indexOf(mH) !== -1) && (mA.indexOf(curA) !== -1 || curA.indexOf(mA) !== -1)) {
+                    mE.isCurrent = true
+                    fbR.isCurrentRound = true
+                    matched = true
+                  }
+                }
+              }
+              if (matched) parsedBracket = fullBracket
+            } else if (root.loadTournamentBracket) {
+              root.loadTournamentBracket()
+            }
+          }
+
 
           root.matchDetail = {
             id: String(data.id || (root.matchDetail && root.matchDetail.id) || ""),
@@ -5845,6 +6525,8 @@ onStreamFinished: root.warnStderr("", text)
             awayForm: parsedAwayForm,
             odds: parsedOdds,
             momentum: parsedMomentum,
+            bracketAvailable: parsedBracketAvailable,
+            knockoutBracket: parsedBracket,
             info: {
               venue: root.sanitizePlainText(venueStr),
               attendance: root.sanitizePlainText(attStr),
@@ -9504,9 +10186,9 @@ root.warnStderr("team select failed", text)
         } else if (c === "l") {
           if (trendingButton && trendingButton.visible) trendingButton.clicked()
         } else if (c === "t") {
-          if (standingsButton) standingsButton.clicked()
+          if (standingsButton && standingsButton.visible) standingsButton.clicked()
         } else if (c === "s") {
-          if (statsButton) statsButton.clicked()
+          if (statsButton && statsButton.visible) statsButton.clicked()
         } else if (c === "m") {
           if (matchesButton) matchesButton.clicked()
         } else if (c === "p") {
@@ -9787,6 +10469,7 @@ root.warnStderr("team select failed", text)
           Button {
             id: standingsButton
             anchors.verticalCenter: parent.verticalCenter
+            visible: !root.isFriendlyLeague
             width: Style.space(28)
             height: Style.space(28)
             iconText: "󰕶"
@@ -9825,6 +10508,7 @@ root.warnStderr("team select failed", text)
             id: statsButton
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(28)
+            visible: !root.isFriendlyLeague
             height: Style.space(28)
             iconText: "󰄪"
             tooltipText: "Player & Club Stats (s)"

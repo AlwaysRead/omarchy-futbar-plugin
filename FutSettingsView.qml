@@ -20,32 +20,36 @@ Column {
     signal toggled()
 
     width: parent ? parent.width : Style.space(300)
-    implicitHeight: Math.max(Style.space(34), col.implicitHeight)
+    implicitHeight: Math.max(Style.space(38), col.implicitHeight + Style.space(6))
 
     Column {
       id: col
       anchors.left: parent.left
       anchors.right: sw.left
-      anchors.rightMargin: Style.space(12)
+      anchors.rightMargin: Style.space(16)
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(2)
 
       Text {
+        width: parent.width
         textFormat: Text.PlainText
         text: sRow.title
         color: root ? root.contentForeground : Color.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
+        wrapMode: Text.WordWrap
       }
 
       Text {
+        width: parent.width
         textFormat: Text.PlainText
         visible: sRow.description !== ""
         text: sRow.description
         color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.space(9)
+        wrapMode: Text.WordWrap
       }
     }
 
@@ -207,7 +211,111 @@ Column {
     }
   }
 
-  // CARD 1: Display & Top Bar Formats
+  // CARD 1: Followed Clubs & Leagues Management
+  SettingsCard {
+    icon: "󰐕"
+    title: "Followed Clubs & Leagues"
+    expanded: true
+
+    Column {
+      width: parent.width
+      spacing: Style.space(8)
+
+      Repeater {
+        model: root ? root.allFollowedTabs() : []
+        delegate: Rectangle {
+          id: followedTabRow
+          required property var modelData
+          required property int index
+          width: parent.width
+          height: Style.space(38)
+          radius: Style.cornerRadius
+          color: (index === 0) ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.05)
+          border.width: Style.spacing.hairline
+          border.color: (index === 0) ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.1)
+
+          Row {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(10)
+            anchors.rightMargin: Style.space(10)
+            spacing: Style.space(8)
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: index === 0 ? "" : String(index + 1)
+              color: index === 0 ? "#f59e0b" : Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+              font.family: root ? root.contentFontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              width: Style.space(16)
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: modelData.followLeague
+                ? ((root ? root.leagueLabel(modelData.league) : modelData.league) + " (League)")
+                : (modelData.teamName + " (" + (root ? root.leagueLabel(modelData.league) : modelData.league) + ")")
+              color: root ? root.contentForeground : Color.foreground
+              font.family: root ? root.contentFontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.bold: index === 0
+              elide: Text.ElideRight
+              width: parent.width - Style.space(16) - (index > 0 ? Style.space(72) : Style.space(36)) - parent.spacing * 3
+            }
+
+            Button {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: index > 0
+              iconText: "󰐊"
+              tooltipText: "Set as Primary Bar Club"
+              fontFamily: root ? root.contentFontFamily : Style.font.family
+              foreground: root ? root.contentForeground : Color.foreground
+              accent: root ? root.contentForeground : Color.foreground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(6)
+              verticalPadding: Style.space(2)
+              onClicked: if (root) root.promoteToPrimary(modelData.teamName, modelData.league, modelData.teamId, modelData.followLeague)
+            }
+
+            Button {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: index > 0 || (root && root.allFollowedTabs().length > 1)
+              iconText: "󰅖"
+              tooltipText: "Remove from followed tabs"
+              fontFamily: root ? root.contentFontFamily : Style.font.family
+              foreground: "#ef4444"
+              accent: "#ef4444"
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(6)
+              verticalPadding: Style.space(2)
+              onClicked: if (root) root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
+            }
+          }
+        }
+      }
+
+      Button {
+        width: parent.width
+        iconText: "󰐕"
+        text: "Follow Another Club or League"
+        fontFamily: root ? root.contentFontFamily : Style.font.family
+        foreground: root ? root.contentForeground : Color.foreground
+        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+        fontSize: Style.font.caption
+        horizontalPadding: Style.space(10)
+        verticalPadding: Style.space(6)
+        onClicked: {
+          if (root) {
+            root.showSettings = false
+            root.openAddTeamPicker()
+          }
+        }
+      }
+    }
+  }
+  // CARD 2: Display & Top Bar Formats
   SettingsCard {
     icon: "󰒓"
     title: "Display & Formats"
@@ -398,9 +506,37 @@ Column {
         }
       }
     }
+
   }
 
-  // CARD 2: Notifications & Alerts
+  // CARD 3: Match Experience
+  SettingsCard {
+    icon: "󰈈"
+    title: "Match Experience"
+    expanded: true
+
+    SettingToggleRow {
+      title: "Trending & Live Matches"
+      description: "Show trending matches page and header button for global games"
+      checked: root ? root.enableTrending : true
+      onToggled: if (root) root.setEnableTrending(!root.enableTrending)
+    }
+
+    SettingToggleRow {
+      title: "Anti-Spoiler Mode"
+      description: "Hide match scores until revealed or clicked"
+      checked: root ? root.antiSpoiler : false
+      onToggled: if (root) root.setAntiSpoiler(!root.antiSpoiler)
+    }
+
+    SettingToggleRow {
+      title: "Show Pre-Match Odds"
+      description: "Display betting odds in fixture details"
+      checked: root ? root.showOdds : true
+      onToggled: if (root) root.setShowOdds(!root.showOdds)
+    }
+  }
+  // CARD 4: Notifications & Alerts
   SettingsCard {
     icon: "󰂚"
     title: "Notifications & Alerts"
@@ -478,35 +614,8 @@ Column {
     }
   }
 
-  // CARD 3: Match Experience
-  SettingsCard {
-    icon: "󰈈"
-    title: "Match Experience"
-    expanded: true
 
-    SettingToggleRow {
-      title: "Trending & Live Matches"
-      description: "Show trending matches page and header button for global games"
-      checked: root ? root.enableTrending : true
-      onToggled: if (root) root.setEnableTrending(!root.enableTrending)
-    }
-
-    SettingToggleRow {
-      title: "Anti-Spoiler Mode"
-      description: "Hide match scores until revealed or clicked"
-      checked: root ? root.antiSpoiler : false
-      onToggled: if (root) root.setAntiSpoiler(!root.antiSpoiler)
-    }
-
-    SettingToggleRow {
-      title: "Show Pre-Match Odds"
-      description: "Display betting odds in fixture details"
-      checked: root ? root.showOdds : true
-      onToggled: if (root) root.setShowOdds(!root.showOdds)
-    }
-  }
-
-  // CARD 4: Performance & Cache
+  // CARD 5: Performance & Cache
   SettingsCard {
     icon: "󰒲"
     title: "Performance & Cache"
@@ -587,12 +696,20 @@ Column {
       onClicked: if (root) root.clearCacheAndReload()
     }
 
+  }
+
+  // Standalone Settings Action Footer (Reset Defaults / Confirm & Apply)
+  Item {
+    width: parent.width
+    height: Style.space(34)
+
     Row {
-      width: parent.width
+      anchors.fill: parent
       spacing: Style.space(8)
 
       Button {
         width: (parent.width - parent.spacing) / 2
+        height: parent.height
         iconText: "󰦛"
         text: (root && root.settingsJustReset) ? "Reset Done" : "Reset"
         tooltipText: "Reset all preferences back to default values"
@@ -607,6 +724,7 @@ Column {
 
       Button {
         width: (parent.width - parent.spacing) / 2
+        height: parent.height
         iconText: "󰄬"
         text: (root && root.settingsJustSaved) ? "Confirmed" : "Confirm"
         tooltipText: "Confirm and apply all preferences to the desktop bar"
@@ -622,108 +740,4 @@ Column {
     }
   }
 
-  // CARD 5: Followed Clubs & Leagues Management
-  SettingsCard {
-    icon: "󰐕"
-    title: "Followed Clubs & Leagues"
-    expanded: true
-
-    Column {
-      width: parent.width
-      spacing: Style.space(8)
-
-      Repeater {
-        model: root ? root.allFollowedTabs() : []
-        delegate: Rectangle {
-          id: followedTabRow
-          required property var modelData
-          required property int index
-          width: parent.width
-          height: Style.space(38)
-          radius: Style.cornerRadius
-          color: (index === 0) ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.05)
-          border.width: Style.spacing.hairline
-          border.color: (index === 0) ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.1)
-
-          Row {
-            anchors.fill: parent
-            anchors.leftMargin: Style.space(10)
-            anchors.rightMargin: Style.space(10)
-            spacing: Style.space(8)
-
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              textFormat: Text.PlainText
-              text: index === 0 ? "" : String(index + 1)
-              color: index === 0 ? "#f59e0b" : Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
-              font.family: root ? root.contentFontFamily : Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              width: Style.space(16)
-            }
-
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              textFormat: Text.PlainText
-              text: modelData.followLeague
-                ? ((root ? root.leagueLabel(modelData.league) : modelData.league) + " (League)")
-                : (modelData.teamName + " (" + (root ? root.leagueLabel(modelData.league) : modelData.league) + ")")
-              color: root ? root.contentForeground : Color.foreground
-              font.family: root ? root.contentFontFamily : Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: index === 0
-              elide: Text.ElideRight
-              width: parent.width - Style.space(16) - (index > 0 ? Style.space(72) : Style.space(36)) - parent.spacing * 3
-            }
-
-            Button {
-              anchors.verticalCenter: parent.verticalCenter
-              visible: index > 0
-              iconText: "󰐊"
-              tooltipText: "Set as Primary Bar Club"
-              fontFamily: root ? root.contentFontFamily : Style.font.family
-              foreground: root ? root.contentForeground : Color.foreground
-              accent: root ? root.contentForeground : Color.foreground
-              fontSize: Style.font.caption
-              horizontalPadding: Style.space(6)
-              verticalPadding: Style.space(2)
-              onClicked: if (root) root.promoteToPrimary(modelData.teamName, modelData.league, modelData.teamId, modelData.followLeague)
-            }
-
-            Button {
-              anchors.verticalCenter: parent.verticalCenter
-              visible: index > 0 || (root && root.allFollowedTabs().length > 1)
-              iconText: "󰅖"
-              tooltipText: "Remove from followed tabs"
-              fontFamily: root ? root.contentFontFamily : Style.font.family
-              foreground: "#ef4444"
-              accent: "#ef4444"
-              fontSize: Style.font.caption
-              horizontalPadding: Style.space(6)
-              verticalPadding: Style.space(2)
-              onClicked: if (root) root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
-            }
-          }
-        }
-      }
-
-      Button {
-        width: parent.width
-        iconText: "󰐕"
-        text: "Follow Another Club or League"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(10)
-        verticalPadding: Style.space(6)
-        onClicked: {
-          if (root) {
-            root.showSettings = false
-            root.openAddTeamPicker()
-          }
-        }
-      }
-    }
-  }
 }

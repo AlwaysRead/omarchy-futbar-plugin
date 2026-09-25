@@ -8,9 +8,20 @@ import qs.Ui
 Column {
   id: standingsView
   property var root: null
+  property string viewMode: "table"
+  readonly property bool isCupTournament: {
+    if (!root || !root.league) return false
+    if (root.isTournamentCompetition) return root.isTournamentCompetition(root.league)
+    return true
+  }
   width: parent ? parent.width : 0
   spacing: Style.space(12)
   visible: root ? (root.showStandings && !root.showMatchDetail && !root.showTrending) : false
+  onVisibleChanged: {
+    if (visible && standingsView.isCupTournament && root && root.loadTournamentBracket) {
+      root.loadTournamentBracket()
+    }
+  }
 
   component LoadingOverlay: FutLoadingOverlay { root: standingsView.root }
 
@@ -51,7 +62,7 @@ Column {
           verticalPadding: 0
           onClicked: {
             if (root) {
-              root.standingsSeasonOffset++
+              root.standingsSeasonOffset += (root.seasonStep ? root.seasonStep() : 1)
               root.loadStandings()
             }
           }
@@ -94,33 +105,83 @@ Column {
           opacity: enabled ? 1 : 0.35
           onClicked: {
             if (root) {
-              root.standingsSeasonOffset--
+              root.standingsSeasonOffset = Math.max(0, root.standingsSeasonOffset - (root.seasonStep ? root.seasonStep() : 1))
               root.loadStandings()
             }
           }
         }
+
+        Item {
+          width: Math.max(0, parent.width - Style.space(120) - (tableModeBtn.implicitWidth + bracketModeBtn.implicitWidth + Style.space(6)))
+          height: 1
+        }
+
+        Button {
+          id: tableModeBtn
+          height: Style.space(22)
+          text: "Table"
+          fontSize: Style.font.caption - 1
+          fontFamily: root ? root.contentFontFamily : Style.font.family
+          foreground: root ? root.contentForeground : Color.foreground
+          accent: root ? root.contentForeground : Color.foreground
+          selected: standingsView.viewMode === "table"
+          horizontalPadding: Style.space(8)
+          verticalPadding: 0
+          visible: (root && root.standings.length > 0) && standingsView.isCupTournament
+          onClicked: standingsView.viewMode = "table"
+        }
+
+        Button {
+          id: bracketModeBtn
+          height: Style.space(22)
+          text: "Bracket"
+          fontSize: Style.font.caption - 1
+          fontFamily: root ? root.contentFontFamily : Style.font.family
+          foreground: root ? root.contentForeground : Color.foreground
+          accent: root ? root.contentForeground : Color.foreground
+          selected: standingsView.viewMode === "bracket"
+          horizontalPadding: Style.space(8)
+          verticalPadding: 0
+          visible: standingsView.isCupTournament
+          onClicked: {
+            standingsView.viewMode = "bracket"
+            if (root && root.loadTournamentBracket) root.loadTournamentBracket()
+          }
+        }
       }
-
-      Row {
+      Flickable {
+        id: groupsFlickable
         width: parent.width
-        spacing: Style.space(6)
-        visible: root ? root.standingsGroups.length > 1 : false
+        height: Style.space(26)
+        contentWidth: groupsRow.implicitWidth
+        contentHeight: height
+        clip: true
+        interactive: true
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.DragOverBounds
+        visible: root ? (standingsView.viewMode === "table" && root.standingsGroups.length > 1) : false
 
-        Repeater {
-          model: root ? root.standingsGroups : []
+        Row {
+          id: groupsRow
+          height: parent.height
+          spacing: Style.space(6)
 
-          Button {
-            height: Style.space(24)
-            text: root ? root.sanitizePlainText(String(modelData.name || modelData.shortName || "")) : ""
-            tooltipText: root ? root.sanitizePlainText(String(modelData.name || "")) : ""
-            fontFamily: root ? root.contentFontFamily : Style.font.family
-            foreground: root ? root.contentForeground : Color.foreground
-            accent: root ? root.contentForeground : Color.foreground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            selected: root ? root.standingsGroupIndex === index : false
-            onClicked: if (root) root.standingsGroupIndex = index
+          Repeater {
+            model: root ? root.standingsGroups : []
+
+            Button {
+              height: Style.space(24)
+              text: root ? root.sanitizePlainText(String(modelData.name || modelData.shortName || "")) : ""
+              tooltipText: root ? root.sanitizePlainText(String(modelData.name || "")) : ""
+              fontFamily: root ? root.contentFontFamily : Style.font.family
+              foreground: root ? root.contentForeground : Color.foreground
+              accent: root ? root.contentForeground : Color.foreground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(10)
+              verticalPadding: 0
+              selected: root ? root.standingsGroupIndex === index : false
+              onClicked: if (root) root.standingsGroupIndex = index
+            }
           }
         }
       }
@@ -136,17 +197,17 @@ Column {
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
-        visible: text !== ""
+        visible: standingsView.viewMode === "table" && text !== ""
       }
 
       Flickable {
         id: standingsTable
         width: parent.width
-        height: headerRow.implicitHeight + (root ? root.standings.length : 0) * standingsView.standingsRowHeight
+        height: visible ? (headerRow.implicitHeight + (root ? root.standings.length : 0) * standingsView.standingsRowHeight) : 0
         clip: true
         interactive: false
         contentHeight: headerRow.implicitHeight + (root ? root.standings.length : 0) * standingsView.standingsRowHeight
-        visible: root ? root.standings.length > 0 : false
+        visible: standingsView.viewMode === "table" && (root ? root.standings.length > 0 : false)
 
         Column {
           width: parent.width
@@ -303,10 +364,30 @@ Column {
         }
       }
 
+      FutBracketView {
+        id: standingsBracketView
+        root: standingsView.root
+        bracketData: (root && root.tournamentSeasonBracket) ? root.tournamentSeasonBracket : []
+        visible: standingsView.viewMode === "bracket" && standingsView.isCupTournament && (root && root.tournamentSeasonBracket && root.tournamentSeasonBracket.length > 0)
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        text: (root && root.tournamentBracketLoading)
+          ? "Loading tournament bracket…"
+          : ("Knockout stage for the " + (root ? root.seasonChipLabel(root.standingsSeasonOffset) : "") + " season is not available yet")
+        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+        font.family: root ? root.contentFontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        visible: standingsView.viewMode === "bracket" && standingsView.isCupTournament && (!root || !root.tournamentSeasonBracket || root.tournamentSeasonBracket.length === 0)
+      }
       Flow {
         width: parent.width
         spacing: Style.space(14)
-        visible: root ? (root.standings.length > 0 && root.standingsLegend.length > 0) : false
+        visible: standingsView.viewMode === "table" && (root ? (root.standings.length > 0 && root.standingsLegend.length > 0) : false)
         Repeater {
           model: root ? root.standingsLegend : []
           Row {
@@ -331,8 +412,8 @@ Column {
     }
 
     LoadingOverlay {
-      active: root ? (root.standingsLoading && root.standings.length === 0) : false
-      text: "Fetching standings…"
+      active: root ? ((root.standingsLoading && root.standings.length === 0) || (standingsView.viewMode === "bracket" && root.tournamentBracketLoading && (!root.tournamentSeasonBracket || root.tournamentSeasonBracket.length === 0))) : false
+      text: (root && root.tournamentBracketLoading && standingsView.viewMode === "bracket") ? "Loading tournament bracket…" : "Fetching standings…"
     }
   }
 }

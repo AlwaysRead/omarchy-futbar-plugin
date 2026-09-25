@@ -828,7 +828,7 @@ Column {
               width: tournamentMatchesCol.width
               height: matchInnerCol.implicitHeight + Style.space(12)
               readonly property bool hasFollowedTeam: trendingView.isFollowedTeam(matchRow.modelData.homeName) || trendingView.isFollowedTeam(matchRow.modelData.awayName)
-              readonly property bool isKeyboardSelected: (trendingView.flatVisibleMatches[trendingView.keyboardSelectedMatchIndex] && trendingView.flatVisibleMatches[trendingView.keyboardSelectedMatchIndex].id === matchRow.modelData.id)
+              readonly property bool isKeyboardSelected: !!(trendingView.flatVisibleMatches && trendingView.keyboardSelectedMatchIndex >= 0 && trendingView.flatVisibleMatches[trendingView.keyboardSelectedMatchIndex] && matchRow.modelData && (trendingView.flatVisibleMatches[trendingView.keyboardSelectedMatchIndex].id === matchRow.modelData.id))
 
               Rectangle {
                 anchors.fill: parent
