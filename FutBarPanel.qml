@@ -2442,10 +2442,10 @@ Panel {
     var lateYear = root.tournamentBracketWindowQueryYear(seasonYear, "late")
     var base = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/scoreboard?limit=500&dates="
     if (root._tournamentBracketAcc.remaining > 1 && earlyYear !== lateYear) {
-      tournamentBracketRequestEarly.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", base + encodeURIComponent(String(earlyYear))]
+      tournamentBracketRequestEarly.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "8388608", base + encodeURIComponent(String(earlyYear))]
       tournamentBracketRequestEarly.running = true
     }
-    tournamentBracketRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", base + encodeURIComponent(String(lateYear))]
+    tournamentBracketRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "8388608", base + encodeURIComponent(String(lateYear))]
     tournamentBracketRequest.running = true
   }
 
@@ -2660,7 +2660,7 @@ Panel {
     if (!acc) return
     if (acc.key !== root.tournamentBracketKey()) return
     var text = typeof payloadText === "string" ? payloadText : ""
-    if (text.length > 0 && text.length <= 2097152) {
+    if (text.length > 0 && text.length <= 8388608) {
       try {
         var data = JSON.parse(text)
         root.collectTournamentBracketRounds(Array.isArray(data.events) ? data.events : [], acc)
@@ -2668,7 +2668,7 @@ Panel {
         root.tournamentBracketError = "Could not parse tournament bracket"
         console.warn("futbar", "tournament bracket parse error: " + e)
       }
-    } else if (text.length > 2097152) {
+    } else if (text.length > 8388608) {
       root.tournamentBracketError = "Tournament bracket response too large"
     }
     acc.remaining = Math.max(0, acc.remaining - 1)
