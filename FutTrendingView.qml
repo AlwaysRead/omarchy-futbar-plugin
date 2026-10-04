@@ -279,6 +279,8 @@ Column {
       var seriesNote = ""
       if (comp.series && comp.series.summary) {
         seriesNote = String(comp.series.summary)
+      } else if (comp.series && comp.series.title) {
+        seriesNote = String(comp.series.title)
       }
 
       var kTime = ""

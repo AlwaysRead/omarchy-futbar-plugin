@@ -1070,15 +1070,12 @@ Panel {
   property var liveMatch: null
   // Goal / card events for the live match, from the summary endpoint.
   property var liveEvents: []
-  // Id of the match the current liveEvents belong to, so stale scorers from a
-  // previous match are dropped instead of shown for a few seconds.
+  // Match ID of liveEvents to prevent stale scorers
   property string summaryMatchId: ""
-  // Live Activity: desktop notifications for match start, goals, red cards,
-  // half-time and full-time while a match is in play.
+  // Live Activity: desktop notifications for match events
   property bool liveActivity: false
   property string activityMatchId: ""
   property var activityFlags: ({ started: false, halftime: false, secondhalf: false, fulltime: false })
-  // False until the first summary poll has seeded the flags from the match's
   property bool activityInitialized: false
   property bool activityWasHT: false
   property bool activityET: false
@@ -1407,9 +1404,7 @@ Panel {
     { label: "GD", name: "pointDifferential" },
     { label: "Pts", name: "points" }
   ]
-  // Qualification zones come straight from ESPN's per-entry `note` (e.g.
-  // "Champions League", "Relegation playoff"), which tracks the yearly-
-  // changing allocations. No local cutoff config is kept.
+  // Qualification zones from ESPN entry notes
   readonly property var standingsZoneColors: ({
     cl: "#2f7de1", el: "#f97316", ecl: "#22c55e",
     po: "#a78bfa", rel: "#ef4444", promo: "#2f7de1", promoPo: "#a78bfa"
@@ -6215,7 +6210,7 @@ onStreamFinished: root.warnStderr("", text)
                   matchups.push(currentMatchup)
                 } else if (ri > activeRoundIdx && mi === 0) {
                   var advTeamName = curSeriesWinner !== "" ? curSeriesWinner : ("Winner of " + currentMatchup.homeName + " vs " + currentMatchup.awayName)
-                  var advTeamLogo = curSeriesWinner !== "" ? (curSeriesWinner === currentMatchup.homeName ? currentMatchup.homeLogo : currentMatchup.awayLogo) : ""
+                  var advTeamLogo = curSeriesWinner !== "" ? ((curSeriesWinner === currentMatchup.homeName || currentMatchup.homeName.indexOf(curSeriesWinner) !== -1 || curSeriesWinner.indexOf(currentMatchup.homeName) !== -1) ? currentMatchup.homeLogo : currentMatchup.awayLogo) : ""
                   var advStatus = curSeriesWinner !== "" ? "Advanced" : "Next Round"
                   matchups.push({
                     homeName: root.sanitizePlainText(advTeamName),
@@ -6245,6 +6240,8 @@ onStreamFinished: root.warnStderr("", text)
               var fullBracket = JSON.parse(JSON.stringify(root.tournamentSeasonBracket))
               var curH = String(homeTeam.displayName || homeTeam.name || "").toLowerCase()
               var curA = String(awayTeam.displayName || awayTeam.name || "").toLowerCase()
+              var curHId = String(homeTeam.id || "")
+              var curAId = String(awayTeam.id || "")
               var matched = false
               for (var fbi = 0; fbi < fullBracket.length; fbi++) {
                 var fbR = fullBracket[fbi]
@@ -6252,7 +6249,13 @@ onStreamFinished: root.warnStderr("", text)
                   var mE = fbR.matchups[fbmi]
                   var mH = String(mE.homeName || "").toLowerCase()
                   var mA = String(mE.awayName || "").toLowerCase()
-                  if ((mH.indexOf(curH) !== -1 || curH.indexOf(mH) !== -1) && (mA.indexOf(curA) !== -1 || curA.indexOf(mA) !== -1)) {
+                  var mHId = String(mE.homeId || "")
+                  var mAId = String(mE.awayId || "")
+                  var fwdMatch = (curHId !== "" && mHId !== "" && curHId === mHId && curAId !== "" && mAId !== "" && curAId === mAId) ||
+                    (curH !== "" && curA !== "" && (mH.indexOf(curH) !== -1 || curH.indexOf(mH) !== -1) && (mA.indexOf(curA) !== -1 || curA.indexOf(mA) !== -1))
+                  var revMatch = (curHId !== "" && mAId !== "" && curHId === mAId && curAId !== "" && mHId !== "" && curAId === mHId) ||
+                    (curH !== "" && curA !== "" && (mH.indexOf(curA) !== -1 || curA.indexOf(mH) !== -1) && (mA.indexOf(curH) !== -1 || curH.indexOf(mA) !== -1))
+                  if (fwdMatch || revMatch) {
                     mE.isCurrent = true
                     fbR.isCurrentRound = true
                     matched = true
@@ -6264,7 +6267,6 @@ onStreamFinished: root.warnStderr("", text)
               root.loadTournamentBracket()
             }
           }
-
 
           root.matchDetail = {
             id: String(data.id || (root.matchDetail && root.matchDetail.id) || ""),

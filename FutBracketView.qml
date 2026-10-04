@@ -48,10 +48,35 @@ Column {
 
   function isTeamAdvancing(winner, teamName) {
     if (!winner || !teamName) return false
-    if (winner === teamName) return true
     var w = String(winner).trim().toLowerCase()
     var t = String(teamName).trim().toLowerCase()
-    return w === t || w.indexOf(t) !== -1 || t.indexOf(w) !== -1
+    return w === t || (t !== "" && w.indexOf(t) !== -1) || (w !== "" && t.indexOf(w) !== -1)
+  }
+
+  function isMatchupTeamAdvancing(m, isHome) {
+    if (!m || m.completed === false) return false
+    var winner = m.winner
+    if (!winner) return false
+    var h = String(m.homeName || "").trim().toLowerCase()
+    var a = String(m.awayName || "").trim().toLowerCase()
+    var w = String(winner).trim().toLowerCase()
+    if (!w) return false
+
+    if (w === h) return isHome
+    if (w === a) return !isHome
+
+    var hMatch = (h !== "" && (w.indexOf(h) !== -1 || h.indexOf(w) !== -1))
+    var aMatch = (a !== "" && (w.indexOf(a) !== -1 || a.indexOf(w) !== -1))
+
+    if (hMatch && !aMatch) return isHome
+    if (aMatch && !hMatch) return !isHome
+
+    if (hMatch && aMatch) {
+      if (h.length > a.length) return isHome
+      if (a.length > h.length) return !isHome
+    }
+
+    return false
   }
 
   // Top Navigation & Scroll Controls Bar
@@ -429,13 +454,13 @@ Column {
                             return String(mCard.modelData.homeAgg)
                           }
                           if (mCard.modelData.hasTwoLegs && mCard.modelData.homeLeg1 !== undefined && mCard.modelData.homeLeg2 !== undefined && mCard.modelData.homeLeg1 !== "" && mCard.modelData.homeLeg2 !== "" && mCard.modelData.homeLeg1 !== "—" && mCard.modelData.homeLeg2 !== "—") {
-                            var v1 = parseInt(mCard.modelData.homeLeg1)
-                            var v2 = parseInt(mCard.modelData.homeLeg2)
+                            var v1 = parseInt(mCard.modelData.homeLeg1, 10)
+                            var v2 = parseInt(mCard.modelData.homeLeg2, 10)
                             if (!isNaN(v1) && !isNaN(v2)) return String(v1 + v2)
                           }
-                          return mCard.modelData.homeScore || ""
+                          return mCard.modelData.homeScore !== undefined && mCard.modelData.homeScore !== null ? String(mCard.modelData.homeScore) : ""
                         }
-                        color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName))
+                        color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, true))
                           ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8.5)
@@ -449,11 +474,11 @@ Column {
                       id: homeNameTxt
                       textFormat: Text.PlainText
                       text: mCard.modelData ? (mCard.modelData.homeName || "TBD") : "TBD"
-                      color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName))
+                      color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, true))
                         ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8)
-                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName)))
+                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isMatchupTeamAdvancing(mCard.modelData, true)))
                       elide: Text.ElideRight
                       anchors.left: homeLogoImg.right
                       anchors.leftMargin: Style.space(4)
@@ -530,13 +555,13 @@ Column {
                             return String(mCard.modelData.awayAgg)
                           }
                           if (mCard.modelData.hasTwoLegs && mCard.modelData.awayLeg1 !== undefined && mCard.modelData.awayLeg2 !== undefined && mCard.modelData.awayLeg1 !== "" && mCard.modelData.awayLeg2 !== "" && mCard.modelData.awayLeg1 !== "—" && mCard.modelData.awayLeg2 !== "—") {
-                            var v1 = parseInt(mCard.modelData.awayLeg1)
-                            var v2 = parseInt(mCard.modelData.awayLeg2)
+                            var v1 = parseInt(mCard.modelData.awayLeg1, 10)
+                            var v2 = parseInt(mCard.modelData.awayLeg2, 10)
                             if (!isNaN(v1) && !isNaN(v2)) return String(v1 + v2)
                           }
-                          return mCard.modelData.awayScore || ""
+                          return mCard.modelData.awayScore !== undefined && mCard.modelData.awayScore !== null ? String(mCard.modelData.awayScore) : ""
                         }
-                        color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName))
+                        color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, false))
                           ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8.5)
@@ -550,11 +575,11 @@ Column {
                       id: awayNameTxt
                       textFormat: Text.PlainText
                       text: mCard.modelData ? (mCard.modelData.awayName || "TBD") : "TBD"
-                      color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName))
+                      color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, false))
                         ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8)
-                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName)))
+                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isMatchupTeamAdvancing(mCard.modelData, false)))
                       elide: Text.ElideRight
                       anchors.left: awayLogoImg.right
                       anchors.leftMargin: Style.space(4)
@@ -570,7 +595,7 @@ Column {
                     textFormat: Text.PlainText
                     text: {
                       var raw = (mCard.modelData && mCard.modelData.statusText) ? String(mCard.modelData.statusText) : ""
-                      return raw.replace(/^[0-9]+(st|nd|rd|th)\s+leg\s*[-–]?\s*/i, "").trim()
+                      return raw.replace(/^(?:(?:[0-9]+(?:st|nd|rd|th)\s+leg|leg\s+[0-9]+)\s*[-–,]?\s*)+/i, "").trim()
                     }
                     color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
                     font.family: root ? root.contentFontFamily : Style.font.family

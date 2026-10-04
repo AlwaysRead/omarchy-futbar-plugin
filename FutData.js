@@ -614,6 +614,57 @@ var leagues = [
     return "";
   }
 
+  function extractAdvancingTeamFromNote(noteText, teamA, teamB) {
+    if (!noteText) return "";
+    var n = String(noteText).toLowerCase();
+    var a = String(teamA || "").toLowerCase();
+    var b = String(teamB || "").toLowerCase();
+    if (!a && !b) return "";
+
+    var kwRegex = /\b(advances?|advanced|winning|wins?|won|qualifies|qualified)\b/i;
+
+    function testTeam(tm) {
+      if (!tm) return false;
+      var esc = tm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(esc + "\\s*(?:[a-z0-9]+\\s+){0,3}(?:advances?|advanced|wins?|won|qualifies|qualified)\\b", "i").test(n)) return true;
+      var shortTm = tm.replace(/\s+(fc|cf|sc)\b/i, "").trim();
+      if (shortTm && shortTm !== tm) {
+        var escS = shortTm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (new RegExp(escS + "\\s*(?:[a-z0-9]+\\s+){0,3}(?:advances?|advanced|wins?|won|qualifies|qualified)\\b", "i").test(n)) return true;
+      }
+      return false;
+    }
+
+    var matchA = testTeam(a);
+    var matchB = testTeam(b);
+
+    if (matchA && !matchB) return teamA;
+    if (matchB && !matchA) return teamB;
+
+    var kwMatch = kwRegex.exec(n);
+    if (kwMatch) {
+      var kwIdx = kwMatch.index;
+      var before = n.substring(0, kwIdx);
+      var posA = a ? before.lastIndexOf(a) : -1;
+      var posB = b ? before.lastIndexOf(b) : -1;
+      if (posA === -1 && a) {
+        var shortA = a.replace(/\s+(fc|cf|sc)\b/i, "").trim();
+        if (shortA) posA = before.lastIndexOf(shortA);
+      }
+      if (posB === -1 && b) {
+        var shortB = b.replace(/\s+(fc|cf|sc)\b/i, "").trim();
+        if (shortB) posB = before.lastIndexOf(shortB);
+      }
+      if (posA !== -1 && posB === -1) return teamA;
+      if (posB !== -1 && posA === -1) return teamB;
+      if (posA !== -1 && posB !== -1) {
+        return posA > posB ? teamA : teamB;
+      }
+    }
+
+    return "";
+  }
+
   function collectTournamentBracketRounds(events, acc) {
     if (!acc || !Array.isArray(events)) return;
     for (var ei = 0; ei < events.length; ei++) {
@@ -647,20 +698,22 @@ var leagues = [
       var hLogo = hId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + hId + ".png") : String(hTeam.logo || (hTeam.logos && hTeam.logos[0] ? hTeam.logos[0].href : ""));
       var aLogo = aId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aId + ".png") : String(aTeam.logo || (aTeam.logos && aTeam.logos[0] ? aTeam.logos[0].href : ""));
 
-      var pairKey = [hName, aName].sort().join("|") + "|" + rName;
+      var nameKey = [hName, aName].sort().join("|") + "|" + rName;
+      var idKey = (hId !== "" && aId !== "") ? ([hId, aId].sort().join("-") + "|" + rName) : nameKey;
       var noteLower = noteTexts.join(" ").toLowerCase();
-      var isLeg2 = noteLower.indexOf("2nd leg") !== -1 || noteLower.indexOf("advance") !== -1;
-      var isLeg1 = noteLower.indexOf("1st leg") !== -1;
+      var seriesObj = comp.series ? (Array.isArray(comp.series) && comp.series.length > 0 ? comp.series[0] : comp.series) : null;
+      var sCompetitors = seriesObj && Array.isArray(seriesObj.competitors) ? seriesObj.competitors : [];
+
+      var isLeg2 = (seriesObj && seriesObj.leg === 2) || noteLower.indexOf("2nd leg") !== -1 || noteLower.indexOf("leg 2") !== -1 || noteLower.indexOf("second leg") !== -1 || noteLower.indexOf("advance") !== -1;
+      var isLeg1 = (seriesObj && seriesObj.leg === 1) || noteLower.indexOf("1st leg") !== -1 || noteLower.indexOf("leg 1") !== -1 || noteLower.indexOf("first leg") !== -1;
       var hScore = String(h.score !== undefined ? h.score : "");
       var aScore = String(a.score !== undefined ? a.score : "");
       var hAgg = h.aggregateScore !== undefined ? String(h.aggregateScore) : "";
       var aAgg = a.aggregateScore !== undefined ? String(a.aggregateScore) : "";
 
-      var seriesObj = comp.series ? (Array.isArray(comp.series) && comp.series.length > 0 ? comp.series[0] : comp.series) : null;
-      var sCompetitors = seriesObj && Array.isArray(seriesObj.competitors) ? seriesObj.competitors : [];
-
-      if (!acc.seenSeries[pairKey]) {
-        acc.seenSeries[pairKey] = {
+      var s = acc.seenSeries[idKey] || acc.seenSeries[nameKey];
+      if (!s) {
+        s = {
           roundName: rName,
           teamA: hName, idA: hId, logoA: hLogo, leg1_A: "", leg2_A: "", agg_A: "",
           teamB: aName, idB: aId, logoB: aLogo, leg1_B: "", leg2_B: "", agg_B: "",
@@ -672,20 +725,22 @@ var leagues = [
           isLeg1Found: false,
           matchWinner: ""
         };
-        acc.map[rName].push(acc.seenSeries[pairKey]);
+        acc.seenSeries[idKey] = s;
+        acc.seenSeries[nameKey] = s;
+        acc.map[rName].push(s);
       }
 
-      var s = acc.seenSeries[pairKey];
       if (sCompetitors.length > 0) s.seriesCompetitors = sCompetitors;
       if (noteTexts.length > 0) {
         s.notes = noteTexts;
         s.statusText = noteTexts[0];
       }
       var isCompCompleted = comp.status && comp.status.type ? comp.status.type.completed === true : true;
+      var isHomeTeamA = (hId !== "" && s.idA !== "" && hId === s.idA) || (hName === s.teamA);
 
       if (isLeg1) {
         s.isLeg1Found = true;
-        if (hName === s.teamA) {
+        if (isHomeTeamA) {
           s.leg1_A = hScore;
           s.leg1_B = aScore;
         } else {
@@ -695,7 +750,7 @@ var leagues = [
       } else if (isLeg2) {
         s.isLeg2Found = true;
         s.completed = isCompCompleted;
-        if (hName === s.teamA) {
+        if (isHomeTeamA) {
           s.leg2_A = hScore;
           s.leg2_B = aScore;
           if (hAgg !== "") s.agg_A = hAgg;
@@ -708,7 +763,7 @@ var leagues = [
         }
       } else {
         s.completed = isCompCompleted;
-        if (hName === s.teamA) {
+        if (isHomeTeamA) {
           s.leg1_A = hScore;
           s.leg1_B = aScore;
           if (hAgg !== "") s.agg_A = hAgg;
@@ -806,20 +861,8 @@ var leagues = [
 
             // 3. Tied on aggregate or shootout notes
             if (wName === "") {
-              var noteCombined = ((sObj.notes ? sObj.notes.join(" ") : "") + " " + String(sObj.statusText || "")).toLowerCase();
-              var nameA_low = String(sObj.teamA || "").toLowerCase();
-              var nameB_low = String(sObj.teamB || "").toLowerCase();
-              var posA = nameA_low !== "" ? noteCombined.indexOf(nameA_low) : -1;
-              var posB = nameB_low !== "" ? noteCombined.indexOf(nameB_low) : -1;
-              var posAdv = noteCombined.indexOf("advance");
-              var posWin = noteCombined.indexOf("win");
-              var targetPos = posAdv !== -1 ? posAdv : posWin;
-              if (targetPos !== -1) {
-                var distA = (posA !== -1 && posA < targetPos) ? (targetPos - posA) : 999999;
-                var distB = (posB !== -1 && posB < targetPos) ? (targetPos - posB) : 999999;
-                if (distA < distB && distA < 60) wName = sObj.teamA;
-                else if (distB < distA && distB < 60) wName = sObj.teamB;
-              }
+              var noteCombined = (sObj.notes ? sObj.notes.join(" ") : "") + " " + String(sObj.statusText || "");
+              wName = extractAdvancingTeamFromNote(noteCombined, sObj.teamA, sObj.teamB);
             }
 
             // 4. Single-leg tie fallback to match winner
@@ -828,8 +871,8 @@ var leagues = [
             }
           }
 
-          var dispAggA = sObj.agg_A !== "" ? String(sObj.agg_A) : (numAggA !== null ? String(numAggA) : (has2Legs ? "" : String(sObj.leg1_A || "")));
-          var dispAggB = sObj.agg_B !== "" ? String(sObj.agg_B) : (numAggB !== null ? String(numAggB) : (has2Legs ? "" : String(sObj.leg1_B || "")));
+          var dispAggA = sObj.agg_A !== "" ? String(sObj.agg_A) : (numAggA !== null ? String(numAggA) : (has2Legs ? "" : (sObj.leg1_A !== undefined && sObj.leg1_A !== null ? String(sObj.leg1_A) : "")));
+          var dispAggB = sObj.agg_B !== "" ? String(sObj.agg_B) : (numAggB !== null ? String(numAggB) : (has2Legs ? "" : (sObj.leg1_B !== undefined && sObj.leg1_B !== null ? String(sObj.leg1_B) : "")));
           dispAggA = dispAggA.replace(/\.0$/, "");
           dispAggB = dispAggB.replace(/\.0$/, "");
 
@@ -908,6 +951,8 @@ var leagues = [
     if (hasTwoLegs && !isLeg2Comp) {
       isSeriesCompleted = false;
       curSeriesWinner = "";
+    } else if (!isSeriesCompleted) {
+      curSeriesWinner = "";
     } else if (isSeriesCompleted && curSeriesWinner === "") {
       var hN = parseFloat(curAggHome);
       var aN = parseFloat(curAggAway);
@@ -916,19 +961,10 @@ var leagues = [
         else if (aN > hN) curSeriesWinner = (awayTeam && (awayTeam.displayName || awayTeam.name)) || "";
       }
       if (curSeriesWinner === "") {
-        var sNoteLow = String(curSeriesSummary || seriesNote || "").toLowerCase();
-        var hNameLow = String((homeTeam && (homeTeam.displayName || homeTeam.name)) || "").toLowerCase();
-        var aNameLow = String((awayTeam && (awayTeam.displayName || awayTeam.name)) || "").toLowerCase();
-        var pH = hNameLow !== "" ? sNoteLow.indexOf(hNameLow) : -1;
-        var pA = aNameLow !== "" ? sNoteLow.indexOf(aNameLow) : -1;
-        var pAdv = sNoteLow.indexOf("advance");
-        if (pAdv === -1) pAdv = sNoteLow.indexOf("win");
-        if (pAdv !== -1) {
-          var dH = (pH !== -1 && pH < pAdv) ? (pAdv - pH) : 999999;
-          var dA = (pA !== -1 && pA < pAdv) ? (pAdv - pA) : 999999;
-          if (dH < dA && dH < 60) curSeriesWinner = (homeTeam && (homeTeam.displayName || homeTeam.name)) || "";
-          else if (dA < dH && dA < 60) curSeriesWinner = (awayTeam && (awayTeam.displayName || awayTeam.name)) || "";
-        }
+        var sNote = curSeriesSummary || seriesNote || "";
+        var hName = (homeTeam && (homeTeam.displayName || homeTeam.name)) || "";
+        var aName = (awayTeam && (awayTeam.displayName || awayTeam.name)) || "";
+        curSeriesWinner = extractAdvancingTeamFromNote(sNote, hName, aName);
       }
     }
 
