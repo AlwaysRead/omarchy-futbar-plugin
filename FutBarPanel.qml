@@ -10249,7 +10249,7 @@ root.warnStderr("team select failed", text)
             width: Style.space(28)
             height: Style.space(28)
             iconText: "󰕶"
-            tooltipText: "League Table (t)"
+            tooltipText: "Standings (t)"
             fontFamily: root.contentFontFamily
             foreground: root.contentForeground
             accent: root.contentForeground
