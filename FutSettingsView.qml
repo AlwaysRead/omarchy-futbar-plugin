@@ -109,6 +109,7 @@ Column {
             spacing: Style.space(8)
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: scCard.icon
               font.pixelSize: Style.font.body
@@ -130,6 +131,7 @@ Column {
 
           Text {
             id: headerArrow
+            textFormat: Text.PlainText
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: scCard.expanded ? "󰅃" : "󰅂"

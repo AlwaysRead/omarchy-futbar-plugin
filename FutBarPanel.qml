@@ -290,6 +290,7 @@ Panel {
             spacing: Style.space(8)
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: scCard.icon
               font.pixelSize: Style.font.body
@@ -311,6 +312,7 @@ Panel {
 
           Text {
             id: headerArrow
+            textFormat: Text.PlainText
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: scCard.expanded ? "󰅃" : "󰅂"
@@ -10560,6 +10562,7 @@ root.warnStderr("team select failed", text)
             spacing: Style.space(8)
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: "󰍉"
               font.family: root.contentFontFamily
@@ -10617,6 +10620,7 @@ root.warnStderr("team select failed", text)
             anchors.centerIn: parent
             spacing: Style.space(8)
             Text {
+              textFormat: Text.PlainText
               text: "󰑮"
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
@@ -10624,6 +10628,7 @@ root.warnStderr("team select failed", text)
               opacity: 0.5 + 0.5 * root._pulse
             }
             Text {
+              textFormat: Text.PlainText
               text: "Searching ESPN database…"
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
@@ -10641,6 +10646,7 @@ root.warnStderr("team select failed", text)
             anchors.centerIn: parent
             spacing: Style.space(8)
             Text {
+              textFormat: Text.PlainText
               text: "󰑮"
               font.family: "Symbols Nerd Font, " + root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
@@ -10648,6 +10654,7 @@ root.warnStderr("team select failed", text)
               opacity: 0.5 + 0.5 * root._pulse
             }
             Text {
+              textFormat: Text.PlainText
               text: "Loading club profile…"
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
@@ -10714,6 +10721,7 @@ root.warnStderr("team select failed", text)
 
                 // Fallback icon if no image
                 Text {
+                  textFormat: Text.PlainText
                   anchors.verticalCenter: parent.verticalCenter
                   width: Style.space(32)
                   height: width
@@ -10765,6 +10773,7 @@ root.warnStderr("team select failed", text)
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.verticalCenter: parent.verticalCenter
                   text: ""
                   font.family: root.contentFontFamily

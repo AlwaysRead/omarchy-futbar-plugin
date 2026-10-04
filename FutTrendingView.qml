@@ -435,6 +435,7 @@ Column {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         anchors.verticalCenter: parent.verticalCenter
         text: "󰍉"
         font.family: root ? root.contentFontFamily : Style.font.family
