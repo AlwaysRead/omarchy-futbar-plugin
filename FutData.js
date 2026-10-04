@@ -564,3 +564,408 @@ var leagues = [
     ];
     return majorSlugs.indexOf(s) !== -1;
   }
+
+  function tournamentRoundName(ev) {
+    if (!ev) return "";
+    var comp = (ev.competitions && ev.competitions[0]) || {};
+    var notes = Array.isArray(comp.notes) ? comp.notes : [];
+    var season = ev.season || {};
+    var series = comp.series || null;
+    var noteTexts = [];
+    for (var ni = 0; ni < notes.length; ni++) {
+      if (notes[ni] && (notes[ni].headline || notes[ni].text)) {
+        noteTexts.push(notes[ni].headline || notes[ni].text);
+      }
+    }
+    var sTitle = series && series.title ? String(series.title) : (Array.isArray(series) && series[0] && series[0].title ? String(series[0].title) : "");
+    var slug = String(season.slug || "").toLowerCase();
+    var combo = (noteTexts.join(" ") + " " + sTitle + " " + String(ev.name || "") + " " + slug + " " + String(season.name || "")).toLowerCase();
+    if (combo.indexOf("league phase") !== -1 || combo.indexOf("group stage") !== -1 || combo.indexOf("group phase") !== -1 || combo.indexOf("regular season") !== -1 || combo.indexOf("matchweek") !== -1 || combo.indexOf("gameweek") !== -1) {
+      return "";
+    }
+    var earlyRounds = [
+      ["preliminary", "preliminary", "Preliminary"],
+      ["qualifying", "qualif", "Qualifying"],
+      ["first-round", "first round", "First Round"],
+      ["second-round", "second round", "Second Round"],
+      ["third-round", "third round", "Third Round"],
+      ["fourth-round", "fourth round", "Fourth Round"],
+      ["fifth-round", "fifth round", "Fifth Round"],
+      ["sixth-round", "sixth round", "Sixth Round"]
+    ];
+    for (var ei = 0; ei < earlyRounds.length; ei++) {
+      if (slug.indexOf(earlyRounds[ei][0]) !== -1 || combo.indexOf(earlyRounds[ei][1]) !== -1) return earlyRounds[ei][2];
+    }
+    if (slug.indexOf("playoff") !== -1 || combo.indexOf("playoff") !== -1 || combo.indexOf("play-off") !== -1) return "Playoffs";
+    var numberedRounds = [
+      ["round-of-64", "round of 64", "r64", "Round of 64"],
+      ["round-of-32", "round of 32", "r32", "Round of 32"],
+      ["round-of-16", "round of 16", "r16", "Round of 16"],
+      ["round-of-8", "round of 8", "r8", "Round of 8"],
+      ["quarterfinal", "quarter", "", "Quarterfinals"],
+      ["semifinal", "semi", "", "Semifinals"]
+    ];
+    for (var ni2 = 0; ni2 < numberedRounds.length; ni2++) {
+      if (slug.indexOf(numberedRounds[ni2][0]) !== -1 || combo.indexOf(numberedRounds[ni2][1]) !== -1 ||
+          (numberedRounds[ni2][2] !== "" && combo.indexOf(numberedRounds[ni2][2]) !== -1)) return numberedRounds[ni2][3];
+    }
+    if (combo.indexOf("third place") !== -1 || combo.indexOf("3rd place") !== -1) return "Third Place";
+    if (combo.indexOf("final") !== -1) return "Final";
+    return "";
+  }
+
+  function collectTournamentBracketRounds(events, acc) {
+    if (!acc || !Array.isArray(events)) return;
+    for (var ei = 0; ei < events.length; ei++) {
+      var ev = events[ei];
+      if (!ev) continue;
+      var eventSeasonYear = Number(ev.season && ev.season.year);
+      if (eventSeasonYear && eventSeasonYear !== acc.seasonYear) continue;
+      var comp = (ev.competitions && ev.competitions[0]) || {};
+      var notes = Array.isArray(comp.notes) ? comp.notes : [];
+      var noteTexts = [];
+      for (var ni = 0; ni < notes.length; ni++) {
+        if (notes[ni] && (notes[ni].headline || notes[ni].text)) {
+          noteTexts.push(notes[ni].headline || notes[ni].text);
+        }
+      }
+      var rName = tournamentRoundName(ev);
+      if (!rName) continue;
+      if (!acc.map[rName]) acc.map[rName] = [];
+
+      var comps = Array.isArray(comp.competitors) ? comp.competitors : [];
+      if (comps.length < 2) continue;
+      var h = comps[0].homeAway === "home" ? comps[0] : comps[1];
+      var a = comps[0].homeAway === "home" ? comps[1] : comps[0];
+
+      var hTeam = h.team || {};
+      var aTeam = a.team || {};
+      var hName = String(hTeam.shortDisplayName || hTeam.displayName || "Home");
+      var aName = String(aTeam.shortDisplayName || aTeam.displayName || "Away");
+      var hId = String(hTeam.id || h.id || "");
+      var aId = String(aTeam.id || a.id || "");
+      var hLogo = hId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + hId + ".png") : String(hTeam.logo || (hTeam.logos && hTeam.logos[0] ? hTeam.logos[0].href : ""));
+      var aLogo = aId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aId + ".png") : String(aTeam.logo || (aTeam.logos && aTeam.logos[0] ? aTeam.logos[0].href : ""));
+
+      var pairKey = [hName, aName].sort().join("|") + "|" + rName;
+      var noteLower = noteTexts.join(" ").toLowerCase();
+      var isLeg2 = noteLower.indexOf("2nd leg") !== -1 || noteLower.indexOf("advance") !== -1;
+      var isLeg1 = noteLower.indexOf("1st leg") !== -1;
+      var hScore = String(h.score !== undefined ? h.score : "");
+      var aScore = String(a.score !== undefined ? a.score : "");
+      var hAgg = h.aggregateScore !== undefined ? String(h.aggregateScore) : "";
+      var aAgg = a.aggregateScore !== undefined ? String(a.aggregateScore) : "";
+
+      var seriesObj = comp.series ? (Array.isArray(comp.series) && comp.series.length > 0 ? comp.series[0] : comp.series) : null;
+      var sCompetitors = seriesObj && Array.isArray(seriesObj.competitors) ? seriesObj.competitors : [];
+
+      if (!acc.seenSeries[pairKey]) {
+        acc.seenSeries[pairKey] = {
+          roundName: rName,
+          teamA: hName, idA: hId, logoA: hLogo, leg1_A: "", leg2_A: "", agg_A: "",
+          teamB: aName, idB: aId, logoB: aLogo, leg1_B: "", leg2_B: "", agg_B: "",
+          statusText: noteTexts.length > 0 ? noteTexts[0] : "Completed",
+          completed: comp.status && comp.status.type ? comp.status.type.completed === true : true,
+          seriesCompetitors: [],
+          notes: noteTexts,
+          isLeg2Found: false,
+          isLeg1Found: false,
+          matchWinner: ""
+        };
+        acc.map[rName].push(acc.seenSeries[pairKey]);
+      }
+
+      var s = acc.seenSeries[pairKey];
+      if (sCompetitors.length > 0) s.seriesCompetitors = sCompetitors;
+      if (noteTexts.length > 0) {
+        s.notes = noteTexts;
+        s.statusText = noteTexts[0];
+      }
+      var isCompCompleted = comp.status && comp.status.type ? comp.status.type.completed === true : true;
+
+      if (isLeg1) {
+        s.isLeg1Found = true;
+        if (hName === s.teamA) {
+          s.leg1_A = hScore;
+          s.leg1_B = aScore;
+        } else {
+          s.leg1_B = hScore;
+          s.leg1_A = aScore;
+        }
+      } else if (isLeg2) {
+        s.isLeg2Found = true;
+        s.completed = isCompCompleted;
+        if (hName === s.teamA) {
+          s.leg2_A = hScore;
+          s.leg2_B = aScore;
+          if (hAgg !== "") s.agg_A = hAgg;
+          if (aAgg !== "") s.agg_B = aAgg;
+        } else {
+          s.leg2_B = hScore;
+          s.leg2_A = aScore;
+          if (hAgg !== "") s.agg_B = hAgg;
+          if (aAgg !== "") s.agg_A = aAgg;
+        }
+      } else {
+        s.completed = isCompCompleted;
+        if (hName === s.teamA) {
+          s.leg1_A = hScore;
+          s.leg1_B = aScore;
+          if (hAgg !== "") s.agg_A = hAgg;
+          if (aAgg !== "") s.agg_B = aAgg;
+          if (h.winner) s.matchWinner = s.teamA;
+          else if (a.winner) s.matchWinner = s.teamB;
+        } else {
+          s.leg1_B = hScore;
+          s.leg1_A = aScore;
+          if (hAgg !== "") s.agg_B = hAgg;
+          if (aAgg !== "") s.agg_A = aAgg;
+          if (h.winner) s.matchWinner = s.teamB;
+          else if (a.winner) s.matchWinner = s.teamA;
+        }
+      }
+    }
+  }
+
+  function finishTournamentBracketRequest(acc, sanitizePlainText, sanitizeImageUrl) {
+    if (!acc) return [];
+    var cleanText = sanitizePlainText || function(s) { return s ? String(s) : ""; };
+    var cleanUrl = sanitizeImageUrl || function(u) { return u ? String(u) : ""; };
+    var roundsMap = acc.map || {};
+    var orderedNames = [
+      "Qualifying", "Preliminary", "Playoffs", "First Round", "Second Round", "Third Round",
+      "Fourth Round", "Fifth Round", "Sixth Round", "Round of 64", "Round of 32", "Round of 16",
+      "Round of 8", "Quarterfinals", "Semifinals", "Third Place", "Final"
+    ];
+    var knownRound = {};
+    for (var ri = 0; ri < orderedNames.length; ri++) knownRound[orderedNames[ri]] = true;
+    for (var rk in roundsMap) {
+      if (!knownRound[rk] && roundsMap[rk] && roundsMap[rk].length > 0) orderedNames.push(rk);
+    }
+
+    var builtBracket = [];
+    for (var oi = 0; oi < orderedNames.length; oi++) {
+      var on = orderedNames[oi];
+      if (roundsMap[on] && roundsMap[on].length > 0) {
+        var roundMatchups = [];
+        var seriesList = roundsMap[on];
+        for (var si = 0; si < seriesList.length; si++) {
+          var sObj = seriesList[si];
+          var has2Legs = sObj.isLeg2Found || (sObj.leg1_A !== "" && sObj.leg2_A !== "");
+
+          var numAggA = null;
+          var numAggB = null;
+          if (sObj.agg_A !== "") {
+            var vA = parseFloat(sObj.agg_A);
+            if (!isNaN(vA)) numAggA = vA;
+          }
+          if (numAggA === null) {
+            if (has2Legs && sObj.leg1_A !== "" && sObj.leg2_A !== "") {
+              var v1A = parseFloat(sObj.leg1_A), v2A = parseFloat(sObj.leg2_A);
+              if (!isNaN(v1A) && !isNaN(v2A)) numAggA = v1A + v2A;
+            } else if (!has2Legs && sObj.leg1_A !== "") {
+              var v1A = parseFloat(sObj.leg1_A);
+              if (!isNaN(v1A)) numAggA = v1A;
+            }
+          }
+
+          if (sObj.agg_B !== "") {
+            var vB = parseFloat(sObj.agg_B);
+            if (!isNaN(vB)) numAggB = vB;
+          }
+          if (numAggB === null) {
+            if (has2Legs && sObj.leg1_B !== "" && sObj.leg2_B !== "") {
+              var v1B = parseFloat(sObj.leg1_B), v2B = parseFloat(sObj.leg2_B);
+              if (!isNaN(v1B) && !isNaN(v2B)) numAggB = v1B + v2B;
+            } else if (!has2Legs && sObj.leg1_B !== "") {
+              var v1B = parseFloat(sObj.leg1_B);
+              if (!isNaN(v1B)) numAggB = v1B;
+            }
+          }
+
+          var isFinished = has2Legs ? (sObj.isLeg2Found && sObj.completed) : (sObj.completed && (sObj.leg1_A !== "" || sObj.leg1_B !== ""));
+          var wName = "";
+
+          if (isFinished) {
+            // 1. Series winner from ESPN series competitors
+            var sComps = sObj.seriesCompetitors || [];
+            for (var sci = 0; sci < sComps.length; sci++) {
+              if (sComps[sci] && sComps[sci].winner === true) {
+                var wId = String(sComps[sci].id || "");
+                if (wId === String(sObj.idA)) wName = sObj.teamA;
+                else if (wId === String(sObj.idB)) wName = sObj.teamB;
+                break;
+              }
+            }
+
+            // 2. Winner from aggregate score difference
+            if (wName === "" && numAggA !== null && numAggB !== null) {
+              if (numAggA > numAggB) wName = sObj.teamA;
+              else if (numAggB > numAggA) wName = sObj.teamB;
+            }
+
+            // 3. Tied on aggregate or shootout notes
+            if (wName === "") {
+              var noteCombined = ((sObj.notes ? sObj.notes.join(" ") : "") + " " + String(sObj.statusText || "")).toLowerCase();
+              var nameA_low = String(sObj.teamA || "").toLowerCase();
+              var nameB_low = String(sObj.teamB || "").toLowerCase();
+              var posA = nameA_low !== "" ? noteCombined.indexOf(nameA_low) : -1;
+              var posB = nameB_low !== "" ? noteCombined.indexOf(nameB_low) : -1;
+              var posAdv = noteCombined.indexOf("advance");
+              var posWin = noteCombined.indexOf("win");
+              var targetPos = posAdv !== -1 ? posAdv : posWin;
+              if (targetPos !== -1) {
+                var distA = (posA !== -1 && posA < targetPos) ? (targetPos - posA) : 999999;
+                var distB = (posB !== -1 && posB < targetPos) ? (targetPos - posB) : 999999;
+                if (distA < distB && distA < 60) wName = sObj.teamA;
+                else if (distB < distA && distB < 60) wName = sObj.teamB;
+              }
+            }
+
+            // 4. Single-leg tie fallback to match winner
+            if (wName === "" && !has2Legs && sObj.matchWinner) {
+              wName = sObj.matchWinner;
+            }
+          }
+
+          var dispAggA = sObj.agg_A !== "" ? sObj.agg_A : (has2Legs ? String(numAggA !== null ? numAggA : "") : sObj.leg1_A);
+          var dispAggB = sObj.agg_B !== "" ? sObj.agg_B : (has2Legs ? String(numAggB !== null ? numAggB : "") : sObj.leg1_B);
+          if (dispAggA && dispAggA.indexOf(".0") === dispAggA.length - 2) dispAggA = dispAggA.substring(0, dispAggA.length - 2);
+          if (dispAggB && dispAggB.indexOf(".0") === dispAggB.length - 2) dispAggB = dispAggB.substring(0, dispAggB.length - 2);
+
+          roundMatchups.push({
+            homeName: cleanText(sObj.teamA),
+            homeId: sObj.idA,
+            homeLogo: cleanUrl(sObj.logoA),
+            homeLeg1: cleanText(sObj.leg1_A),
+            homeLeg2: cleanText(sObj.leg2_A),
+            homeAgg: cleanText(dispAggA),
+            awayName: cleanText(sObj.teamB),
+            awayId: sObj.idB,
+            awayLogo: cleanUrl(sObj.logoB),
+            awayLeg1: cleanText(sObj.leg1_B),
+            awayLeg2: cleanText(sObj.leg2_B),
+            awayAgg: cleanText(dispAggB),
+            isCurrent: false,
+            statusText: cleanText(sObj.statusText),
+            completed: isFinished,
+            winner: wName,
+            hasTwoLegs: has2Legs
+          });
+        }
+
+        builtBracket.push({
+          roundName: on,
+          roundIndex: builtBracket.length,
+          isCurrentRound: false,
+          matchups: roundMatchups
+        });
+      }
+    }
+    return builtBracket;
+  }
+
+  function resolveMatchSeries(comp, homeTeam, awayTeam, curHomeScore, curAwayScore, statusDesc, stageCombined, seriesNote) {
+    var stage = String(stageCombined || "").toLowerCase();
+    var desc = String(statusDesc || "").toLowerCase();
+    var curAggHome = curHomeScore;
+    var curAggAway = curAwayScore;
+    var curSeriesWinner = "";
+    var curSeriesSummary = seriesNote || "";
+
+    var hasTwoLegs = false;
+    var isLeg2Comp = false;
+
+    var sObj = null;
+    if (comp && comp.series) {
+      sObj = Array.isArray(comp.series) ? (comp.series.length > 0 ? comp.series[0] : null) : comp.series;
+    }
+
+    if (sObj && (sObj.totalCompetitions === 2 || sObj.leg !== undefined)) {
+      hasTwoLegs = true;
+      isLeg2Comp = (sObj.leg === 2) || (stage.indexOf("2nd leg") !== -1) || (stage.indexOf("advance") !== -1);
+    } else if (stage.indexOf("leg") !== -1) {
+      hasTwoLegs = true;
+      isLeg2Comp = (stage.indexOf("2nd leg") !== -1) || (stage.indexOf("advance") !== -1);
+    }
+
+    if (sObj && Array.isArray(sObj.competitors)) {
+      for (var sci = 0; sci < sObj.competitors.length; sci++) {
+        var scEntry = sObj.competitors[sci];
+        if (!scEntry) continue;
+        var scId = String(scEntry.id || "");
+        if (homeTeam && homeTeam.id && scId === String(homeTeam.id)) {
+          if (scEntry.aggregateScore !== undefined) curAggHome = String(scEntry.aggregateScore);
+          if (scEntry.winner === true) curSeriesWinner = homeTeam.displayName || homeTeam.name || "";
+        } else if (awayTeam && awayTeam.id && scId === String(awayTeam.id)) {
+          if (scEntry.aggregateScore !== undefined) curAggAway = String(scEntry.aggregateScore);
+          if (scEntry.winner === true) curSeriesWinner = awayTeam.displayName || awayTeam.name || "";
+        }
+      }
+    }
+
+    var isSeriesCompleted = (desc.indexOf("final") !== -1 || (sObj && sObj.completed === true));
+    if (hasTwoLegs && !isLeg2Comp) {
+      isSeriesCompleted = false;
+      curSeriesWinner = "";
+    } else if (isSeriesCompleted && curSeriesWinner === "") {
+      var hN = parseFloat(curAggHome);
+      var aN = parseFloat(curAggAway);
+      if (!isNaN(hN) && !isNaN(aN)) {
+        if (hN > aN) curSeriesWinner = (homeTeam && (homeTeam.displayName || homeTeam.name)) || "";
+        else if (aN > hN) curSeriesWinner = (awayTeam && (awayTeam.displayName || awayTeam.name)) || "";
+      }
+      if (curSeriesWinner === "") {
+        var sNoteLow = String(curSeriesSummary || seriesNote || "").toLowerCase();
+        var hNameLow = String((homeTeam && (homeTeam.displayName || homeTeam.name)) || "").toLowerCase();
+        var aNameLow = String((awayTeam && (awayTeam.displayName || awayTeam.name)) || "").toLowerCase();
+        var pH = hNameLow !== "" ? sNoteLow.indexOf(hNameLow) : -1;
+        var pA = aNameLow !== "" ? sNoteLow.indexOf(aNameLow) : -1;
+        var pAdv = sNoteLow.indexOf("advance");
+        if (pAdv === -1) pAdv = sNoteLow.indexOf("win");
+        if (pAdv !== -1) {
+          var dH = (pH !== -1 && pH < pAdv) ? (pAdv - pH) : 999999;
+          var dA = (pA !== -1 && pA < pAdv) ? (pAdv - pA) : 999999;
+          if (dH < dA && dH < 60) curSeriesWinner = (homeTeam && (homeTeam.displayName || homeTeam.name)) || "";
+          else if (dA < dH && dA < 60) curSeriesWinner = (awayTeam && (awayTeam.displayName || awayTeam.name)) || "";
+        }
+      }
+    }
+
+    var curHomeLeg1 = "";
+    var curHomeLeg2 = "";
+    var curAwayLeg1 = "";
+    var curAwayLeg2 = "";
+    if (hasTwoLegs) {
+      if (isLeg2Comp) {
+        curHomeLeg2 = curHomeScore;
+        curAwayLeg2 = curAwayScore;
+        var hA = parseFloat(curAggHome);
+        var hS = parseFloat(curHomeScore);
+        var aA = parseFloat(curAggAway);
+        var aS = parseFloat(curAwayScore);
+        curHomeLeg1 = (!isNaN(hA) && !isNaN(hS)) ? String(hA - hS) : "";
+        curAwayLeg1 = (!isNaN(aA) && !isNaN(aS)) ? String(aA - aS) : "";
+      } else {
+        curHomeLeg1 = curHomeScore;
+        curAwayLeg1 = curAwayScore;
+        curHomeLeg2 = "—";
+        curAwayLeg2 = "—";
+      }
+    }
+
+    return {
+      hasTwoLegs: hasTwoLegs,
+      isLeg2Comp: isLeg2Comp,
+      isSeriesCompleted: isSeriesCompleted,
+      curSeriesWinner: curSeriesWinner,
+      curAggHome: curAggHome,
+      curAggAway: curAggAway,
+      curHomeLeg1: curHomeLeg1,
+      curHomeLeg2: curHomeLeg2,
+      curAwayLeg1: curAwayLeg1,
+      curAwayLeg2: curAwayLeg2,
+      curSeriesSummary: curSeriesSummary
+    };
+  }
+

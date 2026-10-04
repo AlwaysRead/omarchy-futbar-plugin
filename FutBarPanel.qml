@@ -2453,139 +2453,11 @@ Panel {
   }
 
   function tournamentRoundName(ev) {
-    if (!ev) return ""
-    var comp = (ev.competitions && ev.competitions[0]) || {}
-    var notes = Array.isArray(comp.notes) ? comp.notes : []
-    var season = ev.season || {}
-    var series = comp.series || null
-    var noteTexts = []
-    for (var ni = 0; ni < notes.length; ni++) {
-      if (notes[ni] && (notes[ni].headline || notes[ni].text)) noteTexts.push(notes[ni].headline || notes[ni].text)
-    }
-    var sTitle = series && series.title ? String(series.title) : (Array.isArray(series) && series[0] && series[0].title ? String(series[0].title) : "")
-    var slug = String(season.slug || "").toLowerCase()
-    var combo = (noteTexts.join(" ") + " " + sTitle + " " + String(ev.name || "") + " " + slug + " " + String(season.name || "")).toLowerCase()
-    if (combo.indexOf("league phase") !== -1 || combo.indexOf("group stage") !== -1 || combo.indexOf("group phase") !== -1 || combo.indexOf("regular season") !== -1 || combo.indexOf("matchweek") !== -1 || combo.indexOf("gameweek") !== -1) return ""
-    var earlyRounds = [
-      ["preliminary", "preliminary", "Preliminary"],
-      ["qualifying", "qualif", "Qualifying"],
-      ["first-round", "first round", "First Round"],
-      ["second-round", "second round", "Second Round"],
-      ["third-round", "third round", "Third Round"],
-      ["fourth-round", "fourth round", "Fourth Round"],
-      ["fifth-round", "fifth round", "Fifth Round"],
-      ["sixth-round", "sixth round", "Sixth Round"]
-    ]
-    for (var ei = 0; ei < earlyRounds.length; ei++) {
-      if (slug.indexOf(earlyRounds[ei][0]) !== -1 || combo.indexOf(earlyRounds[ei][1]) !== -1) return earlyRounds[ei][2]
-    }
-    if (slug.indexOf("playoff") !== -1 || combo.indexOf("playoff") !== -1 || combo.indexOf("play-off") !== -1) return "Playoffs"
-    var numberedRounds = [
-      ["round-of-64", "round of 64", "r64", "Round of 64"],
-      ["round-of-32", "round of 32", "r32", "Round of 32"],
-      ["round-of-16", "round of 16", "r16", "Round of 16"],
-      ["round-of-8", "round of 8", "r8", "Round of 8"],
-      ["quarterfinal", "quarter", "", "Quarterfinals"],
-      ["semifinal", "semi", "", "Semifinals"]
-    ]
-    for (var ni2 = 0; ni2 < numberedRounds.length; ni2++) {
-      if (slug.indexOf(numberedRounds[ni2][0]) !== -1 || combo.indexOf(numberedRounds[ni2][1]) !== -1 ||
-          (numberedRounds[ni2][2] !== "" && combo.indexOf(numberedRounds[ni2][2]) !== -1)) return numberedRounds[ni2][3]
-    }
-    if (combo.indexOf("third place") !== -1 || combo.indexOf("3rd place") !== -1) return "Third Place"
-    if (combo.indexOf("final") !== -1) return "Final"
-    return ""
+    return FutData.tournamentRoundName(ev)
   }
 
   function collectTournamentBracketRounds(events, acc) {
-    if (!acc || !Array.isArray(events)) return
-    for (var ei = 0; ei < events.length; ei++) {
-      var ev = events[ei]
-      if (!ev) continue
-      var eventSeasonYear = Number(ev.season && ev.season.year)
-      if (eventSeasonYear && eventSeasonYear !== acc.seasonYear) continue
-      var comp = (ev.competitions && ev.competitions[0]) || {}
-      var notes = Array.isArray(comp.notes) ? comp.notes : []
-      var series = comp.series || null
-      var noteTexts = []
-      for (var ni = 0; ni < notes.length; ni++) {
-        if (notes[ni] && (notes[ni].headline || notes[ni].text)) noteTexts.push(notes[ni].headline || notes[ni].text)
-      }
-      var rName = root.tournamentRoundName(ev)
-      if (!rName) continue
-      if (!acc.map[rName]) acc.map[rName] = []
-
-      var comps = Array.isArray(comp.competitors) ? comp.competitors : []
-      if (comps.length < 2) continue
-      var h = comps[0].homeAway === "home" ? comps[0] : comps[1]
-      var a = comps[0].homeAway === "home" ? comps[1] : comps[0]
-
-      var hTeam = h.team || {}
-      var aTeam = a.team || {}
-      var hName = String(hTeam.shortDisplayName || hTeam.displayName || "Home")
-      var aName = String(aTeam.shortDisplayName || aTeam.displayName || "Away")
-      var hId = String(hTeam.id || h.id || "")
-      var aId = String(aTeam.id || a.id || "")
-      var hLogo = hId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + hId + ".png") : String(hTeam.logo || (hTeam.logos && hTeam.logos[0] ? hTeam.logos[0].href : ""))
-      var aLogo = aId !== "" ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aId + ".png") : String(aTeam.logo || (aTeam.logos && aTeam.logos[0] ? aTeam.logos[0].href : ""))
-
-      var pairKey = [hName, aName].sort().join("|") + "|" + rName
-      var noteLower = noteTexts.join(" ").toLowerCase()
-      var isLeg2 = noteLower.indexOf("2nd leg") !== -1 || noteLower.indexOf("advance") !== -1
-      var isLeg1 = noteLower.indexOf("1st leg") !== -1
-      var hScore = String(h.score !== undefined ? h.score : "")
-      var aScore = String(a.score !== undefined ? a.score : "")
-      var hAgg = h.aggregateScore !== undefined ? String(h.aggregateScore) : ""
-      var aAgg = a.aggregateScore !== undefined ? String(a.aggregateScore) : ""
-      if (!acc.seenSeries[pairKey]) {
-        acc.seenSeries[pairKey] = {
-          roundName: rName,
-          teamA: hName, idA: hId, logoA: hLogo, leg1_A: "", leg2_A: "", agg_A: "", winnerA: false,
-          teamB: aName, idB: aId, logoB: aLogo, leg1_B: "", leg2_B: "", agg_B: "", winnerB: false,
-          statusText: noteTexts.length > 0 ? noteTexts[0] : "Completed",
-          completed: comp.status && comp.status.type ? comp.status.type.completed === true : true
-        }
-        // Push the shared series object once; the second leg mutates it in place.
-        acc.map[rName].push(acc.seenSeries[pairKey])
-      }
-
-      var s = acc.seenSeries[pairKey]
-      if (isLeg1) {
-        if (hName === s.teamA) { s.leg1_A = hScore; s.leg1_B = aScore }
-        else { s.leg1_B = hScore; s.leg1_A = aScore }
-      } else if (isLeg2) {
-        if (hName === s.teamA) {
-          s.leg2_A = hScore; s.leg2_B = aScore
-          if (hAgg !== "") s.agg_A = hAgg
-          if (aAgg !== "") s.agg_B = aAgg
-          if (h.winner) s.winnerA = true
-          if (a.winner) s.winnerB = true
-        } else {
-          s.leg2_B = hScore; s.leg2_A = aScore
-          if (aAgg !== "") s.agg_B = aAgg
-          if (hAgg !== "") s.agg_A = hAgg
-          if (a.winner) s.winnerB = true
-          if (h.winner) s.winnerA = true
-        }
-        s.completed = comp.status && comp.status.type ? comp.status.type.completed === true : true
-        s.statusText = noteTexts.length > 0 ? noteTexts[0] : "Completed"
-      } else {
-        // Single-leg tie: keep the higher aggregate/score as the shown result.
-        if (hName === s.teamA) {
-          if (hAgg !== "") s.agg_A = hAgg
-          if (aAgg !== "") s.agg_B = aAgg
-          if (h.winner) s.winnerA = true
-          if (a.winner) s.winnerB = true
-        } else {
-          if (aAgg !== "") s.agg_B = aAgg
-          if (hAgg !== "") s.agg_A = hAgg
-          if (a.winner) s.winnerB = true
-          if (h.winner) s.winnerA = true
-        }
-        s.completed = comp.status && comp.status.type ? comp.status.type.completed === true : true
-        if (noteTexts.length > 0) s.statusText = noteTexts[0]
-      }
-    }
+    FutData.collectTournamentBracketRounds(events, acc)
   }
 
   function finishTournamentBracketRequest() {
@@ -2593,57 +2465,8 @@ Panel {
     root._tournamentBracketAcc = null
     if (!acc) return
     if (acc.key !== root.tournamentBracketKey()) return
-    var roundsMap = acc.map
-    var orderedNames = [
-      "Qualifying", "Preliminary", "Playoffs", "First Round", "Second Round", "Third Round",
-      "Fourth Round", "Fifth Round", "Sixth Round", "Round of 64", "Round of 32", "Round of 16",
-      "Round of 8", "Quarterfinals", "Semifinals", "Third Place", "Final"
-    ]
-    var knownRound = {}
-    for (var ri = 0; ri < orderedNames.length; ri++) knownRound[orderedNames[ri]] = true
-    for (var rk in roundsMap) {
-      if (!knownRound[rk] && roundsMap[rk] && roundsMap[rk].length > 0) orderedNames.push(rk)
-    }
-    var builtBracket = []
-    for (var oi = 0; oi < orderedNames.length; oi++) {
-      var on = orderedNames[oi]
-      if (roundsMap[on] && roundsMap[on].length > 0) {
-        var roundMatchups = []
-        var seriesList = roundsMap[on]
-        for (var si = 0; si < seriesList.length; si++) {
-          var sObj = seriesList[si]
-          var wName = ""
-          if (sObj.winnerA) wName = sObj.teamA
-          else if (sObj.winnerB) wName = sObj.teamB
-          var has2Legs = sObj.leg1_A !== "" || sObj.leg1_B !== ""
-          roundMatchups.push({
-            homeName: root.sanitizePlainText(sObj.teamA),
-            homeId: sObj.idA,
-            homeLogo: root.sanitizeImageUrl(sObj.logoA),
-            homeLeg1: root.sanitizePlainText(sObj.leg1_A),
-            homeLeg2: root.sanitizePlainText(sObj.leg2_A),
-            homeAgg: root.sanitizePlainText(sObj.agg_A !== "" ? sObj.agg_A : (has2Legs ? String(Number(sObj.leg1_A || 0) + Number(sObj.leg2_A || 0)) : sObj.leg1_A)),
-            awayName: root.sanitizePlainText(sObj.teamB),
-            awayLogo: root.sanitizeImageUrl(sObj.logoB),
-            awayLeg1: root.sanitizePlainText(sObj.leg1_B),
-            awayLeg2: root.sanitizePlainText(sObj.leg2_B),
-            awayAgg: root.sanitizePlainText(sObj.agg_B !== "" ? sObj.agg_B : (has2Legs ? String(Number(sObj.leg1_B || 0) + Number(sObj.leg2_B || 0)) : sObj.leg1_B)),
-            isCurrent: false,
-            statusText: root.sanitizePlainText(sObj.statusText),
-            completed: sObj.completed,
-            winner: wName,
-            hasTwoLegs: has2Legs
-          })
-        }
-        builtBracket.push({
-          roundName: on,
-          roundIndex: builtBracket.length,
-          isCurrentRound: false,
-          matchups: roundMatchups
-        })
-      }
-    }
-    if (builtBracket.length > 0) {
+    var builtBracket = FutData.finishTournamentBracketRequest(acc, root.sanitizePlainText, root.sanitizeImageUrl)
+    if (builtBracket && builtBracket.length > 0) {
       var cMap = Object.assign({}, root._tournamentBracketCache)
       cMap[acc.key] = builtBracket
       root._tournamentBracketCache = cMap
@@ -6349,67 +6172,17 @@ onStreamFinished: root.warnStderr("", text)
             }
 
             var curHomeScore = isActuallyStarted ? String(homeComp && homeComp.score !== undefined ? homeComp.score : "0") : ""
-            var curAwayScore = isActuallyStarted ? String(awayComp && awayComp.score !== undefined ? awayComp.score : "0") : ""
-            var curAggHome = curHomeScore
-            var curAggAway = curAwayScore
-            var curSeriesWinner = ""
-            var curSeriesSummary = seriesNote
-
-            if (comp.series) {
-              var sObj = Array.isArray(comp.series) ? comp.series[0] : comp.series
-              if (sObj && Array.isArray(sObj.competitors)) {
-                for (var sci = 0; sci < sObj.competitors.length; sci++) {
-                  var scEntry = sObj.competitors[sci]
-                  if (!scEntry) continue
-                  var scId = String(scEntry.id || "")
-                  if (homeTeam.id && scId === String(homeTeam.id)) {
-                    if (scEntry.aggregateScore !== undefined) curAggHome = String(scEntry.aggregateScore)
-                    if (scEntry.winner) curSeriesWinner = homeTeam.displayName || homeTeam.name
-                  } else if (awayTeam.id && scId === String(awayTeam.id)) {
-                    if (scEntry.aggregateScore !== undefined) curAggAway = String(scEntry.aggregateScore)
-                    if (scEntry.winner) curSeriesWinner = awayTeam.displayName || awayTeam.name
-                  }
-                }
-              }
-            }
-
-            var isSeriesCompleted = !isActuallyLive && (curSeriesWinner !== "" || (statusDesc && statusDesc.toLowerCase().indexOf("final") !== -1))
-            if (isSeriesCompleted && curSeriesWinner === "") {
-              var hN = parseInt(curAggHome)
-              var aN = parseInt(curAggAway)
-              if (!isNaN(hN) && !isNaN(aN)) {
-                if (hN > aN) curSeriesWinner = homeTeam.displayName || homeTeam.name
-                else if (aN > hN) curSeriesWinner = awayTeam.displayName || awayTeam.name
-              }
-            }
-
-            var hasTwoLegs = false
-            var curHomeLeg1 = ""
-            var curHomeLeg2 = ""
-            var curAwayLeg1 = ""
-            var curAwayLeg2 = ""
-            if (comp.series) {
-              var sObj2 = Array.isArray(comp.series) ? comp.series[0] : comp.series
-              if (sObj2 && (sObj2.totalCompetitions === 2 || sObj2.leg !== undefined)) {
-                hasTwoLegs = true
-                var isLeg2Comp = (sObj2.leg === 2) || (stageCombined.indexOf("2nd leg") !== -1) || (stageCombined.indexOf("advance") !== -1)
-                if (isLeg2Comp) {
-                  curHomeLeg2 = curHomeScore
-                  curAwayLeg2 = curAwayScore
-                  var hA = parseInt(curAggHome)
-                  var hS = parseInt(curHomeScore)
-                  var aA = parseInt(curAggAway)
-                  var aS = parseInt(curAwayScore)
-                  curHomeLeg1 = (!isNaN(hA) && !isNaN(hS)) ? String(hA - hS) : ""
-                  curAwayLeg1 = (!isNaN(aA) && !isNaN(aS)) ? String(aA - aS) : ""
-                } else {
-                  curHomeLeg1 = curHomeScore
-                  curAwayLeg1 = curAwayScore
-                  curHomeLeg2 = "—"
-                  curAwayLeg2 = "—"
-                }
-              }
-            }
+            var seriesRes = FutData.resolveMatchSeries(comp, homeTeam, awayTeam, curHomeScore, curAwayScore, statusDesc, stageCombined, seriesNote)
+            var hasTwoLegs = seriesRes.hasTwoLegs
+            var isSeriesCompleted = seriesRes.isSeriesCompleted
+            var curSeriesWinner = seriesRes.curSeriesWinner
+            var curAggHome = seriesRes.curAggHome
+            var curAggAway = seriesRes.curAggAway
+            var curHomeLeg1 = seriesRes.curHomeLeg1
+            var curHomeLeg2 = seriesRes.curHomeLeg2
+            var curAwayLeg1 = seriesRes.curAwayLeg1
+            var curAwayLeg2 = seriesRes.curAwayLeg2
+            var curSeriesSummary = seriesRes.curSeriesSummary
 
             var currentMatchup = {
               homeName: root.sanitizePlainText(String(homeTeam.displayName || homeTeam.name || "Home")),

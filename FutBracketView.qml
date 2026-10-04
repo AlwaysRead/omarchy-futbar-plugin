@@ -46,6 +46,14 @@ Column {
     return calcMatchCenter(rMatches, m) - cardH / 2.0
   }
 
+  function isTeamAdvancing(winner, teamName) {
+    if (!winner || !teamName) return false
+    if (winner === teamName) return true
+    var w = String(winner).trim().toLowerCase()
+    var t = String(teamName).trim().toLowerCase()
+    return w === t || w.indexOf(t) !== -1 || t.indexOf(w) !== -1
+  }
+
   // Top Navigation & Scroll Controls Bar
   Row {
     width: parent.width
@@ -416,7 +424,7 @@ Column {
                       Text {
                         textFormat: Text.PlainText
                         text: mCard.modelData ? (mCard.modelData.homeAgg !== undefined && mCard.modelData.homeAgg !== "" ? mCard.modelData.homeAgg : (mCard.modelData.homeScore || "")) : ""
-                        color: (mCard.modelData && mCard.modelData.winner && mCard.modelData.winner === mCard.modelData.homeName)
+                        color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName))
                           ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8.5)
@@ -430,11 +438,11 @@ Column {
                       id: homeNameTxt
                       textFormat: Text.PlainText
                       text: mCard.modelData ? (mCard.modelData.homeName || "TBD") : "TBD"
-                      color: (mCard.modelData && mCard.modelData.winner && mCard.modelData.winner === mCard.modelData.homeName)
+                      color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName))
                         ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8)
-                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || (mCard.modelData.winner && mCard.modelData.winner === mCard.modelData.homeName)))
+                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName)))
                       elide: Text.ElideRight
                       anchors.left: homeLogoImg.right
                       anchors.leftMargin: Style.space(4)
@@ -506,7 +514,7 @@ Column {
                       Text {
                         textFormat: Text.PlainText
                         text: mCard.modelData ? (mCard.modelData.awayAgg !== undefined && mCard.modelData.awayAgg !== "" ? mCard.modelData.awayAgg : (mCard.modelData.awayScore || "")) : ""
-                        color: (mCard.modelData && mCard.modelData.winner && mCard.modelData.winner === mCard.modelData.awayName)
+                        color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName))
                           ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8.5)
@@ -520,11 +528,11 @@ Column {
                       id: awayNameTxt
                       textFormat: Text.PlainText
                       text: mCard.modelData ? (mCard.modelData.awayName || "TBD") : "TBD"
-                      color: (mCard.modelData && mCard.modelData.winner && mCard.modelData.winner === mCard.modelData.awayName)
+                      color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName))
                         ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8)
-                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || (mCard.modelData.winner && mCard.modelData.winner === mCard.modelData.awayName)))
+                      font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName)))
                       elide: Text.ElideRight
                       anchors.left: awayLogoImg.right
                       anchors.leftMargin: Style.space(4)
