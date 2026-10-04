@@ -725,15 +725,31 @@ Column {
                     width: parent.width
                     height: Style.space(20)
 
-                    Text {
-                      textFormat: Text.PlainText
+                    Row {
                       anchors.left: parent.left
                       anchors.verticalCenter: parent.verticalCenter
-                      text: "STATISTICS"
-                      font.pixelSize: Style.space(9)
-                      font.bold: true
-                      color: Qt.darker(root.contentForeground, 1.5)
-                      font.family: root.contentFontFamily
+                      spacing: Style.space(6)
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "STATISTICS"
+                        font.pixelSize: Style.space(9)
+                        font.bold: true
+                        color: Qt.darker(root.contentForeground, 1.5)
+                        font.family: root.contentFontFamily
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "· Loading…"
+                        font.pixelSize: Style.space(8)
+                        font.italic: true
+                        color: Qt.darker(root.contentForeground, 1.8)
+                        font.family: root.contentFontFamily
+                        visible: !!root.playerStatsLoading
+                      }
                     }
 
                     // Season Year and Prev/Next Toggle Buttons (Right-aligned)

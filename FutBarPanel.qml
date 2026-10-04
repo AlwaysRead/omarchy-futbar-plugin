@@ -6967,6 +6967,9 @@ onStreamFinished: root.warnStderr("", text)
 
             root.selectedPlayerProfile = Object.assign({}, prof)
             root.playerStatsLoading = false
+            if (root.searchPlayerStatsTab === "career") {
+              root.applyPlayerStatsView()
+            }
           }
         } catch (e) {}
       }
@@ -6977,14 +6980,19 @@ onStreamFinished: root.warnStderr("", text)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedPlayerProfile) return
+        var curCmd = searchPlayerSeasonStatsRequest.command
+        var curCompUrl = (curCmd && curCmd.length > 0) ? curCmd[curCmd.length - 1] : ""
+        if (typeof text !== "string" || text.length === 0 || text.length > 2097152 || !root.selectedPlayerProfile) {
+          if (curCompUrl !== "") {
+            if (!root.playerCompStatCache) root.playerCompStatCache = ({})
+            root.playerCompStatCache[curCompUrl] = ({})
+          }
+          root.playerStatsLoading = false
+          return
+        }
         try {
           var data = JSON.parse(text)
           var cats = data && Array.isArray(data.splits && data.splits.categories) ? data.splits.categories : []
-          if (!cats || cats.length === 0) {
-            root.playerStatsLoading = false
-            return
-          }
           var statMap = {}
           for (var ci = 0; ci < cats.length; ci++) {
             var stList = cats[ci].stats || []
@@ -6992,14 +7000,16 @@ onStreamFinished: root.warnStderr("", text)
               statMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
             }
           }
-          var curCmd = searchPlayerSeasonStatsRequest.command
-          var curCompUrl = (curCmd && curCmd.length > 0) ? curCmd[curCmd.length - 1] : ""
           if (curCompUrl !== "") {
             if (!root.playerCompStatCache) root.playerCompStatCache = ({})
             root.playerCompStatCache[curCompUrl] = statMap
           }
           root.applyPlayerStatsView()
         } catch (e) {
+          if (curCompUrl !== "") {
+            if (!root.playerCompStatCache) root.playerCompStatCache = ({})
+            root.playerCompStatCache[curCompUrl] = ({})
+          }
           root.playerStatsLoading = false
         }
       }
@@ -7007,6 +7017,12 @@ onStreamFinished: root.warnStderr("", text)
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        var curCmd = searchPlayerSeasonStatsRequest.command
+        var curCompUrl = (curCmd && curCmd.length > 0) ? curCmd[curCmd.length - 1] : ""
+        if (curCompUrl !== "") {
+          if (!root.playerCompStatCache) root.playerCompStatCache = ({})
+          root.playerCompStatCache[curCompUrl] = ({})
+        }
         root.playerStatsLoading = false
       }
     }
@@ -7018,20 +7034,22 @@ onStreamFinished: root.warnStderr("", text)
       waitForEnd: true
       onStreamFinished: {
         var curUrl = (root.playerCompStatQueue && root.playerCompStatQueue.length > 0) ? root.playerCompStatQueue.shift() : ""
-        if (curUrl !== "" && typeof text === "string" && text.length > 0 && text.length <= 2097152) {
-          try {
-            var data = JSON.parse(text)
-            var cats = data && Array.isArray(data.splits && data.splits.categories) ? data.splits.categories : []
-            var statMap = {}
-            for (var ci = 0; ci < cats.length; ci++) {
-              var stList = cats[ci].stats || []
-              for (var si = 0; si < stList.length; si++) {
-                statMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
+        if (curUrl !== "") {
+          var statMap = {}
+          if (typeof text === "string" && text.length > 0 && text.length <= 2097152) {
+            try {
+              var data = JSON.parse(text)
+              var cats = data && Array.isArray(data.splits && data.splits.categories) ? data.splits.categories : []
+              for (var ci = 0; ci < cats.length; ci++) {
+                var stList = cats[ci].stats || []
+                for (var si = 0; si < stList.length; si++) {
+                  statMap[stList[si].name] = String(stList[si].displayValue !== undefined ? stList[si].displayValue : stList[si].value)
+                }
               }
-            }
-            if (!root.playerCompStatCache) root.playerCompStatCache = ({})
-            root.playerCompStatCache[curUrl] = statMap
-          } catch (e) {}
+            } catch (e) {}
+          }
+          if (!root.playerCompStatCache) root.playerCompStatCache = ({})
+          root.playerCompStatCache[curUrl] = statMap
         }
         root.applyPlayerStatsView()
         root._fetchNextCompQueue()
@@ -7040,7 +7058,12 @@ onStreamFinished: root.warnStderr("", text)
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (root.playerCompStatQueue && root.playerCompStatQueue.length > 0) root.playerCompStatQueue.shift()
+        var curUrl = (root.playerCompStatQueue && root.playerCompStatQueue.length > 0) ? root.playerCompStatQueue.shift() : ""
+        if (curUrl !== "") {
+          if (!root.playerCompStatCache) root.playerCompStatCache = ({})
+          root.playerCompStatCache[curUrl] = ({})
+        }
+        root.applyPlayerStatsView()
         root._fetchNextCompQueue()
       }
     }
@@ -8887,6 +8910,9 @@ onStreamFinished: root.warnStderr("", text)
         root.selectedPlayerProfile = Object.assign({}, prof)
       }
     }
+    if (tab === "career") {
+      root.ensurePlayerStats()
+    }
     root.applyPlayerStatsView()
   }
 
@@ -8911,13 +8937,15 @@ onStreamFinished: root.warnStderr("", text)
       var u = urls[i]
       if (!u) continue
       if (root.playerCompStatCache && root.playerCompStatCache[u]) continue
-      if (root.playerCompStatQueue.indexOf(u) === -1) {
-        toQueue.push(u)
-      }
+      if (toQueue.indexOf(u) === -1) toQueue.push(u)
     }
     if (toQueue.length === 0) return
-    root.playerCompStatQueue = root.playerCompStatQueue.concat(toQueue)
-    if (!searchCompQueueRequest.running) {
+    if (searchCompQueueRequest.running && root.playerCompStatQueue.length > 0) {
+      var running = root.playerCompStatQueue[0]
+      var rest = root.playerCompStatQueue.slice(1).filter(function(x) { return toQueue.indexOf(x) === -1 })
+      root.playerCompStatQueue = [running].concat(toQueue, rest)
+    } else {
+      root.playerCompStatQueue = toQueue
       root._fetchNextCompQueue()
     }
   }
@@ -8937,42 +8965,32 @@ onStreamFinished: root.warnStderr("", text)
     var prof = root.selectedPlayerProfile
     if (!prof) return
 
-    if (statMap["appearances"] || statMap["starts"]) prof.seasonAppearances = statMap["appearances"] || statMap["starts"]
-    else prof.seasonAppearances = "0"
-
-    if (statMap["totalGoals"] !== undefined) prof.seasonGoals = statMap["totalGoals"]
-    else prof.seasonGoals = "0"
-
-    if (statMap["goalAssists"] !== undefined) prof.seasonAssists = statMap["goalAssists"]
-    else prof.seasonAssists = "0"
-
-    if (statMap["shotAssists"] !== undefined) prof.seasonKeyPasses = statMap["shotAssists"]
-    else prof.seasonKeyPasses = "0"
-
-    if (statMap["passPct"]) prof.seasonPassPct = Math.round(parseFloat(statMap["passPct"]) * 100) + "%"
-    if (statMap["effectiveTackles"] || statMap["totalTackles"]) prof.seasonTackles = statMap["effectiveTackles"] || statMap["totalTackles"]
-    if (statMap["interceptions"]) prof.seasonInterceptions = statMap["interceptions"]
-    if (statMap["totalShots"] !== undefined) prof.seasonShots = statMap["totalShots"]
-    if (statMap["shotsOnTarget"] !== undefined) prof.seasonShotsOnTarget = statMap["shotsOnTarget"]
-    if (statMap["saves"]) prof.seasonSaves = statMap["saves"]
-    if (statMap["cleanSheet"]) prof.seasonCleanSheets = statMap["cleanSheet"]
-    if (statMap["bigChanceCreated"]) prof.seasonChances = statMap["bigChanceCreated"]
+    prof.seasonAppearances = (statMap["appearances"] || statMap["starts"]) ? String(statMap["appearances"] || statMap["starts"]) : "0"
+    prof.seasonGoals = statMap["totalGoals"] !== undefined ? String(statMap["totalGoals"]) : "0"
+    prof.seasonAssists = statMap["goalAssists"] !== undefined ? String(statMap["goalAssists"]) : "0"
+    prof.seasonKeyPasses = statMap["shotAssists"] !== undefined ? String(statMap["shotAssists"]) : "0"
+    prof.seasonPassPct = statMap["passPct"] ? (Math.round(parseFloat(statMap["passPct"]) * 100) + "%") : ""
+    prof.seasonTackles = (statMap["effectiveTackles"] || statMap["totalTackles"]) ? String(statMap["effectiveTackles"] || statMap["totalTackles"]) : ""
+    prof.seasonInterceptions = statMap["interceptions"] ? String(statMap["interceptions"]) : ""
+    prof.seasonShots = statMap["totalShots"] !== undefined ? String(statMap["totalShots"]) : "0"
+    prof.seasonShotsOnTarget = statMap["shotsOnTarget"] !== undefined ? String(statMap["shotsOnTarget"]) : "0"
+    prof.seasonSaves = statMap["saves"] ? String(statMap["saves"]) : ""
+    prof.seasonCleanSheets = statMap["cleanSheet"] ? String(statMap["cleanSheet"]) : ""
+    prof.seasonChances = statMap["bigChanceCreated"] ? String(statMap["bigChanceCreated"]) : ""
 
     // Discipline & Workload
-    if (statMap["yellowCards"] !== undefined) prof.seasonYellowCards = statMap["yellowCards"]
-    else prof.seasonYellowCards = "0"
-    if (statMap["redCards"] !== undefined) prof.seasonRedCards = statMap["redCards"]
-    else prof.seasonRedCards = "0"
+    prof.seasonYellowCards = statMap["yellowCards"] !== undefined ? String(statMap["yellowCards"]) : "0"
+    prof.seasonRedCards = statMap["redCards"] !== undefined ? String(statMap["redCards"]) : "0"
 
     var fc = statMap["foulsCommitted"] !== undefined ? statMap["foulsCommitted"] : "0"
     var fs = statMap["foulsSuffered"] !== undefined ? statMap["foulsSuffered"] : "0"
     prof.seasonFouls = fc + " / " + fs
-    prof.seasonFoulsCommitted = fc
-    prof.seasonFoulsSuffered = fs
+    prof.seasonFoulsCommitted = String(fc)
+    prof.seasonFoulsSuffered = String(fs)
 
     if (statMap["minutes"] !== undefined && parseInt(statMap["minutes"]) > 0) {
-      prof.seasonMinutes = statMap["minutes"]
-      var aInt = parseInt(statMap["appearances"] || statMap["starts"] || prof.seasonAppearances || "0")
+      prof.seasonMinutes = String(statMap["minutes"])
+      var aInt = parseInt(prof.seasonAppearances || "0")
       var mInt = parseInt(statMap["minutes"])
       if (mInt > 0 && aInt > 0) {
         prof.seasonMinPerApp = Math.round(mInt / aInt) + "'"
@@ -8986,14 +9004,14 @@ onStreamFinished: root.warnStderr("", text)
 
     var subIn = statMap["subIns"] || "0"
     var subOut = statMap["subOuts"] || "0"
-    prof.seasonSubIns = subIn
-    prof.seasonSubOuts = subOut
+    prof.seasonSubIns = String(subIn)
+    prof.seasonSubOuts = String(subOut)
     prof.seasonSubs = String((parseInt(subIn) || 0) + (parseInt(subOut) || 0))
 
     // Shot & Passing Efficiency
-    var curGoals = parseFloat(statMap["totalGoals"] !== undefined ? statMap["totalGoals"] : (prof.seasonGoals || "0"))
-    var curShots = parseFloat(statMap["totalShots"] !== undefined ? statMap["totalShots"] : (prof.seasonShots || "0"))
-    var curSog = parseFloat(statMap["shotsOnTarget"] !== undefined ? statMap["shotsOnTarget"] : (prof.seasonShotsOnTarget || "0"))
+    var curGoals = parseFloat(prof.seasonGoals || "0")
+    var curShots = parseFloat(prof.seasonShots || "0")
+    var curSog = parseFloat(prof.seasonShotsOnTarget || "0")
     if (curShots > 0 && curGoals >= 0) {
       prof.goalConversionRate = ((curGoals / curShots) * 100).toFixed(1) + "%"
     } else {
@@ -9009,10 +9027,8 @@ onStreamFinished: root.warnStderr("", text)
 
     var lb = statMap["accurateLongBalls"] || statMap["totalLongBalls"]
     var kp = statMap["shotAssists"]
-    if (lb !== undefined && lb !== "") prof.longBalls = lb
-    else prof.longBalls = "0"
-    if (kp !== undefined && kp !== "") prof.keyPasses = kp
-    else prof.keyPasses = "0"
+    prof.longBalls = (lb !== undefined && lb !== "") ? String(lb) : "0"
+    prof.keyPasses = (kp !== undefined && kp !== "") ? String(kp) : "0"
     if (prof.longBalls && prof.keyPasses && (prof.longBalls !== "0" || prof.keyPasses !== "0")) {
       prof.passDistribution = prof.longBalls + " LB · " + prof.keyPasses + " KP"
     } else {
@@ -9024,7 +9040,6 @@ onStreamFinished: root.warnStderr("", text)
     if (label) prof.selectedSeasonYear = label
 
     root.selectedPlayerProfile = Object.assign({}, prof)
-    root.playerStatsLoading = false
   }
 
   function applyPlayerStatsView() {
@@ -9039,6 +9054,10 @@ onStreamFinished: root.warnStderr("", text)
     if (root.searchPlayerStatsTab === "career") {
       if (prof.careerStatMap) {
         root.applySingleStatMap(prof.careerStatMap, "Career")
+        root.playerStatsLoading = false
+      } else {
+        root.playerStatsLoading = true
+        root.ensurePlayerStats()
       }
       return
     }
@@ -9052,11 +9071,8 @@ onStreamFinished: root.warnStderr("", text)
     } else if (root.searchPlayerStatsTab === "tournament") {
       var cIdx = prof.selectedCompIndex || 0
       if (cIdx < 0 || cIdx >= allComps.length) cIdx = 0
-      if (allComps.length > 0) {
-        comps = [allComps[cIdx]]
-      } else {
-        comps = []
-      }
+      if (allComps.length > 0) comps = [allComps[cIdx]]
+      else comps = []
     } else {
       comps = allComps
     }
@@ -9064,67 +9080,39 @@ onStreamFinished: root.warnStderr("", text)
     var sLabel = season.seasonYear || String(season.year)
     prof.selectedSeasonYear = sLabel
 
+    var emptyMap = {
+      appearances: "0", totalGoals: "0", goalAssists: "0", shotAssists: "0",
+      minutes: "0", yellowCards: "0", redCards: "0", foulsCommitted: "0",
+      foulsSuffered: "0", subIns: "0", subOuts: "0", totalShots: "0",
+      shotsOnTarget: "0", accurateLongBalls: "0", effectiveTackles: "",
+      interceptions: "", saves: "", cleanSheet: "", bigChanceCreated: "", passPct: ""
+    }
+
     if (comps.length === 0) {
-      var emptyMap = {
-        appearances: "0",
-        totalGoals: "0",
-        goalAssists: "0",
-        shotAssists: "0",
-        minutes: "0",
-        yellowCards: "0",
-        redCards: "0",
-        foulsCommitted: "0",
-        foulsSuffered: "0",
-        subIns: "0",
-        subOuts: "0",
-        totalShots: "0",
-        shotsOnTarget: "0",
-        accurateLongBalls: "0",
-        effectiveTackles: "0",
-        interceptions: "0",
-        saves: "0",
-        cleanSheet: "0",
-        bigChanceCreated: "0",
-        passPct: ""
-      }
       root.applySingleStatMap(emptyMap, sLabel)
       root.playerStatsLoading = false
       return
     }
 
     var sumMap = {
-      appearances: 0,
-      totalGoals: 0,
-      goalAssists: 0,
-      shotAssists: 0,
-      minutes: 0,
-      yellowCards: 0,
-      redCards: 0,
-      foulsCommitted: 0,
-      foulsSuffered: 0,
-      subIns: 0,
-      subOuts: 0,
-      totalShots: 0,
-      shotsOnTarget: 0,
-      accurateLongBalls: 0,
-      effectiveTackles: 0,
-      interceptions: 0,
-      saves: 0,
-      cleanSheet: 0,
-      bigChanceCreated: 0,
-      accuratePasses: 0,
-      totalPasses: 0
+      appearances: 0, totalGoals: 0, goalAssists: 0, shotAssists: 0,
+      minutes: 0, yellowCards: 0, redCards: 0, foulsCommitted: 0,
+      foulsSuffered: 0, subIns: 0, subOuts: 0, totalShots: 0,
+      shotsOnTarget: 0, accurateLongBalls: 0, effectiveTackles: 0,
+      interceptions: 0, saves: 0, cleanSheet: 0, bigChanceCreated: 0,
+      accuratePasses: 0, totalPasses: 0
     }
 
     var pendingUrls = []
     var anyCached = false
+    var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
+
     for (var ci = 0; ci < comps.length; ci++) {
       var curl = comps[ci].url
       if (!curl) continue
       var cached = root.playerCompStatCache ? root.playerCompStatCache[curl] : null
       if (cached) {
         anyCached = true
-        var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
         sumMap.appearances += num(cached["appearances"] || cached["starts"])
         sumMap.totalGoals += num(cached["totalGoals"])
         sumMap.goalAssists += num(cached["goalAssists"])
@@ -9167,17 +9155,20 @@ onStreamFinished: root.warnStderr("", text)
         totalShots: String(sumMap.totalShots),
         shotsOnTarget: String(sumMap.shotsOnTarget),
         accurateLongBalls: String(sumMap.accurateLongBalls),
-        effectiveTackles: String(sumMap.effectiveTackles),
-        interceptions: String(sumMap.interceptions),
-        saves: String(sumMap.saves),
-        cleanSheet: String(sumMap.cleanSheet),
-        bigChanceCreated: String(sumMap.bigChanceCreated),
+        effectiveTackles: sumMap.effectiveTackles > 0 ? String(sumMap.effectiveTackles) : "",
+        interceptions: sumMap.interceptions > 0 ? String(sumMap.interceptions) : "",
+        saves: sumMap.saves > 0 ? String(sumMap.saves) : "",
+        cleanSheet: sumMap.cleanSheet > 0 ? String(sumMap.cleanSheet) : "",
+        bigChanceCreated: sumMap.bigChanceCreated > 0 ? String(sumMap.bigChanceCreated) : "",
         passPct: (sumMap.totalPasses > 0) ? String(sumMap.accuratePasses / sumMap.totalPasses) : ""
       }
       root.applySingleStatMap(statMapCombined, sLabel)
+    } else {
+      root.applySingleStatMap(emptyMap, sLabel)
     }
 
     if (pendingUrls.length > 0) {
+      root.playerStatsLoading = true
       root.fetchPendingCompStats(pendingUrls)
     } else {
       root.playerStatsLoading = false
@@ -9215,72 +9206,24 @@ onStreamFinished: root.warnStderr("", text)
     root.resetPanelScroll()
     root.selectedPlayerProfile = {
       fullName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
-      jersey: "",
-      age: "",
-      position: "",
-      displayHeight: "",
-      displayWeight: "",
-      citizenship: "",
-      birthplace: "",
-      dateOfBirth: "",
-      status: "Active",
-      headshot: item ? item.image : "",
-      flag: "",
+      jersey: "", age: "", position: "", displayHeight: "", displayWeight: "",
+      citizenship: "", birthplace: "", dateOfBirth: "", status: "Active",
+      headshot: item ? item.image : "", flag: "",
       teamName: item ? root.sanitizePlainText(String(item.subtitle || "")) : "",
-      teamCrest: "",
-      leagueName: item ? root.sanitizePlainText(String(item.description || "")) : "",
-      careerAppearances: "",
-      careerGoals: "",
-      careerAssists: "",
-      careerKeyPasses: "",
-      careerPasses: "",
-      careerPassPct: "",
-      careerFreeKicks: "",
-      careerTackles: "",
-      careerInterceptions: "",
-      careerShots: "",
-      careerShotsOnTarget: "",
-      careerSaves: "",
-      careerCleanSheets: "",
-      careerHistory: [],
-      seasonAppearances: "",
-      seasonGoals: "",
-      seasonAssists: "",
-      seasonMinutes: "",
-      seasonSubIns: "",
-      seasonSubOuts: "",
-      careerStatMap: null,
-      seasonStatMap: null,
-      teamSeasonMap: null,
-      careerAggDone: false,
-      clubOptions: [],
-      clubStatMap: null,
-      clubAggCache: ({}),
-      clubFilterId: "all",
-      clubFilterLoading: false,
-      transferInfo: "",
-      transferFetched: false,
-      transferHistory: [],
-      recentMatches: [],
-      nationalTeams: [],
-      overviewNatCaps: 0,
-      overviewNatGoals: 0,
-      seasonYellowCards: "",
-      seasonRedCards: "",
-      seasonFouls: "",
-      seasonMinPerApp: "",
-      seasonSubs: "",
-      goalConversionRate: "",
-      shotAccuracy: "",
-      longBalls: "",
-      keyPasses: "",
-      passDistribution: "",
-      availableSeasons: [],
-      selectedSeasonIndex: 0,
-      selectedCompIndex: 0,
-      selectedSeasonYear: "",
-      seasonStatCache: ({}),
-      webUrl: item.webUrl
+      teamCrest: "", leagueName: item ? root.sanitizePlainText(String(item.description || "")) : "",
+      careerAppearances: "", careerGoals: "", careerAssists: "", careerKeyPasses: "",
+      careerPasses: "", careerPassPct: "", careerFreeKicks: "", careerTackles: "",
+      careerInterceptions: "", careerShots: "", careerShotsOnTarget: "", careerSaves: "",
+      careerCleanSheets: "", careerHistory: [], seasonAppearances: "", seasonGoals: "",
+      seasonAssists: "", seasonMinutes: "", seasonSubIns: "", seasonSubOuts: "",
+      careerStatMap: null, seasonStatMap: null, teamSeasonMap: null, careerAggDone: false,
+      clubOptions: [], clubStatMap: null, clubAggCache: ({}), clubFilterId: "all",
+      clubFilterLoading: false, transferInfo: "", transferFetched: false, transferHistory: [],
+      recentMatches: [], nationalTeams: [], overviewNatCaps: 0, overviewNatGoals: 0,
+      seasonYellowCards: "", seasonRedCards: "", seasonFouls: "", seasonMinPerApp: "",
+      seasonSubs: "", goalConversionRate: "", shotAccuracy: "", longBalls: "", keyPasses: "",
+      passDistribution: "", availableSeasons: [], selectedSeasonIndex: 0, selectedCompIndex: 0,
+      selectedSeasonYear: "", seasonStatCache: ({}), webUrl: item.webUrl
     }
 
     if (item.id && root._playerCache[item.id]) {
@@ -9712,68 +9655,20 @@ onStreamFinished: root.warnStderr("", text)
     root.selectedClubProfile = {
       id: item ? item.id : "",
       displayName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
-      nickname: "",
-      leagueName: item ? root.sanitizePlainText(String(item.subtitle || "")) : "",
-      abbreviation: "",
-      location: "",
-      leagueSlug: lg,
-      ppg: "",
-      rank: "",
-      rankChange: "",
-      gamesPlayed: "",
-      streak: "",
-      deductions: "",
-      possession: "",
-      shotsPerGame: "",
-      shotsOnTarget: "",
-      expectedGoals: "",
-      expectedGoalsAgainst: "",
-      bigChances: "",
-      goalConversion: "",
-      duelWinPct: "",
-      passPct: "",
-      cleanSheets: "",
-      tackles: "",
-      interceptions: "",
-      topScorer: "",
-      topAssister: "",
-      topCarder: "",
-      squadSize: 0,
-      nationalitiesCount: 0,
-      averageAge: "",
-      recentMatches: [],
-      upcomingFixtures: [],
-      rosterGoalkeepers: [],
-      rosterDefenders: [],
-      rosterMidfielders: [],
-      rosterForwards: [],
-      rosterAll: [],
-      manager: "",
-      technicalStaff: [],
-      yellowCards: "",
-      redCards: "",
-      secondYellow: "",
-      disciplinaryPoints: "",
-      foulsCommitted: "",
-      webUrl: item ? (item.webUrl || "") : "",
-      standingSummary: "",
-      record: "",
-      points: "",
-      wins: "",
-      ties: "",
-      losses: "",
-      diff: "",
-      goalsFor: "",
-      goalsAgainst: "",
-      homeRecord: "",
-      awayRecord: "",
-      venue: "",
-      nextEvent: "",
-      nextEventDate: "",
-      logo: item ? (item.image || "") : "",
-      color: "",
-      alternateColor: "",
-      form: ""
+      nickname: "", leagueName: item ? root.sanitizePlainText(String(item.subtitle || "")) : "",
+      abbreviation: "", location: "", leagueSlug: lg, ppg: "", rank: "", rankChange: "",
+      gamesPlayed: "", streak: "", deductions: "", possession: "", shotsPerGame: "",
+      shotsOnTarget: "", expectedGoals: "", expectedGoalsAgainst: "", bigChances: "",
+      goalConversion: "", duelWinPct: "", passPct: "", cleanSheets: "", tackles: "",
+      interceptions: "", topScorer: "", topAssister: "", topCarder: "", squadSize: 0,
+      nationalitiesCount: 0, averageAge: "", recentMatches: [], upcomingFixtures: [],
+      rosterGoalkeepers: [], rosterDefenders: [], rosterMidfielders: [], rosterForwards: [],
+      rosterAll: [], manager: "", technicalStaff: [], yellowCards: "", redCards: "",
+      secondYellow: "", disciplinaryPoints: "", foulsCommitted: "",
+      webUrl: item ? (item.webUrl || "") : "", standingSummary: "", record: "",
+      points: "", wins: "", ties: "", losses: "", diff: "", goalsFor: "", goalsAgainst: "",
+      homeRecord: "", awayRecord: "", venue: "", nextEvent: "", nextEventDate: "",
+      logo: item ? (item.image || "") : "", color: "", alternateColor: "", form: ""
     }
 
     if (!item || !item.id || item.id === "") {
