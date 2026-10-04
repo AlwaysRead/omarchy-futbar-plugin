@@ -1092,9 +1092,9 @@ Column {
                       Text { textFormat: Text.PlainText; text: "APPS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
                         textFormat: Text.PlainText
-                        text: (root.selectedPlayerProfile && root.searchPlayerStatsTab !== "career" && root.selectedPlayerProfile.seasonAppearances !== undefined)
-                          ? String(root.selectedPlayerProfile.seasonAppearances)
-                          : ((root.selectedPlayerProfile && root.selectedPlayerProfile.careerAppearances) ? String(root.selectedPlayerProfile.careerAppearances) : "—")
+                        text: (root.selectedPlayerProfile && root.searchPlayerStatsTab === "career")
+                          ? ((root.selectedPlayerProfile.careerAppearances && root.selectedPlayerProfile.careerAppearances !== "") ? String(root.selectedPlayerProfile.careerAppearances) : "—")
+                          : ((root.selectedPlayerProfile && root.selectedPlayerProfile.seasonAppearances !== undefined && root.selectedPlayerProfile.seasonAppearances !== "") ? String(root.selectedPlayerProfile.seasonAppearances) : "0")
                         font.pixelSize: Style.font.caption
                         font.bold: true
                         color: root.contentForeground
@@ -1107,9 +1107,9 @@ Column {
                       Text { textFormat: Text.PlainText; text: "GOALS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
                         textFormat: Text.PlainText
-                        text: (root.selectedPlayerProfile && root.searchPlayerStatsTab !== "career" && root.selectedPlayerProfile.seasonGoals !== undefined)
-                          ? String(root.selectedPlayerProfile.seasonGoals)
-                          : ((root.selectedPlayerProfile && root.selectedPlayerProfile.careerGoals) ? String(root.selectedPlayerProfile.careerGoals) : "—")
+                        text: (root.selectedPlayerProfile && root.searchPlayerStatsTab === "career")
+                          ? ((root.selectedPlayerProfile.careerGoals && root.selectedPlayerProfile.careerGoals !== "") ? String(root.selectedPlayerProfile.careerGoals) : "—")
+                          : ((root.selectedPlayerProfile && root.selectedPlayerProfile.seasonGoals !== undefined && root.selectedPlayerProfile.seasonGoals !== "") ? String(root.selectedPlayerProfile.seasonGoals) : "0")
                         font.pixelSize: Style.font.caption
                         font.bold: true
                         color: root.favoriteTeamAccent
@@ -1122,9 +1122,9 @@ Column {
                       Text { textFormat: Text.PlainText; text: "ASSISTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
                         textFormat: Text.PlainText
-                        text: (root.selectedPlayerProfile && root.searchPlayerStatsTab !== "career" && root.selectedPlayerProfile.seasonAssists !== undefined)
-                          ? String(root.selectedPlayerProfile.seasonAssists)
-                          : ((root.selectedPlayerProfile && root.selectedPlayerProfile.careerAssists) ? String(root.selectedPlayerProfile.careerAssists) : "—")
+                        text: (root.selectedPlayerProfile && root.searchPlayerStatsTab === "career")
+                          ? ((root.selectedPlayerProfile.careerAssists && root.selectedPlayerProfile.careerAssists !== "") ? String(root.selectedPlayerProfile.careerAssists) : "—")
+                          : ((root.selectedPlayerProfile && root.selectedPlayerProfile.seasonAssists !== undefined && root.selectedPlayerProfile.seasonAssists !== "") ? String(root.selectedPlayerProfile.seasonAssists) : "0")
                         font.pixelSize: Style.font.caption
                         font.bold: true
                         color: root.contentForeground

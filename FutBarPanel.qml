@@ -1295,6 +1295,10 @@ Panel {
   property string statsPlayerKey: ""
   property string statsPlayerLeague: ""
   property bool playerStatsLoading: false
+  onPlayerStatsLoadingChanged: {
+    if (playerStatsLoading) playerStatsTimeoutTimer.restart()
+    else playerStatsTimeoutTimer.stop()
+  }
   property var playerCompStatQueue: []
   property var playerCompStatCache: ({})
   property string clubNamesResolvedFor: ""
@@ -6939,17 +6943,6 @@ onStreamFinished: root.warnStderr("", text)
             if (prof.longBalls && prof.keyPasses) {
               prof.passDistribution = prof.longBalls + " LB · " + prof.keyPasses + " KP"
             }
-            if (statMap["subIns"] || statMap["subOuts"]) {
-              prof.seasonSubIns = String(statMap["subIns"] || "0")
-              prof.seasonSubOuts = String(statMap["subOuts"] || "0")
-              prof.seasonSubs = String((parseInt(prof.seasonSubIns) || 0) + (parseInt(prof.seasonSubOuts) || 0))
-            }
-            if (statMap["yellowCards"] && (!prof.seasonYellowCards || prof.seasonYellowCards === "0")) {
-              prof.seasonYellowCards = String(statMap["yellowCards"])
-            }
-            if (statMap["redCards"] && (!prof.seasonRedCards || prof.seasonRedCards === "0")) {
-              prof.seasonRedCards = String(statMap["redCards"])
-            }
             if ((!prof.goalConversionRate || prof.goalConversionRate === "—") && prof.careerShots && prof.careerGoals) {
               var cShots = parseFloat(prof.careerShots) || 0
               var cGoals = parseFloat(prof.careerGoals) || 0
@@ -7014,18 +7007,6 @@ onStreamFinished: root.warnStderr("", text)
         }
       }
     }
-    stderr: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var curCmd = searchPlayerSeasonStatsRequest.command
-        var curCompUrl = (curCmd && curCmd.length > 0) ? curCmd[curCmd.length - 1] : ""
-        if (curCompUrl !== "") {
-          if (!root.playerCompStatCache) root.playerCompStatCache = ({})
-          root.playerCompStatCache[curCompUrl] = ({})
-        }
-        root.playerStatsLoading = false
-      }
-    }
   }
 
   Process {
@@ -7050,18 +7031,6 @@ onStreamFinished: root.warnStderr("", text)
           }
           if (!root.playerCompStatCache) root.playerCompStatCache = ({})
           root.playerCompStatCache[curUrl] = statMap
-        }
-        root.applyPlayerStatsView()
-        root._fetchNextCompQueue()
-      }
-    }
-    stderr: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var curUrl = (root.playerCompStatQueue && root.playerCompStatQueue.length > 0) ? root.playerCompStatQueue.shift() : ""
-        if (curUrl !== "") {
-          if (!root.playerCompStatCache) root.playerCompStatCache = ({})
-          root.playerCompStatCache[curUrl] = ({})
         }
         root.applyPlayerStatsView()
         root._fetchNextCompQueue()
@@ -7826,14 +7795,6 @@ onStreamFinished: root.warnStderr("", text)
         } catch (e) {}
       }
     }
-    stderr: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        if (root.clubAggQueue.length > 0) root.clubAggQueue.shift()
-        var p = root.selectedPlayerProfile
-        if (p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) root._fetchNextClubStat()
-      }
-    }
   }
   Process {
     id: searchCareerAggRequest
@@ -7874,6 +7835,21 @@ onStreamFinished: root.warnStderr("", text)
     onTriggered: {
       root.searchClubLoading = false
       root._clubFetchPending = 0
+    }
+  }
+  Timer {
+    id: playerStatsTimeoutTimer
+    interval: 8000
+    repeat: false
+    onTriggered: {
+      root.playerStatsLoading = false
+      searchCompQueueRequest.running = false
+      root.playerCompStatQueue = []
+      var p = root.selectedPlayerProfile
+      if (p && p.clubFilterLoading) {
+        p.clubFilterLoading = false
+        root.selectedPlayerProfile = Object.assign({}, p)
+      }
     }
   }
 
@@ -8904,6 +8880,8 @@ onStreamFinished: root.warnStderr("", text)
     if (!prof) return
     prof.selectedCompIndex = tIdx
     root.selectedPlayerProfile = Object.assign({}, prof)
+    searchCompQueueRequest.running = false
+    root.playerCompStatQueue = []
     root.applyPlayerStatsView()
   }
 
@@ -8920,6 +8898,8 @@ onStreamFinished: root.warnStderr("", text)
     if (tab === "career") {
       root.ensurePlayerStats()
     }
+    searchCompQueueRequest.running = false
+    root.playerCompStatQueue = []
     root.applyPlayerStatsView()
   }
 
@@ -8933,7 +8913,10 @@ onStreamFinished: root.warnStderr("", text)
 
     prof.selectedSeasonIndex = nextIdx
     prof.selectedCompIndex = 0
+    if (prof.clubFilterId && prof.clubFilterId !== "all") prof.clubFilterId = "all"
     root.selectedPlayerProfile = Object.assign({}, prof)
+    searchCompQueueRequest.running = false
+    root.playerCompStatQueue = []
     root.applyPlayerStatsView()
   }
 
@@ -8947,14 +8930,8 @@ onStreamFinished: root.warnStderr("", text)
       if (toQueue.indexOf(u) === -1) toQueue.push(u)
     }
     if (toQueue.length === 0) return
-    if (searchCompQueueRequest.running && root.playerCompStatQueue.length > 0) {
-      var running = root.playerCompStatQueue[0]
-      var rest = root.playerCompStatQueue.slice(1).filter(function(x) { return toQueue.indexOf(x) === -1 })
-      root.playerCompStatQueue = [running].concat(toQueue, rest)
-    } else {
-      root.playerCompStatQueue = toQueue
-      root._fetchNextCompQueue()
-    }
+    root.playerCompStatQueue = toQueue
+    root._fetchNextCompQueue()
   }
 
   function _fetchNextCompQueue() {
@@ -9176,9 +9153,13 @@ onStreamFinished: root.warnStderr("", text)
 
     if (pendingUrls.length > 0) {
       root.playerStatsLoading = true
-      root.fetchPendingCompStats(pendingUrls)
+      if (!searchCompQueueRequest.running && (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0)) {
+        root.fetchPendingCompStats(pendingUrls)
+      }
     } else {
-      root.playerStatsLoading = false
+      if (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0) {
+        root.playerStatsLoading = false
+      }
     }
   }
 
