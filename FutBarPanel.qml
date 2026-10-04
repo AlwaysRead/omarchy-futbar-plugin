@@ -10185,7 +10185,7 @@ root.warnStderr("team select failed", text)
             width: Style.space(28)
             height: Style.space(28)
             iconText: "󰕲"
-            tooltipText: root.leagueMode ? (root.leagueBrowseAll ? "Daily Slate (m)" : "All League Fixtures (m)") : "League Fixtures (m)"
+            tooltipText: "Fixtures (m)"
             fontFamily: root.contentFontFamily
             foreground: root.contentForeground
             accent: root.contentForeground
