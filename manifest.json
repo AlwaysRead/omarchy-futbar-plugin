@@ -5,7 +5,7 @@
   "version": "2.3.1",
   "author": "devbook",
   "license": "MIT",
-  "description": "Live match center and football tracker with tactical lineups, real-time scores, league tables, and live event alerts.",
+  "description": "Live match center and football tracker with tactical lineups, real-time scores, standings, and live event alerts.",
   "kinds": [
     "bar-widget"
   ],

@@ -2,7 +2,7 @@
 
 ![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version: 2.1.5](https://img.shields.io/badge/Version-2.1.5-green.svg)](manifest.json)
+[![Version: 2.3.1](https://img.shields.io/badge/Version-2.3.1-green.svg)](manifest.json)
 
 **FutBar** is a live football companion and match center engineered for Omarchy. Track live fixtures, tactical pitch formations with athlete kits, minute-by-minute match timelines, head-to-head records, league standings, player leaderboards, and real-time desktop event notifications seamlessly from your top bar. Powered directly by ESPN's public endpoints with zero API costs, no authentication keys, and no account setup required.
 
@@ -34,7 +34,7 @@
 - **Match Timeline & Events**: Visual minute-by-minute timeline tracking goals, penalties, yellow/red cards, substitutions, and half-time/full-time milestones.
 - **Head-to-Head & Team Form**: Detailed past encounter history, win/draw/loss counts, and recent form guide.
 - **Live Text Commentary**: Reverse-chronological commentary feed with highlighted key match moments.
-- **League Standings & Round Fixtures**: Comprehensive league tables with qualification and relegation zone highlights, plus matchweek round browsing.
+- **League Standings & Round Fixtures**: Comprehensive league standings with qualification and relegation zone highlights, plus matchweek round browsing.
 - **Player Leaderboards**: Top scorers, assist leaders, and disciplinary card rankings.
 - **Live Activity Match Tracking**: Toggle match following to receive instant desktop notifications (`notify-send`) on goals, cards, and period changes.
 - **Trending & Live Global Matches**: Dedicated view tracking live, international, and top-tier tournament matches worldwide with live scores, competition badges, quick search, and direct match center navigation.
