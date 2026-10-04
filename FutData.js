@@ -39,8 +39,63 @@
     "rangers": "RAN", "galatasaray": "GAL", "fenerbahçe": "FEN", "beşiktaş": "BJK",
     "al hilal": "HIL", "al nassr": "NAS", "al ittihad": "ITT", "inter miami": "MIA",
     "inter miami cf": "MIA", "la galaxy": "LAG", "lafc": "LAF", "boca juniors": "BOC",
-    "river plate": "RIV", "flamengo": "FLA", "palmeiras": "PAL"
+    "river plate": "RIV", "flamengo": "FLA", "palmeiras": "PAL",
+    "rb salzburg": "RBS", "red bull salzburg": "RBS", "salzburg": "RBS",
+    "molde": "MOL", "molde fk": "MOL", "bryne": "BRY", "bryne fk": "BRY",
+    "santos": "SAN", "santos fc": "SAN", "newell's old boys": "NOB", "newells old boys": "NOB",
+    "rosario central": "ROS", "dinamo zagreb": "DZG", "gnk dinamo zagreb": "DZG",
+    "krc genk": "GNK", "genk": "GNK", "anderlecht": "AND", "rsc anderlecht": "AND",
+    "club brugge": "CLU", "brugge": "CLU", "basel": "BAS", "fc basel": "BAS",
+    "shakhtar donetsk": "SHK", "shakhtar": "SHK", "dynamo kyiv": "DYN",
+    "olympiacos": "OLY", "panathinaikos": "PAO", "slavia prague": "SLA",
+    "sparta prague": "SPA", "young boys": "YB", "bsc young boys": "YB",
+    "red star": "RSB", "crvena zvezda": "CZV",
+    "unattached": "FA", "free agent": "FA", "free transfer": "FA", "without club": "FA"
   };
+
+  function computeClubAbbrev(rawName) {
+    var clean = String(rawName || "")
+      .replace(/^(FC|CF|AFC|SC|AC|CD|CA|RC|UD|RCD|VfB|VfL|TSG|FSV|1\.\s*FC|1\.\s*FSV|SSV|SV)\s+/i, "")
+      .replace(/\s+(FC|CF|AFC|SC|AC|CD|CA|RC|UD|de\s+Fútbol|de\s+Futbol|FK)$/i, "")
+      .replace(/&/g, " ")
+      .trim()
+    var words = clean.split(/[\s\-_]+/).filter(function(w) { return w.length > 0 })
+    if (words.length >= 3) {
+      return (words[0][0] + words[1][0] + words[2][0]).toUpperCase()
+    }
+    if (words.length === 2) {
+      if (words[0].length >= 2) return (words[0].substring(0, 2) + words[1][0]).toUpperCase()
+      return (words[0][0] + words[1].substring(0, 2)).toUpperCase()
+    }
+    if (clean.length >= 3) return clean.substring(0, 3).toUpperCase()
+    return clean.toUpperCase()
+  }
+
+  function getClubAbbrev(name, explicitAbbrev) {
+    var raw = String(name || "").trim()
+    if (raw === "") return ""
+    var lower = raw.toLowerCase()
+    if (knownClubAbbrevs[lower]) return knownClubAbbrevs[lower]
+    if (explicitAbbrev && String(explicitAbbrev).trim() !== "") {
+      var ea = String(explicitAbbrev).trim().toUpperCase()
+      if (ea.length <= 4) return ea
+    }
+    return computeClubAbbrev(raw)
+  }
+
+  function computeClubShort(rawName) {
+    var clean = String(rawName || "")
+      .replace(/^(FC|CF|AFC|SC|AC|CD|CA|RC|UD|RCD|VfB|VfL|TSG|FSV|1\.\s*FC|1\.\s*FSV|SSV|SV)\s+/i, "")
+      .replace(/\s+(FC|CF|AFC|SC|AC|CD|CA|RC|UD|de\s+Fútbol|de\s+Futbol)$/i, "")
+      .replace(/&/g, "and")
+      .trim()
+    var words = clean.split(/[\s\-_]+/).filter(function(w) { return w.length > 0 })
+    if (words.length > 1 && clean.length > 14) {
+      return words[0]
+    }
+    return clean
+  }
+
 
   var knownClubShorts = {
     "arsenal": "Arsenal", "aston villa": "Villa", "afc bournemouth": "Bournemouth", "bournemouth": "Bournemouth",
@@ -544,7 +599,8 @@ var leagues = [
   function isInternationalCompetition(slug, leagueId) {
     var s = String(slug || "").toLowerCase();
     if (s.indexOf("club") !== -1) return false;
-    var intlPrefixes = ["fifa.", "uefa.euro", "uefa.nations", "conmebol.america", "concacaf.gold", "concacaf.nations", "caf.nations", "afc.asian", "fifa.friendly", "global.", "intl."];
+    if (s.indexOf("uefa.europa") !== -1 || s.indexOf("uefa.champions") !== -1 || s.indexOf("uefa.super_cup") !== -1) return false;
+    var intlPrefixes = ["fifa.", "uefa.euro", "uefa.nations", "conmebol.america", "conmebol.copa_america", "concacaf.gold", "concacaf.nations", "caf.nations", "afc.asian", "fifa.friendly", "global.", "intl."];
     for (var i = 0; i < intlPrefixes.length; i++) {
       if (s.indexOf(intlPrefixes[i]) !== -1) return true;
     }
@@ -1004,4 +1060,94 @@ var leagues = [
       curSeriesSummary: curSeriesSummary
     };
   }
+  function formatCompetitionName(lg) {
+    if (!lg || typeof lg !== "string") return { full: "Competition", short: "Comp" };
+    var l = lg.toLowerCase();
+    if (l === "esp.1") return { full: "LaLiga", short: "LaLiga" };
+    if (l === "esp.2") return { full: "LaLiga 2", short: "Segunda" };
+    if (l === "esp.copa_del_rey") return { full: "Copa del Rey", short: "Copa" };
+    if (l === "esp.super_cup") return { full: "Supercopa", short: "Supercopa" };
+    if (l === "esp.joan_gamper") return { full: "Joan Gamper", short: "Gamper" };
+    if (l === "eng.1") return { full: "Premier League", short: "PL" };
+    if (l === "eng.2") return { full: "Championship", short: "Championship" };
+    if (l === "eng.fa") return { full: "FA Cup", short: "FA Cup" };
+    if (l === "eng.league_cup") return { full: "Carabao Cup", short: "EFL Cup" };
+    if (l === "eng.charity") return { full: "Community Shield", short: "Shield" };
+    if (l === "ger.1") return { full: "Bundesliga", short: "Bundesliga" };
+    if (l === "ger.dfb_pokal") return { full: "DFB-Pokal", short: "DFB-Pokal" };
+    if (l === "ger.super_cup") return { full: "DFL-Supercup", short: "Supercup" };
+    if (l === "ita.1") return { full: "Serie A", short: "Serie A" };
+    if (l === "ita.coppa_italia") return { full: "Coppa Italia", short: "Coppa" };
+    if (l === "ita.super_cup") return { full: "Supercoppa", short: "Supercoppa" };
+    if (l === "fra.1") return { full: "Ligue 1", short: "Ligue 1" };
+    if (l === "fra.coupe_de_france") return { full: "Coupe de France", short: "Coupe" };
+    if (l === "fra.trophee_champions") return { full: "Trophée des Champions", short: "Trophée" };
+    if (l === "uefa.champions") return { full: "Champions League", short: "UCL" };
+    if (l === "uefa.europa") return { full: "Europa League", short: "UEL" };
+    if (l === "uefa.europa.conf") return { full: "Conference League", short: "UECL" };
+    if (l === "uefa.super_cup") return { full: "UEFA Super Cup", short: "Super Cup" };
+    if (l === "usa.1") return { full: "MLS", short: "MLS" };
+    if (l === "usa.us_open") return { full: "US Open Cup", short: "US Open" };
+    if (l === "por.1") return { full: "Liga Portugal", short: "Liga PT" };
+    if (l === "ned.1") return { full: "Eredivisie", short: "Eredivisie" };
+    if (l === "sau.1") return { full: "Saudi Pro League", short: "SPL" };
+    if (l === "bra.1") return { full: "Brasileirão", short: "Brasileirão" };
+    if (l === "uefa.euro") return { full: "Euro", short: "Euro" };
+    if (l === "uefa.euroq") return { full: "Euro Qualifiers", short: "Euro Q" };
+    if (l === "fifa.world") return { full: "World Cup", short: "World Cup" };
+    if (l === "fifa.worldq.uefa" || l.indexOf("fifa.worldq") === 0) return { full: "World Cup Qualifiers", short: "WC Q" };
+    if (l === "uefa.nations") return { full: "Nations League", short: "Nations" };
+    if (l === "fifa.friendly") return { full: "Friendly", short: "Friendly" };
+    if (l === "conmebol.america" || l === "conmebol.copa_america") return { full: "Copa América", short: "Copa América" };
+    if (l === "fifa.cwc") return { full: "Club World Cup", short: "CWC" };
+    var pretty = l.replace(/^[a-z0-9_]+\./, "").replace(/_/g, " ");
+    pretty = pretty.charAt(0).toUpperCase() + pretty.slice(1);
+    return { full: pretty, short: pretty.slice(0, 10) };
+  }
+
+  var statGroupDefs = {
+    scoring: [
+      ["Free-kick goals", ["freeKickGoals"]], ["Penalty goals", ["penaltyKickGoals"]],
+      ["Penalties missed", ["penaltyKicksMissed"]], ["Game-winning goals", ["gameWinningGoals"]],
+      ["Headed goals", ["headedGoals"]], ["Left-foot shots", ["leftFootedShots"]],
+      ["Right-foot shots", ["rightFootedShots"]], ["Shots", ["totalShots"]],
+      ["Shots on target", ["shotsOnTarget"]], ["Shot %", ["shotPct"]],
+      ["In-box attempts", ["attemptsInBox"]], ["Out-box attempts", ["attemptsOutBox"]],
+      ["Offsides", ["offsides"]], ["Big chances missed", ["bigChanceMissed"]],
+      ["Shootout goals", ["shootOutGoals"]], ["Shootout misses", ["shootOutMisses"]]
+    ],
+    passing: [
+      ["Accurate passes", ["accuratePasses"]], ["Total passes", ["totalPasses"]],
+      ["Accurate crosses", ["accurateCrosses"]], ["Accurate long balls", ["accurateLongBalls"]],
+      ["Accurate through balls", ["accurateThroughBalls"]], ["Cross %", ["crossPct"]],
+      ["Long-ball %", ["longballPct"]], ["Through-ball %", ["throughBallPct"]],
+      ["Key passes", ["shotAssists"]], ["Big chances created", ["bigChanceCreated"]],
+      ["Second assists", ["secondAssists"]], ["Game-winning assists", ["gameWinningAssists"]]
+    ],
+    defending: [
+      ["Tackles", ["effectiveTackles", "totalTackles"]], ["Tackle %", ["tacklePct"]],
+      ["Interceptions", ["interceptions"]], ["Clearances", ["totalClearance", "effectiveClearance"]],
+      ["Blocked shots", ["blockedShots"]], ["Recoveries", ["recoveries"]],
+      ["Duels won", ["duelsWon"]], ["Duels lost", ["duelsLost"]],
+      ["Tackles lost", ["tacklesLost"]], ["Fouls committed", ["foulsCommitted"]],
+      ["Fouls suffered", ["foulsSuffered"]]
+    ],
+    keeper: [
+      ["Saves", ["saves"]], ["Shots faced", ["shotsFaced"]], ["Goals conceded", ["goalsConceded"]],
+      ["Clean sheets", ["cleanSheet"]], ["Penalty saves", ["penaltyKicksSaved"]],
+      ["Penalties faced", ["penaltyKicksFaced"]], ["Crosses caught", ["crossesCaught"]],
+      ["Punches", ["punches"]], ["Big-chance saves", ["bigChanceSaves"]],
+      ["Shootout saves", ["shootOutKicksSaved"]]
+    ],
+    general: [
+      ["Minutes", ["minutes"]], ["Starts", ["starts"]], ["Sub ins", ["subIns"]],
+      ["Sub outs", ["subOuts"]], ["Wins", ["wins"]], ["Draws", ["draws"]],
+      ["Losses", ["losses"]], ["Yellow cards", ["yellowCards"]], ["Red cards", ["redCards"]],
+      ["Touches", ["touches"]], ["Touches in opp box", ["touchesInOppBox"]],
+      ["Progressive carries", ["progressiveCarries"]], ["Own goals", ["ownGoals"]]
+    ]
+  };
+  var clubAggPyScript = "import sys, json, urllib.request, concurrent.futures\nurls = json.loads(sys.argv[1])\nsums = {}\ncached_map = {}\ndef fetch(u):\n    try:\n        req = urllib.request.Request(u, headers={'User-Agent': 'curl/7.88.1', 'Accept': '*/*'})\n        with urllib.request.urlopen(req, timeout=8) as r:\n            return u, json.loads(r.read())\n    except Exception:\n        return u, None\nwith concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:\n    for u, data in ex.map(fetch, urls):\n        u_stats = {}\n        if data:\n            for c in data.get('splits', {}).get('categories', []):\n                for s in c.get('stats', []):\n                    nm = s.get('name')\n                    val = s.get('displayValue') if s.get('displayValue') is not None else s.get('value')\n                    try: raw = float(str(val).replace(',', ''))\n                    except: continue\n                    u_stats[nm] = str(val)\n                    if not any(x in nm.lower() for x in ['avg', 'time', 'pct']):\n                        sums[nm] = sums.get(nm, 0) + raw\n        cached_map[u] = u_stats\nout = {k: str(round(v)) for k, v in sums.items()}\nif sums.get('totalPasses', 0) > 0 and 'accuratePasses' in sums:\n    out['passPct'] = str(round(sums['accuratePasses'] / sums['totalPasses'] * 100)) + '%'\nprint(json.dumps({'stats': out, 'cached': {k: v for k, v in cached_map.items() if v}}))\n";
+
+  var careerAggPyScript = "import sys, json, urllib.request, concurrent.futures\nurls = json.loads(sys.argv[1])\nsums = {}\ndef fetch(u):\n    try:\n        req = urllib.request.Request(u, headers={'User-Agent': 'curl/7.88.1', 'Accept': '*/*'})\n        with urllib.request.urlopen(req, timeout=8) as r:\n            return json.loads(r.read())\n    except Exception:\n        return None\nwith concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:\n    for data in ex.map(fetch, urls):\n        if data:\n            for c in data.get('splits', {}).get('categories', []):\n                for s in c.get('stats', []):\n                    nm = s.get('name')\n                    if nm in ['goalAssists', 'appearances', 'totalGoals']:\n                        val = s.get('displayValue') if s.get('displayValue') is not None else s.get('value')\n                        try: raw = float(str(val).replace(',', ''))\n                        except: continue\n                        sums[nm] = sums.get(nm, 0) + raw\nprint(json.dumps(sums))\n";
 

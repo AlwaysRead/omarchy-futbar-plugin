@@ -662,6 +662,7 @@ Panel {
   function clearCacheAndReload() {
     root.playerCompStatCache = {}
     root.teamNameCache = {}
+    root.teamAbbrevCache = {}
     root._clubCache = {}
     root._playerCache = {}
     root._leagueStandingsCache = {}
@@ -1304,8 +1305,14 @@ Panel {
   property string clubNamesResolvedFor: ""
   property var clubNameQueue: []
   property var teamNameCache: ({})
+  property var teamAbbrevCache: ({})
+  property var teamShortCache: ({})
   property var transferTeamQueue: []
   property string _transferTeamInFlight: ""
+  property string compStatInFlightUrl: ""
+  property int _compStatRequestGen: 0
+  property int compStatInFlightGen: 0
+  property bool _statsMinAnimActive: false
   property var clubAggQueue: []
   property var clubAggSums: ({})
   property string clubAggTarget: ""
@@ -4825,34 +4832,11 @@ Panel {
   }
 
   function computeClubAbbrev(rawName) {
-    var clean = String(rawName || "")
-      .replace(/^(FC|CF|AFC|SC|AC|CD|CA|RC|UD|RCD|VfB|VfL|TSG|FSV|1\.\s*FC|1\.\s*FSV|SSV|SV)\s+/i, "")
-      .replace(/\s+(FC|CF|AFC|SC|AC|CD|CA|RC|UD|de\s+Fútbol|de\s+Futbol)$/i, "")
-      .replace(/&/g, " ")
-      .trim()
-    var words = clean.split(/[\s\-_]+/).filter(function(w) { return w.length > 0 })
-    if (words.length >= 3) {
-      return (words[0][0] + words[1][0] + words[2][0]).toUpperCase()
-    }
-    if (words.length === 2) {
-      if (words[0].length >= 2) return (words[0].substring(0, 2) + words[1][0]).toUpperCase()
-      return (words[0][0] + words[1].substring(0, 2)).toUpperCase()
-    }
-    if (clean.length >= 3) return clean.substring(0, 3).toUpperCase()
-    return clean.toUpperCase()
+    return FutData.computeClubAbbrev(rawName)
   }
 
   function computeClubShort(rawName) {
-    var clean = String(rawName || "")
-      .replace(/^(FC|CF|AFC|SC|AC|CD|CA|RC|UD|RCD|VfB|VfL|TSG|FSV|1\.\s*FC|1\.\s*FSV|SSV|SV)\s+/i, "")
-      .replace(/\s+(FC|CF|AFC|SC|AC|CD|CA|RC|UD|de\s+Fútbol|de\s+Futbol)$/i, "")
-      .replace(/&/g, "and")
-      .trim()
-    var words = clean.split(/[\s\-_]+/).filter(function(w) { return w.length > 0 })
-    if (words.length > 1 && clean.length > 14) {
-      return words[0]
-    }
-    return clean
+    return FutData.computeClubShort(rawName)
   }
 
   function teamTabLabel(name, league, style, teamId, explicitAbbrev, explicitShort) {
@@ -4865,9 +4849,10 @@ Panel {
     var tKey = root.teamKey(rawName, league || "")
 
     if (s === "abbrev") {
-      if (explicitAbbrev && String(explicitAbbrev).trim() !== "") return String(explicitAbbrev).toUpperCase()
-      if (root._teamAbbrevCache && root._teamAbbrevCache[tKey]) return root._teamAbbrevCache[tKey]
       if (root._knownClubAbbrevs && root._knownClubAbbrevs[lower]) return root._knownClubAbbrevs[lower]
+      if (explicitAbbrev && String(explicitAbbrev).trim() !== "") return String(explicitAbbrev).toUpperCase()
+      if (teamId && root.teamAbbrevCache && root.teamAbbrevCache[teamId]) return root.teamAbbrevCache[teamId]
+      if (root._teamAbbrevCache && root._teamAbbrevCache[tKey]) return root._teamAbbrevCache[tKey]
       return root.computeClubAbbrev(rawName)
     }
 
@@ -7014,8 +6999,11 @@ onStreamFinished: root.warnStderr("", text)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var curUrl = (root.playerCompStatQueue && root.playerCompStatQueue.length > 0) ? root.playerCompStatQueue.shift() : ""
-        if (curUrl !== "") {
+        var finishedUrl = root.compStatInFlightUrl
+        var finishedGen = root.compStatInFlightGen
+        root.compStatInFlightUrl = ""
+        root.compStatInFlightGen = 0
+        if (finishedUrl !== "" && finishedGen === root._compStatRequestGen) {
           var statMap = {}
           if (typeof text === "string" && text.length > 0 && text.length <= 2097152) {
             try {
@@ -7030,87 +7018,121 @@ onStreamFinished: root.warnStderr("", text)
             } catch (e) {}
           }
           if (!root.playerCompStatCache) root.playerCompStatCache = ({})
-          root.playerCompStatCache[curUrl] = statMap
+          root.playerCompStatCache[finishedUrl] = statMap
         }
-        root.applyPlayerStatsView()
-        root._fetchNextCompQueue()
+        if (root._compStatRequestGen === finishedGen) {
+          root.applyPlayerStatsView()
+          root._fetchNextCompQueue()
+        }
       }
     }
   }
 
   function resolveTeamNameFromRef(ref) {
-    if (!ref || typeof ref !== "string") return { name: "", logo: "", id: "" }
+    if (!ref || typeof ref !== "string") return { name: "", shortName: "", abbrev: "", logo: "", id: "" }
     if (ref.indexOf("/faux") !== -1 || ref.indexOf("faux?") !== -1) {
       var dMatch = ref.match(/[?&]displayName=([^&]+)/)
       if (dMatch) {
         try {
-          return { name: decodeURIComponent(dMatch[1].replace(/\+/g, " ")), logo: "", id: "" }
+          var dn = decodeURIComponent(dMatch[1].replace(/\+/g, " "))
+          var dShort = root.teamTabLabel(dn, "", "short")
+          var dAbbr = root.teamTabLabel(dn, "", "abbrev")
+          return { name: dn, shortName: dShort || dn, abbrev: dAbbr || dn, logo: "", id: "" }
         } catch (e) {
-          return { name: dMatch[1].replace(/\+/g, " "), logo: "", id: "" }
+          var dn2 = dMatch[1].replace(/\+/g, " ")
+          var dShort2 = root.teamTabLabel(dn2, "", "short")
+          var dAbbr2 = root.teamTabLabel(dn2, "", "abbrev")
+          return { name: dn2, shortName: dShort2 || dn2, abbrev: dAbbr2 || dn2, logo: "", id: "" }
         }
       }
       var nMatch = ref.match(/[?&]name=([^&]+)/)
       if (nMatch) {
         try {
-          return { name: decodeURIComponent(nMatch[1].replace(/\+/g, " ")), logo: "", id: "" }
+          var nn = decodeURIComponent(nMatch[1].replace(/\+/g, " "))
+          return { name: nn, shortName: root.teamTabLabel(nn, "", "short") || nn, abbrev: root.teamTabLabel(nn, "", "abbrev") || nn, logo: "", id: "" }
         } catch (e) {
-          return { name: nMatch[1].replace(/\+/g, " "), logo: "", id: "" }
+          var nn2 = nMatch[1].replace(/\+/g, " ")
+          return { name: nn2, shortName: root.teamTabLabel(nn2, "", "short") || nn2, abbrev: root.teamTabLabel(nn2, "", "abbrev") || nn2, logo: "", id: "" }
         }
       }
       var lMatch = ref.match(/[?&]location=([^&]+)/)
       if (lMatch) {
         try {
-          return { name: decodeURIComponent(lMatch[1].replace(/\+/g, " ")), logo: "", id: "" }
+          var ln = decodeURIComponent(lMatch[1].replace(/\+/g, " "))
+          return { name: ln, shortName: root.teamTabLabel(ln, "", "short") || ln, abbrev: root.teamTabLabel(ln, "", "abbrev") || ln, logo: "", id: "" }
         } catch (e) {
-          return { name: lMatch[1].replace(/\+/g, " "), logo: "", id: "" }
+          var ln2 = lMatch[1].replace(/\+/g, " ")
+          return { name: ln2, shortName: root.teamTabLabel(ln2, "", "short") || ln2, abbrev: root.teamTabLabel(ln2, "", "abbrev") || ln2, logo: "", id: "" }
         }
       }
       var slugM = ref.match(/[?&]slug=([^&]+)/)
       if (slugM) {
         try {
           var s = decodeURIComponent(slugM[1].replace(/[-_]/g, " "))
-          return { name: s.charAt(0).toUpperCase() + s.slice(1), logo: "", id: "" }
+          var sName = s.charAt(0).toUpperCase() + s.slice(1)
+          return { name: sName, shortName: root.teamTabLabel(sName, "", "short") || sName, abbrev: root.teamTabLabel(sName, "", "abbrev") || sName, logo: "", id: "" }
         } catch (e) {
-          return { name: slugM[1], logo: "", id: "" }
+          return { name: slugM[1], shortName: slugM[1], abbrev: "FA", logo: "", id: "" }
         }
       }
-      return { name: "Unattached", logo: "", id: "" }
+      return { name: "Unattached", shortName: "Free Agent", abbrev: "FA", logo: "", id: "" }
     }
     var tMatch = ref.match(/\/teams\/(\d+)/)
     if (tMatch) {
       var tid = tMatch[1]
       var knownName = ""
+      var knownShort = ""
+      var knownAbbr = ""
       if (root.teamNameCache && root.teamNameCache[tid]) {
         knownName = root.teamNameCache[tid]
       } else {
         knownName = root.teamNameForId(tid)
       }
-      if (knownName === "" && root.selectedPlayerProfile) {
+      if (root.teamShortCache && root.teamShortCache[tid]) {
+        knownShort = root.teamShortCache[tid]
+      }
+      if (root.teamAbbrevCache && root.teamAbbrevCache[tid]) {
+        knownAbbr = root.teamAbbrevCache[tid]
+      }
+      if (root.selectedPlayerProfile) {
         var p = root.selectedPlayerProfile
         if (p.clubOptions && Array.isArray(p.clubOptions)) {
           for (var ci = 0; ci < p.clubOptions.length; ci++) {
-            if (String(p.clubOptions[ci].teamId) === String(tid) && p.clubOptions[ci].name) {
-              knownName = p.clubOptions[ci].name
+            if (String(p.clubOptions[ci].teamId) === String(tid)) {
+              if (!knownName && p.clubOptions[ci].name) knownName = p.clubOptions[ci].name
+              if (!knownShort && p.clubOptions[ci].shortName) knownShort = p.clubOptions[ci].shortName
+              if (!knownAbbr && p.clubOptions[ci].abbreviation) knownAbbr = p.clubOptions[ci].abbreviation
               break
             }
           }
         }
-        if (knownName === "" && p.careerHistory && Array.isArray(p.careerHistory)) {
+        if (p.careerHistory && Array.isArray(p.careerHistory)) {
           for (var chi = 0; chi < p.careerHistory.length; chi++) {
-            if (String(p.careerHistory[chi].teamId) === String(tid) && p.careerHistory[chi].name) {
-              knownName = p.careerHistory[chi].name
+            if (String(p.careerHistory[chi].teamId) === String(tid)) {
+              if (!knownName && p.careerHistory[chi].name) knownName = p.careerHistory[chi].name
+              if (!knownShort && p.careerHistory[chi].shortName) knownShort = p.careerHistory[chi].shortName
+              if (!knownAbbr && p.careerHistory[chi].abbreviation) knownAbbr = p.careerHistory[chi].abbreviation
               break
             }
           }
         }
+      }
+      var finalName = knownName !== "" ? knownName : ("Team " + tid)
+      if (!knownShort && finalName) {
+        knownShort = root.teamTabLabel(finalName, "", "short", tid)
+      }
+      if (!knownAbbr && finalName) {
+        knownAbbr = root.teamTabLabel(finalName, "", "abbrev", tid)
       }
       return {
         id: tid,
-        name: knownName !== "" ? knownName : ("Team " + tid),
+        name: finalName,
+        shortName: knownShort || finalName,
+        abbrev: knownAbbr || finalName,
         logo: "https://a.espncdn.com/i/teamlogos/soccer/500/" + tid + ".png"
       }
     }
-    return { name: "", logo: "", id: "" }
+    return { name: "", shortName: "", abbrev: "", logo: "", id: "" }
   }
 
   function formatTransferValue(rawAmt, amtType, currencyObj) {
@@ -7149,122 +7171,6 @@ onStreamFinished: root.warnStderr("", text)
     return "Undisclosed"
   }
 
-  function resolveReportedTransferFee(athleteId, toTeamId, year) {
-    if (!athleteId) return ""
-    var aId = String(athleteId)
-    var tId = String(toTeamId || "")
-    var yr = String(year || "")
-    var map = {
-      // Raphinha (231050)
-      "231050_83": "€58M (~£50M)",
-      "231050_357": "€20M (~£17M)",
-      "231050_2022": "€58M (~£50M)",
-      "231050_2020": "€20M (~£17M)",
-
-      // Erling Haaland (253989)
-      "253989_382": "€60M (~£51.2M)",
-      "253989_124": "€20M",
-      "253989_2022": "€60M (~£51.2M)",
-
-      // Jude Bellingham (291281)
-      "291281_86": "€103M (~£88.5M)",
-      "291281_124": "€30M (~£25M)",
-      "291281_2023": "€103M (~£88.5M)",
-
-      // Declan Rice (238262)
-      "238262_359": "£100M (~€116M)",
-      "238262_2023": "£100M (~€116M)",
-
-      // Harry Kane (142200)
-      "142200_132": "€95M (~£86M)",
-      "142200_2023": "€95M (~£86M)",
-
-      // Moisés Caicedo (289877)
-      "289877_363": "£115M (~€133M)",
-      "289877_331": "€5M",
-      "289877_2023": "£115M (~€133M)",
-
-      // Cole Palmer (296395)
-      "296395_363": "£40M (~€47M)",
-      "296395_2023": "£40M (~€47M)",
-
-      // Julián Álvarez (277206)
-      "277206_1068": "€75M (~£64M)",
-      "277206_382": "€21.4M (~£18M)",
-      "277206_2024": "€75M (~£64M)",
-
-      // Jack Grealish (186640)
-      "186640_382": "£100M (~€117M)",
-      "186640_2021": "£100M (~€117M)",
-
-      // Antony (257008)
-      "257008_360": "€95M (~£82M)",
-      "257008_2022": "€95M (~£82M)",
-
-      // Casemiro (158394)
-      "158394_360": "€70M (~£60M)",
-      "158394_2022": "€70M (~£60M)",
-
-      // Joško Gvardiol (285552)
-      "285552_382": "€90M (~£77M)",
-      "285552_2023": "€90M (~£77M)",
-
-      // Robert Lewandowski (103297)
-      "103297_83": "€45M (~£38M)",
-      "103297_2022": "€45M (~£38M)",
-
-      // Kai Havertz (219438)
-      "219438_359": "£65M (~€75M)",
-      "219438_363": "€80M (~£71M)",
-      "219438_2023": "£65M (~€75M)",
-
-      // Mason Mount (227658)
-      "227658_360": "£55M (~£64M)",
-      "227658_2023": "£55M (~£64M)",
-
-      // Rasmus Højlund (308691)
-      "308691_360": "€75M (~£64M)",
-      "308691_2023": "€75M (~£64M)",
-
-      // Dominik Szoboszlai (250325)
-      "250325_364": "€70M (~£60M)",
-      "250325_2023": "€70M (~£60M)",
-
-      // Alexis Mac Allister (247167)
-      "247167_364": "£35M (~€42M)",
-      "247167_2023": "£35M (~€42M)",
-
-      // Alexander Isak (223403)
-      "223403_361": "€70M (~£60M)",
-      "223403_2022": "€70M (~£60M)",
-
-      // Sandro Tonali (257058)
-      "257058_361": "€70M (~£58M)",
-      "257058_2023": "€70M (~£58M)",
-
-      // Cristiano Ronaldo (22774)
-      "22774_360": "€15M (~£12.8M)",
-      "22774_111": "€100M",
-      "22774_2021": "€15M (~£12.8M)",
-      "22774_2018": "€100M",
-
-      // Neymar (102765)
-      "102765_160": "€222M",
-      "102765_7335": "€90M",
-      "102765_2017": "€222M",
-      "102765_2023": "€90M",
-
-      // Eden Hazard (42786)
-      "42786_86": "€100M (~£88M)",
-      "42786_2019": "€100M (~£88M)",
-
-      // Philippe Coutinho (104336)
-      "104336_83": "€135M (~£120M)",
-      "104336_2018": "€135M (~£120M)"
-    }
-    return (tId !== "" ? map[aId + "_" + tId] : null) || (yr !== "" ? map[aId + "_" + yr] : null) || ""
-  }
-
   function updateTransferTeamNames() {
     var p = root.selectedPlayerProfile
     if (!p || !p.transferHistory || p.transferHistory.length === 0) return
@@ -7272,12 +7178,42 @@ onStreamFinished: root.warnStderr("", text)
     var list = p.transferHistory.slice()
     for (var i = 0; i < list.length; i++) {
       var item = Object.assign({}, list[i])
-      if (item.fromId && root.teamNameCache && root.teamNameCache[item.fromId] && item.fromName !== root.teamNameCache[item.fromId]) {
-        item.fromName = root.teamNameCache[item.fromId]
+      if (item.fromId) {
+        var fn = (root.teamNameCache && root.teamNameCache[item.fromId]) || item.fromName
+        var fShort = (root.teamShortCache && root.teamShortCache[item.fromId]) || root.teamTabLabel(fn, "", "short", item.fromId)
+        var fAbbr = (root.teamAbbrevCache && root.teamAbbrevCache[item.fromId]) || root.teamTabLabel(fn, "", "abbrev", item.fromId)
+        if (item.fromName !== fn || item.fromShort !== fShort || item.fromAbbr !== fAbbr) {
+          item.fromName = fn
+          item.fromShort = fShort
+          item.fromAbbr = fAbbr
+          changed = true
+        }
+      }
+      if (item.toId) {
+        var tn = (root.teamNameCache && root.teamNameCache[item.toId]) || item.toName
+        var tShort = (root.teamShortCache && root.teamShortCache[item.toId]) || root.teamTabLabel(tn, "", "short", item.toId)
+        var tAbbr = (root.teamAbbrevCache && root.teamAbbrevCache[item.toId]) || root.teamTabLabel(tn, "", "abbrev", item.toId)
+        if (item.toName !== tn || item.toShort !== tShort || item.toAbbr !== tAbbr) {
+          item.toName = tn
+          item.toShort = tShort
+          item.toAbbr = tAbbr
+          changed = true
+        }
+      }
+      if (!item.fromShort && item.fromName) {
+        item.fromShort = root.teamTabLabel(item.fromName, "", "short", item.fromId)
         changed = true
       }
-      if (item.toId && root.teamNameCache && root.teamNameCache[item.toId] && item.toName !== root.teamNameCache[item.toId]) {
-        item.toName = root.teamNameCache[item.toId]
+      if (!item.toShort && item.toName) {
+        item.toShort = root.teamTabLabel(item.toName, "", "short", item.toId)
+        changed = true
+      }
+      if (!item.fromAbbr && item.fromName) {
+        item.fromAbbr = root.teamTabLabel(item.fromName, "", "abbrev", item.fromId)
+        changed = true
+      }
+      if (!item.toAbbr && item.toName) {
+        item.toAbbr = root.teamTabLabel(item.toName, "", "abbrev", item.toId)
         changed = true
       }
       list[i] = item
@@ -7287,7 +7223,9 @@ onStreamFinished: root.warnStderr("", text)
       if (list.length > 0) {
         var last = list[0]
         var yr = last.year ? (" (" + last.year + ")") : ""
-        p.transferInfo = (last.fromName || "Unknown") + " → " + (last.toName || "Unknown") + " : " + last.fee + yr
+        var fStr = last.fromShort || last.fromAbbr || last.fromName || "Unknown"
+        var tStr = last.toShort || last.toAbbr || last.toName || "Unknown"
+        p.transferInfo = fStr + " → " + tStr + " : " + last.fee + yr
       }
       root.selectedPlayerProfile = Object.assign({}, p)
     }
@@ -7417,9 +7355,17 @@ onStreamFinished: root.warnStderr("", text)
           try {
             var data = JSON.parse(text)
             var tName = String(data.displayName || data.name || data.shortDisplayName || "")
+            var tShort = String(data.shortDisplayName || data.name || "")
+            var tAbbr = String(data.abbreviation || "")
             if (tName !== "") {
               if (!root.teamNameCache) root.teamNameCache = ({})
               root.teamNameCache[tid] = tName
+              if (!root.teamShortCache) root.teamShortCache = ({})
+              root.teamShortCache[tid] = tShort !== "" ? tShort : root.teamTabLabel(tName, "", "short", tid)
+              if (tAbbr !== "") {
+                if (!root.teamAbbrevCache) root.teamAbbrevCache = ({})
+                root.teamAbbrevCache[tid] = tAbbr.toUpperCase()
+              }
               root.updateTransferTeamNames()
             } else {
               if (!root.teamNameCache) root.teamNameCache = ({})
@@ -7484,10 +7430,6 @@ onStreamFinished: root.warnStderr("", text)
             var athRef = item.athlete && item.athlete["$ref"] ? String(item.athlete["$ref"]) : ""
             var athMatch = athRef.match(/athletes\/(\d+)/)
             var athId = athMatch ? athMatch[1] : (root.statsPlayerKey || "")
-            if (feeVal === "Undisclosed" || feeVal === "Undisclosed Fee") {
-              var repFee = root.resolveReportedTransferFee(athId, toInfo.id, yStr)
-              if (repFee !== "") feeVal = repFee
-            }
 
             if (fromInfo.id && (!root.teamNameCache || !root.teamNameCache[fromInfo.id])) {
               if (root.transferTeamQueue.indexOf(fromInfo.id) === -1) root.transferTeamQueue.push(fromInfo.id)
@@ -7498,9 +7440,13 @@ onStreamFinished: root.warnStderr("", text)
 
             txList.push({
               fromName: fromInfo.name || "Unknown",
+              fromShort: fromInfo.shortName || root.teamTabLabel(fromInfo.name, "", "short", fromInfo.id) || fromInfo.name || "Unknown",
+              fromAbbr: fromInfo.abbrev || root.teamTabLabel(fromInfo.name, "", "abbrev", fromInfo.id) || fromInfo.name || "Unknown",
               fromLogo: fromInfo.logo || "",
               fromId: fromInfo.id || "",
               toName: toInfo.name || "Unknown",
+              toShort: toInfo.shortName || root.teamTabLabel(toInfo.name, "", "short", toInfo.id) || toInfo.name || "Unknown",
+              toAbbr: toInfo.abbrev || root.teamTabLabel(toInfo.name, "", "abbrev", toInfo.id) || toInfo.name || "Unknown",
               toLogo: toInfo.logo || "",
               toId: toInfo.id || "",
               fee: feeVal,
@@ -7520,7 +7466,9 @@ onStreamFinished: root.warnStderr("", text)
           if (txList.length > 0) {
             var latest = txList[0]
             var yr = latest.year ? (" (" + latest.year + ")") : ""
-            info = latest.fromName + " → " + latest.toName + " : " + latest.fee + yr
+            var fTxt = latest.fromShort || latest.fromAbbr || latest.fromName || "Unknown"
+            var tTxt = latest.toShort || latest.toAbbr || latest.toName || "Unknown"
+            info = fTxt + " → " + tTxt + " : " + latest.fee + yr
           }
 
           var prof = root.selectedPlayerProfile
@@ -7595,8 +7543,9 @@ onStreamFinished: root.warnStderr("", text)
               if (lgSlug !== "" && teamMap[teamId].leagues.indexOf(lgSlug) === -1) {
                 teamMap[teamId].leagues.push(lgSlug)
               }
-              if (statUrl !== "" && teamMap[teamId].urls.indexOf(statUrl) === -1) {
-                teamMap[teamId].urls.push(statUrl)
+              var cleanStatUrl = statUrl.replace(/^http:\/\//i, "https://")
+              if (cleanStatUrl !== "" && teamMap[teamId].urls.indexOf(cleanStatUrl) === -1) {
+                teamMap[teamId].urls.push(cleanStatUrl)
               }
             }
           }
@@ -7609,6 +7558,7 @@ onStreamFinished: root.warnStderr("", text)
             if (hasOnlyIntl) continue
             historyList.push({
               teamId: tInfo.teamId,
+              name: (root.teamNameCache && root.teamNameCache[tInfo.teamId]) ? root.teamNameCache[tInfo.teamId] : root.teamNameForId(tInfo.teamId),
               teamLogo: "https://a.espncdn.com/i/teamlogos/soccer/500/" + tInfo.teamId + ".png",
               years: tInfo.start === tInfo.end ? String(tInfo.start) : (tInfo.start + "–" + tInfo.end)
             })
@@ -7669,7 +7619,7 @@ onStreamFinished: root.warnStderr("", text)
                 var cleanUrl = stUrl.replace(/^http:\/\//i, "https://")
                 var existing = false
                 for (var ci2 = 0; ci2 < seasonCompsByYear[yr].length; ci2++) {
-                  if (seasonCompsByYear[yr][ci2].url === cleanUrl || seasonCompsByYear[yr][ci2].league === lg) {
+                  if (seasonCompsByYear[yr][ci2].url === cleanUrl || (seasonCompsByYear[yr][ci2].league === lg && String(seasonCompsByYear[yr][ci2].teamId) === String(teamId))) {
                     existing = true
                     break
                   }
@@ -7681,6 +7631,7 @@ onStreamFinished: root.warnStderr("", text)
                     shortName: cInfo.short,
                     url: cleanUrl,
                     isCountry: isCountryComp,
+                    teamId: teamId,
                     score: score
                   })
                 }
@@ -7749,7 +7700,8 @@ onStreamFinished: root.warnStderr("", text)
                 if (p.careerHistory && p.careerHistory.length > 0) {
                   for (var hi = 0; hi < p.careerHistory.length; hi++) {
                     if (p.careerHistory[hi].teamId === teamId) {
-                      p.careerHistory[hi].name = String(t.shortDisplayName || t.displayName || t.name || "")
+                      p.careerHistory[hi].name = String(t.displayName || t.name || t.shortDisplayName || "")
+                      p.careerHistory[hi].shortName = String(t.shortDisplayName || t.name || "")
                     }
                   }
                 }
@@ -7772,26 +7724,34 @@ onStreamFinished: root.warnStderr("", text)
       onStreamFinished: {
         try {
           var p = root.selectedPlayerProfile
-          if (root.clubAggQueue.length > 0) root.clubAggQueue.shift()
           if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) {
             try {
-              var data = JSON.parse(text)
-              var cats = data && Array.isArray(data.splits && data.splits.categories) ? data.splits.categories : []
-              for (var ci = 0; ci < cats.length; ci++) {
-                var stList = cats[ci].stats || []
-                for (var si = 0; si < stList.length; si++) {
-                  var nm = stList[si].name
-                  if (/^avg/i.test(nm) || /^time/i.test(nm) || /pct$/i.test(nm)) continue
-                  var raw = typeof stList[si].value === "number" ? stList[si].value : parseFloat(String(stList[si].displayValue !== undefined ? stList[si].displayValue : "").replace(/,/g, ""))
-                  if (!isNaN(raw)) {
+              var payload = JSON.parse(text)
+              if (payload && payload.stats) {
+                var statsObj = payload.stats
+                var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
+                var keys = Object.keys(statsObj)
+                for (var ki = 0; ki < keys.length; ki++) {
+                  var nm = keys[ki]
+                  var val = num(statsObj[nm])
+                  if (!isNaN(val)) {
                     if (root.clubAggSums[nm] === undefined) root.clubAggSums[nm] = 0
-                    root.clubAggSums[nm] += raw
+                    root.clubAggSums[nm] += val
                   }
+                }
+              }
+              if (payload && payload.cached) {
+                if (!root.playerCompStatCache) root.playerCompStatCache = ({})
+                var cKeys = Object.keys(payload.cached)
+                for (var ci = 0; ci < cKeys.length; ci++) {
+                  root.playerCompStatCache[cKeys[ci]] = payload.cached[cKeys[ci]]
                 }
               }
             } catch (e2) {}
           }
-          if (p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) root._fetchNextClubStat()
+          if (p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) {
+            root._finishClubAgg()
+          }
         } catch (e) {}
       }
     }
@@ -7803,26 +7763,20 @@ onStreamFinished: root.warnStderr("", text)
       onStreamFinished: {
         try {
           var p = root.selectedPlayerProfile
-          if (root.careerAggQueue.length > 0) root.careerAggQueue.shift()
           if (typeof text === "string" && text.length > 0 && text.length <= 2097152 && p && root.statsPlayerKey === root.careerAggTarget && !p.careerAggDone) {
             try {
-              var data = JSON.parse(text)
-              var cats = data && Array.isArray(data.splits && data.splits.categories) ? data.splits.categories : []
-              for (var ci = 0; ci < cats.length; ci++) {
-                var stList = cats[ci].stats || []
-                for (var si = 0; si < stList.length; si++) {
-                  var nm = stList[si].name
-                  if (nm !== "goalAssists" && nm !== "appearances" && nm !== "totalGoals") continue
-                  var raw = typeof stList[si].value === "number" ? stList[si].value : parseFloat(String(stList[si].value))
-                  if (!isFinite(raw)) continue
-                  if (root.careerAggSums[nm] === undefined) root.careerAggSums[nm] = 0
-                  root.careerAggSums[nm] += raw
+              var sums = JSON.parse(text)
+              if (sums) {
+                if (sums["goalAssists"] > 0) p.careerAssists = String(Math.round(sums["goalAssists"]))
+                if (sums["appearances"] > 0) p.careerAppearances = String(Math.round(sums["appearances"]))
+                if (sums["totalGoals"] > 0) p.careerGoals = String(Math.round(sums["totalGoals"]))
+                p.careerAggDone = true
+                root.selectedPlayerProfile = Object.assign({}, p)
+                if (root.searchPlayerStatsTab === "career") {
+                  root.applyPlayerStatsView()
                 }
               }
             } catch (e2) {}
-          }
-          if (p && root.statsPlayerKey === root.careerAggTarget && !p.careerAggDone) {
-            root._fetchNextCareerAgg()
           }
         } catch (e) {}
       }
@@ -7843,6 +7797,8 @@ onStreamFinished: root.warnStderr("", text)
     repeat: false
     onTriggered: {
       root.playerStatsLoading = false
+      root.compStatInFlightUrl = ""
+      root.compStatInFlightGen = 0
       searchCompQueueRequest.running = false
       root.playerCompStatQueue = []
       var p = root.selectedPlayerProfile
@@ -8793,8 +8749,9 @@ onStreamFinished: root.warnStderr("", text)
     if (!lg || typeof lg !== "string") return false
     var l = lg.toLowerCase()
     if (l.indexOf("fifa.cwc") === 0 || l.indexOf("fifa.club") === 0) return false
+    if (l.indexOf("uefa.europa") === 0 || l.indexOf("uefa.champions") === 0 || l.indexOf("uefa.super_cup") === 0) return false
     return l.indexOf("fifa.") === 0 ||
-           l.indexOf("uefa.euro") === 0 ||
+           l === "uefa.euro" || l.indexOf("uefa.euro.") === 0 || l.indexOf("uefa.euroq") === 0 ||
            l.indexOf("uefa.nations") === 0 ||
            l.indexOf("conmebol.america") === 0 ||
            l.indexOf("conmebol.copa_america") === 0 ||
@@ -8806,56 +8763,7 @@ onStreamFinished: root.warnStderr("", text)
   }
 
   function formatCompetitionName(lg) {
-    if (!lg || typeof lg !== "string") return { full: "Competition", short: "Comp" }
-    var l = lg.toLowerCase()
-    if (l === "esp.1") return { full: "LaLiga", short: "LaLiga" }
-    if (l === "esp.2") return { full: "LaLiga 2", short: "Segunda" }
-    if (l === "esp.copa_del_rey") return { full: "Copa del Rey", short: "Copa" }
-    if (l === "esp.super_cup") return { full: "Supercopa", short: "Supercopa" }
-    if (l === "esp.joan_gamper") return { full: "Joan Gamper", short: "Gamper" }
-
-    if (l === "eng.1") return { full: "Premier League", short: "PL" }
-    if (l === "eng.2") return { full: "Championship", short: "Championship" }
-    if (l === "eng.fa") return { full: "FA Cup", short: "FA Cup" }
-    if (l === "eng.league_cup") return { full: "Carabao Cup", short: "EFL Cup" }
-    if (l === "eng.charity") return { full: "Community Shield", short: "Shield" }
-
-    if (l === "ger.1") return { full: "Bundesliga", short: "Bundesliga" }
-    if (l === "ger.dfb_pokal") return { full: "DFB-Pokal", short: "DFB-Pokal" }
-    if (l === "ger.super_cup") return { full: "DFL-Supercup", short: "Supercup" }
-
-    if (l === "ita.1") return { full: "Serie A", short: "Serie A" }
-    if (l === "ita.coppa_italia") return { full: "Coppa Italia", short: "Coppa" }
-    if (l === "ita.super_cup") return { full: "Supercoppa", short: "Supercoppa" }
-
-    if (l === "fra.1") return { full: "Ligue 1", short: "Ligue 1" }
-    if (l === "fra.coupe_de_france") return { full: "Coupe de France", short: "Coupe" }
-    if (l === "fra.trophee_champions") return { full: "Trophée des Champions", short: "Trophée" }
-
-    if (l === "uefa.champions") return { full: "Champions League", short: "UCL" }
-    if (l === "uefa.europa") return { full: "Europa League", short: "UEL" }
-    if (l === "uefa.europa.conf") return { full: "Conference League", short: "UECL" }
-    if (l === "uefa.super_cup") return { full: "UEFA Super Cup", short: "Super Cup" }
-
-    if (l === "usa.1") return { full: "MLS", short: "MLS" }
-    if (l === "usa.us_open") return { full: "US Open Cup", short: "US Open" }
-    if (l === "por.1") return { full: "Liga Portugal", short: "Liga PT" }
-    if (l === "ned.1") return { full: "Eredivisie", short: "Eredivisie" }
-    if (l === "sau.1") return { full: "Saudi Pro League", short: "SPL" }
-    if (l === "bra.1") return { full: "Brasileirão", short: "Brasileirão" }
-
-    if (l === "uefa.euro") return { full: "Euro", short: "Euro" }
-    if (l === "uefa.euroq") return { full: "Euro Qualifiers", short: "Euro Q" }
-    if (l === "fifa.world") return { full: "World Cup", short: "World Cup" }
-    if (l === "fifa.worldq.uefa" || l.indexOf("fifa.worldq") === 0) return { full: "World Cup Qualifiers", short: "WC Q" }
-    if (l === "uefa.nations") return { full: "Nations League", short: "Nations" }
-    if (l === "fifa.friendly") return { full: "Friendly", short: "Friendly" }
-    if (l === "conmebol.copa_america") return { full: "Copa América", short: "Copa América" }
-    if (l === "fifa.cwc") return { full: "Club World Cup", short: "CWC" }
-
-    var pretty = l.replace(/^[a-z0-9_]+\./, "").replace(/_/g, " ")
-    pretty = pretty.charAt(0).toUpperCase() + pretty.slice(1)
-    return { full: pretty, short: pretty.slice(0, 10) }
+    return FutData.formatCompetitionName(lg)
   }
 
   function currentSeasonComps() {
@@ -8875,13 +8783,34 @@ onStreamFinished: root.warnStderr("", text)
     root.applyPlayerStatsView()
   }
 
+  Timer {
+    id: statsBarAnimTimer
+    interval: 320
+    repeat: false
+    onTriggered: {
+      root._statsMinAnimActive = false
+      if (root.compStatInFlightUrl === "" && (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0)) {
+        root.playerStatsLoading = false
+      }
+    }
+  }
+
+  function triggerStatsBarAnimation() {
+    root._statsMinAnimActive = true
+    root.playerStatsLoading = true
+    statsBarAnimTimer.restart()
+  }
+
   function selectPlayerTournament(tIdx) {
     var prof = root.selectedPlayerProfile
     if (!prof) return
     prof.selectedCompIndex = tIdx
     root.selectedPlayerProfile = Object.assign({}, prof)
-    searchCompQueueRequest.running = false
+    root._compStatRequestGen++
     root.playerCompStatQueue = []
+    root.compStatInFlightUrl = ""
+    searchCompQueueRequest.running = false
+    root.triggerStatsBarAnimation()
     root.applyPlayerStatsView()
   }
 
@@ -8898,8 +8827,11 @@ onStreamFinished: root.warnStderr("", text)
     if (tab === "career") {
       root.ensurePlayerStats()
     }
-    searchCompQueueRequest.running = false
+    root._compStatRequestGen++
     root.playerCompStatQueue = []
+    root.compStatInFlightUrl = ""
+    searchCompQueueRequest.running = false
+    root.triggerStatsBarAnimation()
     root.applyPlayerStatsView()
   }
 
@@ -8915,8 +8847,11 @@ onStreamFinished: root.warnStderr("", text)
     prof.selectedCompIndex = 0
     if (prof.clubFilterId && prof.clubFilterId !== "all") prof.clubFilterId = "all"
     root.selectedPlayerProfile = Object.assign({}, prof)
-    searchCompQueueRequest.running = false
+    root._compStatRequestGen++
     root.playerCompStatQueue = []
+    root.compStatInFlightUrl = ""
+    searchCompQueueRequest.running = false
+    root.triggerStatsBarAnimation()
     root.applyPlayerStatsView()
   }
 
@@ -8926,25 +8861,45 @@ onStreamFinished: root.warnStderr("", text)
     for (var i = 0; i < urls.length; i++) {
       var u = urls[i]
       if (!u) continue
-      if (root.playerCompStatCache && root.playerCompStatCache[u]) continue
-      if (toQueue.indexOf(u) === -1) toQueue.push(u)
+      if (root.playerCompStatCache && root.playerCompStatCache[u] !== undefined) continue
+      if (toQueue.indexOf(u) === -1 && root.playerCompStatQueue.indexOf(u) === -1 && u !== root.compStatInFlightUrl) {
+        toQueue.push(u)
+      }
     }
-    if (toQueue.length === 0) return
-    root.playerCompStatQueue = toQueue
+    if (toQueue.length === 0 && root.compStatInFlightUrl === "") {
+      if (!root._statsMinAnimActive) root.playerStatsLoading = false
+      return
+    }
+    if (toQueue.length > 0) {
+      root.playerCompStatQueue = root.playerCompStatQueue.concat(toQueue)
+    }
     root._fetchNextCompQueue()
   }
 
   function _fetchNextCompQueue() {
+    if (root.compStatInFlightUrl !== "") return
     if (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0) {
-      root.playerStatsLoading = false
+      if (!root._statsMinAnimActive) {
+        root.playerStatsLoading = false
+      }
       return
     }
-    var nextUrl = root.playerCompStatQueue[0]
+    var nextUrl = root.playerCompStatQueue.shift()
+    if (!nextUrl || nextUrl === "") {
+      root._fetchNextCompQueue()
+      return
+    }
+    if (root.playerCompStatCache && root.playerCompStatCache[nextUrl] !== undefined) {
+      root._fetchNextCompQueue()
+      return
+    }
+    root.compStatInFlightUrl = nextUrl
+    root.compStatInFlightGen = root._compStatRequestGen
+    root.playerStatsLoading = true
     searchCompQueueRequest.running = false
-    searchCompQueueRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", nextUrl]
+    searchCompQueueRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "2097152", nextUrl]
     searchCompQueueRequest.running = true
   }
-
   function applySingleStatMap(statMap, label) {
     var prof = root.selectedPlayerProfile
     if (!prof) return
@@ -9094,9 +9049,9 @@ onStreamFinished: root.warnStderr("", text)
     for (var ci = 0; ci < comps.length; ci++) {
       var curl = comps[ci].url
       if (!curl) continue
-      var cached = root.playerCompStatCache ? root.playerCompStatCache[curl] : null
-      if (cached) {
-        anyCached = true
+      var cached = (root.playerCompStatCache && root.playerCompStatCache[curl] !== undefined) ? root.playerCompStatCache[curl] : null
+      if (cached !== null) {
+        if (Object.keys(cached).length > 0) anyCached = true
         sumMap.appearances += num(cached["appearances"] || cached["starts"])
         sumMap.totalGoals += num(cached["totalGoals"])
         sumMap.goalAssists += num(cached["goalAssists"])
@@ -9153,11 +9108,9 @@ onStreamFinished: root.warnStderr("", text)
 
     if (pendingUrls.length > 0) {
       root.playerStatsLoading = true
-      if (!searchCompQueueRequest.running && (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0)) {
-        root.fetchPendingCompStats(pendingUrls)
-      }
-    } else {
-      if (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0) {
+      root.fetchPendingCompStats(pendingUrls)
+    } else if (root.compStatInFlightUrl === "" && (!root.playerCompStatQueue || root.playerCompStatQueue.length === 0)) {
+      if (!root._statsMinAnimActive) {
         root.playerStatsLoading = false
       }
     }
@@ -9176,10 +9129,13 @@ onStreamFinished: root.warnStderr("", text)
     root.playerCompStatQueue = []
     root.playerCompStatCache = ({})
     searchCompQueueRequest.running = false
+    root.compStatInFlightUrl = ""
+    root._compStatRequestGen = 0
+    root.compStatInFlightGen = 0
+    root._statsMinAnimActive = false
     root.clubNameQueue = []
     root.transferTeamQueue = []
     root._transferTeamInFlight = ""
-    root.clubAggQueue = []
     root.clubAggSums = ({})
     root.clubAggTarget = ""
     root.careerAggQueue = []
@@ -9340,10 +9296,14 @@ onStreamFinished: root.warnStderr("", text)
     return ["scoring", "passing", "defending", "general"]
   }
   function isIntlLeagueSlug(lg) {
-    return lg.indexOf("fifa.world") === 0 || lg.indexOf("fifa.friendly") === 0 || lg.indexOf("fifa.olympics") === 0
-      || lg.indexOf("uefa.euro") === 0 || lg.indexOf("uefa.nations") === 0 || lg.indexOf("conmebol.america") === 0
-      || lg.indexOf("concacaf.gold") === 0 || lg.indexOf("concacaf.nations") === 0 || lg.indexOf("caf.nations") === 0
-      || lg.indexOf("afc.asian") === 0
+    if (!lg || typeof lg !== "string") return false
+    var l = lg.toLowerCase()
+    if (l.indexOf("uefa.europa") === 0 || l.indexOf("uefa.champions") === 0 || l.indexOf("uefa.super_cup") === 0) return false
+    return l.indexOf("fifa.world") === 0 || l.indexOf("fifa.friendly") === 0 || l.indexOf("fifa.olympics") === 0
+      || l === "uefa.euro" || l.indexOf("uefa.euro.") === 0 || l.indexOf("uefa.euroq") === 0
+      || l.indexOf("uefa.nations") === 0 || l.indexOf("conmebol.america") === 0 || l.indexOf("conmebol.copa_america") === 0
+      || l.indexOf("concacaf.gold") === 0 || l.indexOf("concacaf.nations") === 0 || l.indexOf("caf.nations") === 0
+      || l.indexOf("afc.asian") === 0
   }
 
   function nationalStatUrls() {
@@ -9426,12 +9386,12 @@ onStreamFinished: root.warnStderr("", text)
   function selectClubFilter(teamId) {
     var p = root.selectedPlayerProfile
     if (!p) return
+    root.triggerStatsBarAnimation()
     if (!p.clubAggCache) p.clubAggCache = ({})
     if (teamId !== "all" && p.clubAggCache[teamId]) {
       p.clubFilterId = teamId
       p.clubStatMap = p.clubAggCache[teamId]
       p.clubFilterLoading = false
-      root.playerStatsLoading = false
       root.selectedPlayerProfile = Object.assign({}, p)
       root.applySingleStatMap(p.clubStatMap, root.clubFilterLabel(teamId))
       return
@@ -9440,41 +9400,58 @@ onStreamFinished: root.warnStderr("", text)
     p.clubStatMap = null
     p.clubFilterLoading = teamId !== "all"
     if (teamId === "all") {
-      root.playerStatsLoading = false
       root.selectedPlayerProfile = Object.assign({}, p)
       root.applyPlayerStatsView()
       return
     }
     root.playerStatsLoading = true
     root.selectedPlayerProfile = Object.assign({}, p)
-    var urls = []
+    var rawUrls = []
     if (teamId === "national") {
-      urls = root.nationalStatUrls()
+      rawUrls = root.nationalStatUrls()
     } else if (p.teamSeasonMap && p.teamSeasonMap[teamId]) {
-      urls = (p.teamSeasonMap[teamId].urls || []).slice()
+      rawUrls = (p.teamSeasonMap[teamId].urls || []).slice()
     }
-    root.clubAggQueue = urls
+
+    var urls = []
     root.clubAggSums = ({})
     root.clubAggTarget = teamId
-    if (urls.length === 0) {
-      p.clubFilterLoading = false
-      root.playerStatsLoading = false
-      root.selectedPlayerProfile = Object.assign({}, p)
-      return
-    }
-    root._fetchNextClubStat()
-  }
 
-  function _fetchNextClubStat() {
-    if (root.clubAggQueue.length === 0) {
+    // Sum already-cached URLs immediately from playerCompStatCache
+    var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
+    for (var i = 0; i < rawUrls.length; i++) {
+      var u = rawUrls[i]
+      if (!u) continue
+      var cached = (root.playerCompStatCache && root.playerCompStatCache[u] !== undefined) ? root.playerCompStatCache[u] : null
+      if (cached !== null) {
+        var keys = Object.keys(cached)
+        for (var ki = 0; ki < keys.length; ki++) {
+          var nm = keys[ki]
+          if (/^avg/i.test(nm) || /^time/i.test(nm) || /pct$/i.test(nm)) continue
+          var val = num(cached[nm])
+          if (!isNaN(val)) {
+            if (root.clubAggSums[nm] === undefined) root.clubAggSums[nm] = 0
+            root.clubAggSums[nm] += val
+          }
+        }
+      } else {
+        if (urls.indexOf(u) === -1) urls.push(u)
+      }
+    }
+
+    if (urls.length === 0) {
       root._finishClubAgg()
       return
     }
+
     searchClubStatRequest.running = false
-    searchClubStatRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", root.clubAggQueue[0]]
+    searchClubStatRequest.command = ["python3", "-c", FutData.clubAggPyScript, JSON.stringify(urls)]
     searchClubStatRequest.running = true
   }
 
+  function _finishClubAgg() {
+    root._writeClubAggMap(true)
+  }
   function _writeClubAggMap(finished) {
     var p = root.selectedPlayerProfile
     if (!p || p.clubFilterId !== root.clubAggTarget) return
@@ -9488,15 +9465,12 @@ onStreamFinished: root.warnStderr("", text)
     p.clubAggCache[root.clubAggTarget] = out
     if (finished) {
       p.clubFilterLoading = false
-      root.playerStatsLoading = false
+      if (!root._statsMinAnimActive) root.playerStatsLoading = false
     }
     root.selectedPlayerProfile = Object.assign({}, p)
     root.applySingleStatMap(out, root.clubFilterLabel(root.clubAggTarget))
   }
 
-  function _finishClubAgg() {
-    root._writeClubAggMap(true)
-  }
 
   function activeMoreMap() {
     var p = root.selectedPlayerProfile
@@ -9515,50 +9489,9 @@ onStreamFinished: root.warnStderr("", text)
   }
 
   function moreRows(group) {
-    var defs = {
-      scoring: [
-        ["Free-kick goals", ["freeKickGoals"]], ["Penalty goals", ["penaltyKickGoals"]],
-        ["Penalties missed", ["penaltyKicksMissed"]], ["Game-winning goals", ["gameWinningGoals"]],
-        ["Headed goals", ["headedGoals"]], ["Left-foot shots", ["leftFootedShots"]],
-        ["Right-foot shots", ["rightFootedShots"]], ["Shots", ["totalShots"]],
-        ["Shots on target", ["shotsOnTarget"]], ["Shot %", ["shotPct"]],
-        ["In-box attempts", ["attemptsInBox"]], ["Out-box attempts", ["attemptsOutBox"]],
-        ["Offsides", ["offsides"]], ["Big chances missed", ["bigChanceMissed"]],
-        ["Shootout goals", ["shootOutGoals"]], ["Shootout misses", ["shootOutMisses"]]
-      ],
-      passing: [
-        ["Accurate passes", ["accuratePasses"]], ["Total passes", ["totalPasses"]],
-        ["Accurate crosses", ["accurateCrosses"]], ["Accurate long balls", ["accurateLongBalls"]],
-        ["Accurate through balls", ["accurateThroughBalls"]], ["Cross %", ["crossPct"]],
-        ["Long-ball %", ["longballPct"]], ["Through-ball %", ["throughBallPct"]],
-        ["Key passes", ["shotAssists"]], ["Big chances created", ["bigChanceCreated"]],
-        ["Second assists", ["secondAssists"]], ["Game-winning assists", ["gameWinningAssists"]]
-      ],
-      defending: [
-        ["Tackles", ["effectiveTackles", "totalTackles"]], ["Tackle %", ["tacklePct"]],
-        ["Interceptions", ["interceptions"]], ["Clearances", ["totalClearance", "effectiveClearance"]],
-        ["Blocked shots", ["blockedShots"]], ["Recoveries", ["recoveries"]],
-        ["Duels won", ["duelsWon"]], ["Duels lost", ["duelsLost"]],
-        ["Tackles lost", ["tacklesLost"]], ["Fouls committed", ["foulsCommitted"]],
-        ["Fouls suffered", ["foulsSuffered"]]
-      ],
-      keeper: [
-        ["Saves", ["saves"]], ["Shots faced", ["shotsFaced"]], ["Goals conceded", ["goalsConceded"]],
-        ["Clean sheets", ["cleanSheet"]], ["Penalty saves", ["penaltyKicksSaved"]],
-        ["Penalties faced", ["penaltyKicksFaced"]], ["Crosses caught", ["crossesCaught"]],
-        ["Punches", ["punches"]], ["Big-chance saves", ["bigChanceSaves"]],
-        ["Shootout saves", ["shootOutKicksSaved"]]
-      ],
-      general: [
-        ["Minutes", ["minutes"]], ["Starts", ["starts"]], ["Sub ins", ["subIns"]],
-        ["Sub outs", ["subOuts"]], ["Wins", ["wins"]], ["Draws", ["draws"]],
-        ["Losses", ["losses"]], ["Yellow cards", ["yellowCards"]], ["Red cards", ["redCards"]],
-        ["Touches", ["touches"]], ["Touches in opp box", ["touchesInOppBox"]],
-        ["Progressive carries", ["progressiveCarries"]], ["Own goals", ["ownGoals"]]
-      ]
-    }
+    var defs = FutData.statGroupDefs
     var out = []
-    var list = defs[group] || []
+    var list = (defs && defs[group]) ? defs[group] : []
     for (var i = 0; i < list.length; i++) {
       var v = root.pickStat(list[i][1])
       if (v !== "") out.push({ label: list[i][0], value: v })
@@ -9591,36 +9524,44 @@ onStreamFinished: root.warnStderr("", text)
     var p = root.selectedPlayerProfile
     if (root.statsPlayerKey === "" || !p || !p.teamSeasonMap) return
     if (p.careerAggDone) return
-    if (root.careerAggTarget === root.statsPlayerKey && root.careerAggQueue.length > 0) return
-    var urls = []
+    if (searchCareerAggRequest.running) return
+    var rawUrls = []
     var keys = Object.keys(p.teamSeasonMap)
     for (var i = 0; i < keys.length; i++) {
       var ul = p.teamSeasonMap[keys[i]].urls || []
       for (var u = 0; u < ul.length; u++) {
-        if (urls.indexOf(ul[u]) === -1) urls.push(ul[u])
+        if (rawUrls.indexOf(ul[u]) === -1) rawUrls.push(ul[u])
       }
     }
-    if (urls.length === 0) return
-    root.careerAggQueue = urls
+    if (rawUrls.length === 0) return
     root.careerAggSums = ({ goalAssists: 0, appearances: 0, totalGoals: 0 })
     root.careerAggTarget = root.statsPlayerKey
-    root._fetchNextCareerAgg()
-  }
 
-  function _fetchNextCareerAgg() {
-    if (root.careerAggQueue.length === 0) {
-      var p = root.selectedPlayerProfile
-      if (p && root.statsPlayerKey === root.careerAggTarget) {
-        if (root.careerAggSums["goalAssists"] > 0) p.careerAssists = String(Math.round(root.careerAggSums["goalAssists"]))
-        if (root.careerAggSums["appearances"] > 0) p.careerAppearances = String(Math.round(root.careerAggSums["appearances"]))
-        if (root.careerAggSums["totalGoals"] > 0) p.careerGoals = String(Math.round(root.careerAggSums["totalGoals"]))
-        p.careerAggDone = true
-        root.selectedPlayerProfile = Object.assign({}, p)
+    var urls = []
+    var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n }
+    for (var i = 0; i < rawUrls.length; i++) {
+      var u = rawUrls[i]
+      var cached = (root.playerCompStatCache && root.playerCompStatCache[u] !== undefined) ? root.playerCompStatCache[u] : null
+      if (cached !== null) {
+        root.careerAggSums["goalAssists"] += num(cached["goalAssists"])
+        root.careerAggSums["appearances"] += num(cached["appearances"] || cached["starts"])
+        root.careerAggSums["totalGoals"] += num(cached["totalGoals"])
+      } else {
+        if (urls.indexOf(u) === -1) urls.push(u)
       }
+    }
+
+    if (urls.length === 0) {
+      if (root.careerAggSums["goalAssists"] > 0) p.careerAssists = String(Math.round(root.careerAggSums["goalAssists"]))
+      if (root.careerAggSums["appearances"] > 0) p.careerAppearances = String(Math.round(root.careerAggSums["appearances"]))
+      if (root.careerAggSums["totalGoals"] > 0) p.careerGoals = String(Math.round(root.careerAggSums["totalGoals"]))
+      p.careerAggDone = true
+      root.selectedPlayerProfile = Object.assign({}, p)
       return
     }
+
     searchCareerAggRequest.running = false
-    searchCareerAggRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", root.careerAggQueue[0]]
+    searchCareerAggRequest.command = ["python3", "-c", FutData.careerAggPyScript, JSON.stringify(urls)]
     searchCareerAggRequest.running = true
   }
 

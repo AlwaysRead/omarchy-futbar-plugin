@@ -4,6 +4,7 @@ import QtQuick.Effects
 import Quickshell
 import qs.Commons
 import qs.Ui
+import "FutData.js" as FutData
 
 Column {
   id: profileDedicatedView
@@ -792,7 +793,7 @@ Column {
                         Text {
                           textFormat: Text.PlainText
                           anchors.verticalCenter: parent.verticalCenter
-                          text: "Updating…"
+                          text: "Fetching Stats…"
                           font.pixelSize: Style.space(8)
                           font.italic: true
                           font.bold: true
@@ -868,6 +869,38 @@ Column {
                         onClicked: {
                           statPulseAnim.triggerQuickRefresh()
                           root.changePlayerSeason(-1)
+                        }
+                      }
+                    }
+                  }
+                  // Animated fetching / loading bar across stats section
+                  Item {
+                    width: parent.width
+                    height: Style.space(3)
+                    visible: !!root.playerStatsLoading
+                    clip: true
+
+                    Rectangle {
+                      anchors.fill: parent
+                      radius: Style.space(1)
+                      color: Util.alpha(root.favoriteTeamAccent, 0.15)
+                    }
+
+                    Rectangle {
+                      id: statsLoadingThumb
+                      width: Math.max(Style.space(36), parent.width * 0.35)
+                      height: parent.height
+                      radius: Style.space(1)
+                      color: root.favoriteTeamAccent
+
+                      SequentialAnimation on x {
+                        running: !!root.playerStatsLoading
+                        loops: Animation.Infinite
+                        NumberAnimation {
+                          from: -statsLoadingThumb.width
+                          to: parent.width
+                          duration: 750
+                          easing.type: Easing.InOutQuad
                         }
                       }
                     }
@@ -987,7 +1020,7 @@ Column {
                           fontSize: Style.space(8)
                           horizontalPadding: Style.space(6)
                           verticalPadding: 0
-                          text: "Active Season"
+                          text: "Current Season"
                           selected: !root.selectedPlayerProfile || !root.selectedPlayerProfile.clubFilterId || root.selectedPlayerProfile.clubFilterId === "all"
                           fontFamily: root.contentFontFamily
                           foreground: root.contentForeground
@@ -1407,7 +1440,7 @@ Column {
                     Text {
                       textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
-                      text: "INTERNATIONAL / NATIONAL TEAMS"
+                      text: "NATIONAL TEAM"
                       font.pixelSize: Style.space(9)
                       font.bold: true
                       color: Qt.darker(root.contentForeground, 1.5)
@@ -1710,7 +1743,11 @@ Column {
                           Text {
                             textFormat: Text.PlainText
                             anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.fromName || "Unknown"
+                            text: (modelData.fromShort && modelData.fromShort !== "" && modelData.fromShort !== "Unknown")
+                              ? modelData.fromShort
+                              : ((modelData.fromAbbr && modelData.fromAbbr !== "")
+                                ? modelData.fromAbbr
+                                : (root ? root.teamTabLabel(modelData.fromName, "", "short", modelData.fromId) : (FutData.computeClubShort(modelData.fromName) || modelData.fromName || "Unknown")))
                             font.pixelSize: Style.font.caption
                             font.bold: true
                             color: root.contentForeground
@@ -1744,7 +1781,11 @@ Column {
                           Text {
                             textFormat: Text.PlainText
                             anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.toName || "Unknown"
+                            text: (modelData.toShort && modelData.toShort !== "" && modelData.toShort !== "Unknown")
+                              ? modelData.toShort
+                              : ((modelData.toAbbr && modelData.toAbbr !== "")
+                                ? modelData.toAbbr
+                                : (root ? root.teamTabLabel(modelData.toName, "", "short", modelData.toId) : (FutData.computeClubShort(modelData.toName) || modelData.toName || "Unknown")))
                             font.pixelSize: Style.font.caption
                             font.bold: true
                             color: root.contentForeground
