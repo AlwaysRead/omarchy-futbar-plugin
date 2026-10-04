@@ -59,6 +59,7 @@ Column {
                     root.resetPanelScroll()
                   }
                   Text {
+                    textFormat: Text.PlainText
                     id: bSearchText
                     text: "Search"
                     font.family: root.contentFontFamily
@@ -69,6 +70,7 @@ Column {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.verticalCenter: parent.verticalCenter
                   text: "›"
                   font.family: root.contentFontFamily
@@ -92,6 +94,7 @@ Column {
                     root.resetPanelScroll()
                   }
                   Text {
+                    textFormat: Text.PlainText
                     id: bClubHistText
                     text: root.clubProfileHistory ? (root.clubProfileHistory.displayName || root.clubProfileHistory.shortDisplayName || "Club") : ""
                     font.family: root.contentFontFamily
@@ -104,6 +107,7 @@ Column {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.verticalCenter: parent.verticalCenter
                   text: "›"
                   font.family: root.contentFontFamily
@@ -113,6 +117,7 @@ Column {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   id: bCurrentTargetText
                   anchors.verticalCenter: parent.verticalCenter
                   text: root.selectedPlayerProfile ? (root.selectedPlayerProfile.shortName || root.selectedPlayerProfile.fullName) : (root.selectedClubProfile ? (root.selectedClubProfile.shortDisplayName || root.selectedClubProfile.displayName) : "")
@@ -128,6 +133,7 @@ Column {
 
             // Header Title
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               text: root.selectedPlayerProfile ? root.selectedPlayerProfile.fullName : (root.selectedClubProfile ? root.selectedClubProfile.displayName : "")
               color: root.contentForeground
@@ -249,6 +255,7 @@ Column {
                     visible: !parent.hasHeadshot
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.centerIn: parent
                       text: ""
                       font.family: root.contentFontFamily
@@ -277,6 +284,7 @@ Column {
                     width: parent.width
                     spacing: Style.space(6)
                     Text {
+                      textFormat: Text.PlainText
                       text: root.selectedPlayerProfile ? root.selectedPlayerProfile.fullName : ""
                       color: root.contentForeground
                       font.family: root.contentFontFamily
@@ -286,6 +294,7 @@ Column {
                       width: Math.min(implicitWidth, parent.width - (jerseyText.visible ? jerseyText.implicitWidth + parent.spacing : 0))
                     }
                     Text {
+                      textFormat: Text.PlainText
                       id: jerseyText
                       text: root.selectedPlayerProfile && root.selectedPlayerProfile.jersey !== "" ? ("#" + root.selectedPlayerProfile.jersey) : ""
                       color: root.favoriteTeamAccent
@@ -319,6 +328,7 @@ Column {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       width: Math.max(0, parent.width - Style.space(26))
                       text: {
                         if (!root.selectedPlayerProfile) return ""
@@ -358,6 +368,7 @@ Column {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       width: Math.max(0, parent.width - Style.space(26))
                       text: {
                         if (!root.selectedPlayerProfile) return ""
@@ -449,20 +460,20 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
-                      Text { text: "AGE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.age !== "" ? root.selectedPlayerProfile.age : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "AGE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: root.selectedPlayerProfile && root.selectedPlayerProfile.age !== "" ? root.selectedPlayerProfile.age : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
-                      Text { text: "HEIGHT"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayHeight !== "" ? root.selectedPlayerProfile.displayHeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "HEIGHT"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayHeight !== "" ? root.selectedPlayerProfile.displayHeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                     Column {
                       width: (parent.width - Style.space(12)) / 3
                       spacing: Style.space(2)
-                      Text { text: "WEIGHT"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayWeight !== "" ? root.selectedPlayerProfile.displayWeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "WEIGHT"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: root.selectedPlayerProfile && root.selectedPlayerProfile.displayWeight !== "" ? root.selectedPlayerProfile.displayWeight : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                     }
                   }
 
@@ -475,16 +486,16 @@ Column {
                       width: (parent.width - Style.space(6)) / 2
                       spacing: Style.space(2)
                       visible: !!(root.selectedPlayerProfile && root.selectedPlayerProfile.dateOfBirth !== "")
-                      Text { text: "BORN"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: (root.selectedPlayerProfile && root.selectedPlayerProfile.dateOfBirth) ? String(root.selectedPlayerProfile.dateOfBirth) : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                      Text { textFormat: Text.PlainText; text: "BORN"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: (root.selectedPlayerProfile && root.selectedPlayerProfile.dateOfBirth) ? String(root.selectedPlayerProfile.dateOfBirth) : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
                     }
 
                     Column {
                       width: (parent.width - Style.space(6)) / 2
                       spacing: Style.space(2)
                       visible: !!(root.selectedPlayerProfile && root.selectedPlayerProfile.birthplace !== "")
-                      Text { text: "BIRTHPLACE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                      Text { text: (root.selectedPlayerProfile && root.selectedPlayerProfile.birthplace) ? String(root.selectedPlayerProfile.birthplace) : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
+                      Text { textFormat: Text.PlainText; text: "BIRTHPLACE"; font.pixelSize: Style.space(9); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: (root.selectedPlayerProfile && root.selectedPlayerProfile.birthplace) ? String(root.selectedPlayerProfile.birthplace) : ""; font.pixelSize: Style.font.caption; color: root.contentForeground; font.family: root.contentFontFamily; elide: Text.ElideRight }
                     }
                   }
                 }
@@ -513,6 +524,7 @@ Column {
                     height: recentMatchesHeaderTitle.implicitHeight
 
                     Text {
+                      textFormat: Text.PlainText
                       id: recentMatchesHeaderTitle
                       anchors.left: parent.left
                       anchors.verticalCenter: parent.verticalCenter
@@ -527,6 +539,7 @@ Column {
 
                   // If empty or loading
                   Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: root.searchPlayerOverviewRequest && root.searchPlayerOverviewRequest.running ? "Loading recent matches…" : "No recent matches available"
                     font.family: root.contentFontFamily
@@ -558,6 +571,7 @@ Column {
                           visible: !!(modelData.leagueName && modelData.leagueName !== "")
 
                           Text {
+                            textFormat: Text.PlainText
                             anchors.left: parent.left
                             anchors.right: matchDateText.left
                             anchors.rightMargin: Style.space(6)
@@ -571,6 +585,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             id: matchDateText
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -588,6 +603,7 @@ Column {
                           height: Style.space(16)
 
                           Text {
+                            textFormat: Text.PlainText
                             id: matchScoreText
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -599,6 +615,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             anchors.left: parent.left
                             anchors.right: matchScoreText.left
                             anchors.rightMargin: Style.space(8)
@@ -624,6 +641,7 @@ Column {
                             spacing: Style.space(4)
 
                             Text {
+                              textFormat: Text.PlainText
                               anchors.verticalCenter: parent.verticalCenter
                               text: "Rating:"
                               color: Qt.darker(root.contentForeground, 1.4)
@@ -632,6 +650,7 @@ Column {
                             }
 
                             Text {
+                              textFormat: Text.PlainText
                               anchors.verticalCenter: parent.verticalCenter
                               text: (modelData.rating && modelData.rating !== "" && modelData.rating !== "—") ? modelData.rating : "—"
                               color: (modelData.rating && modelData.rating !== "" && modelData.rating !== "—") ? root.ratingColor(modelData.rating) : Qt.darker(root.contentForeground, 1.4)
@@ -649,6 +668,7 @@ Column {
                             spacing: Style.space(6)
 
                             Text {
+                              textFormat: Text.PlainText
                               anchors.verticalCenter: parent.verticalCenter
                               text: "Goals: " + (modelData.goals !== undefined ? modelData.goals : "0")
                               color: parseInt(modelData.goals) > 0 ? root.favoriteTeamAccent : Qt.darker(root.contentForeground, 1.3)
@@ -658,6 +678,7 @@ Column {
                             }
 
                             Text {
+                              textFormat: Text.PlainText
                               anchors.verticalCenter: parent.verticalCenter
                               text: "·"
                               color: Qt.darker(root.contentForeground, 1.6)
@@ -665,6 +686,7 @@ Column {
                             }
 
                             Text {
+                              textFormat: Text.PlainText
                               anchors.verticalCenter: parent.verticalCenter
                               text: "Assists: " + (modelData.assists !== undefined ? modelData.assists : "0")
                               color: parseInt(modelData.assists) > 0 ? root.favoriteTeamAccent : Qt.darker(root.contentForeground, 1.3)
@@ -704,6 +726,7 @@ Column {
                     height: Style.space(20)
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.left: parent.left
                       anchors.verticalCenter: parent.verticalCenter
                       text: "STATISTICS"
@@ -736,6 +759,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
                           var prof = root.selectedPlayerProfile
@@ -882,6 +906,7 @@ Column {
                     height: Style.space(18)
                     visible: root.searchPlayerStatsTab === "tournament" && root.currentSeasonComps().length === 0
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "No tournament data for this season"
                       font.pixelSize: Style.space(8)
@@ -899,8 +924,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "APPS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "APPS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.searchPlayerStatsTab !== "career" && root.selectedPlayerProfile.seasonAppearances !== undefined)
                           ? String(root.selectedPlayerProfile.seasonAppearances)
                           : ((root.selectedPlayerProfile && root.selectedPlayerProfile.careerAppearances) ? String(root.selectedPlayerProfile.careerAppearances) : "—")
@@ -913,8 +939,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "GOALS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "GOALS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.searchPlayerStatsTab !== "career" && root.selectedPlayerProfile.seasonGoals !== undefined)
                           ? String(root.selectedPlayerProfile.seasonGoals)
                           : ((root.selectedPlayerProfile && root.selectedPlayerProfile.careerGoals) ? String(root.selectedPlayerProfile.careerGoals) : "—")
@@ -927,8 +954,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "ASSISTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "ASSISTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.searchPlayerStatsTab !== "career" && root.selectedPlayerProfile.seasonAssists !== undefined)
                           ? String(root.selectedPlayerProfile.seasonAssists)
                           : ((root.selectedPlayerProfile && root.selectedPlayerProfile.careerAssists) ? String(root.selectedPlayerProfile.careerAssists) : "—")
@@ -942,6 +970,7 @@ Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
                       Text {
+                        textFormat: Text.PlainText
                         text: root.stat4Active().label
                         font.pixelSize: Style.space(8)
                         font.bold: true
@@ -949,6 +978,7 @@ Column {
                         font.family: root.contentFontFamily
                       }
                       Text {
+                        textFormat: Text.PlainText
                         text: root.stat4Active().value !== "" ? root.stat4Active().value : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -979,6 +1009,7 @@ Column {
                   spacing: Style.space(8)
 
                   Text {
+                    textFormat: Text.PlainText
                     text: "SHOT & PASSING EFFICIENCY"
                     font.pixelSize: Style.space(9)
                     font.bold: true
@@ -993,8 +1024,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "CONVERSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "CONVERSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.goalConversionRate !== "") ? root.selectedPlayerProfile.goalConversionRate : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1005,8 +1037,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "SHOT ACC."; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "SHOT ACC."; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.shotAccuracy !== "") ? root.selectedPlayerProfile.shotAccuracy : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1017,8 +1050,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "LONG BALLS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "LONG BALLS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.longBalls !== "") ? root.selectedPlayerProfile.longBalls : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1029,8 +1063,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "KEY PASSES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "KEY PASSES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.keyPasses !== "") ? root.selectedPlayerProfile.keyPasses : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1061,6 +1096,7 @@ Column {
                   spacing: Style.space(8)
 
                   Text {
+                    textFormat: Text.PlainText
                     text: "DISCIPLINE & WORKLOAD"
                     font.pixelSize: Style.space(9)
                     font.bold: true
@@ -1076,8 +1112,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "YELLOWS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "YELLOWS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.seasonYellowCards !== "") ? root.selectedPlayerProfile.seasonYellowCards : "0"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1088,8 +1125,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "REDS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "REDS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.seasonRedCards !== "") ? root.selectedPlayerProfile.seasonRedCards : "0"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1100,8 +1138,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "FOULS C/S"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "FOULS C/S"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.seasonFouls !== "") ? root.selectedPlayerProfile.seasonFouls : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1112,8 +1151,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(12)) / 4
                       spacing: Style.space(2)
-                      Text { text: "SUBS (IN/OUT)"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "SUBS (IN/OUT)"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && (root.selectedPlayerProfile.seasonSubIns !== "" || root.selectedPlayerProfile.seasonSubOuts !== ""))
                           ? ((root.selectedPlayerProfile.seasonSubIns || "0") + " / " + (root.selectedPlayerProfile.seasonSubOuts || "0"))
                           : "—"
@@ -1133,8 +1173,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(6)) / 2
                       spacing: Style.space(2)
-                      Text { text: "TOTAL SEASON MINUTES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "TOTAL SEASON MINUTES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.seasonMinutes) ? (root.selectedPlayerProfile.seasonMinutes + " mins") : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1145,8 +1186,9 @@ Column {
                     Column {
                       width: (parent.width - Style.space(6)) / 2
                       spacing: Style.space(2)
-                      Text { text: "MINS PER APPEARANCE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                      Text { textFormat: Text.PlainText; text: "MINS PER APPEARANCE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                       Text {
+                        textFormat: Text.PlainText
                         text: (root.selectedPlayerProfile && root.selectedPlayerProfile.seasonMinPerApp) ? (root.selectedPlayerProfile.seasonMinPerApp + " min/app") : "—"
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -1182,6 +1224,7 @@ Column {
                     spacing: Style.space(6)
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "󰝨"
                       font.pixelSize: Style.space(10)
@@ -1189,6 +1232,7 @@ Column {
                       color: root.favoriteTeamAccent
                     }
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "INTERNATIONAL / NATIONAL TEAMS"
                       font.pixelSize: Style.space(9)
@@ -1228,6 +1272,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.name || "National Team"
                         color: root.contentForeground
@@ -1239,6 +1284,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.isYouth ? "Youth" : "Senior"
                         font.pixelSize: Style.space(8)
@@ -1248,6 +1294,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         width: Style.space(65)
                         horizontalAlignment: Text.AlignRight
@@ -1282,6 +1329,7 @@ Column {
                   spacing: Style.space(6)
 
                   Text {
+                    textFormat: Text.PlainText
                     text: "CAREER CLUBS"
                     font.pixelSize: Style.space(9)
                     font.bold: true
@@ -1318,6 +1366,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             anchors.verticalCenter: parent.verticalCenter
                             width: parent.width - (String(modelData.teamLogo || "") !== "" ? Style.space(26) : 0)
                             text: ((modelData.name && modelData.name !== "") ? modelData.name : ((root.teamNameCache && root.teamNameCache[modelData.teamId]) ? root.teamNameCache[modelData.teamId] : "Club"))
@@ -1330,6 +1379,7 @@ Column {
                         }
 
                         Text {
+                          textFormat: Text.PlainText
                           id: clubYearsText
                           anchors.right: parent.right
                           anchors.verticalCenter: parent.verticalCenter
@@ -1368,6 +1418,7 @@ Column {
                     spacing: Style.space(6)
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "⇆"
                       font.pixelSize: Style.space(10)
@@ -1375,6 +1426,7 @@ Column {
                       color: root.favoriteTeamAccent
                     }
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "TRANSFER HISTORY"
                       font.pixelSize: Style.space(9)
@@ -1383,6 +1435,7 @@ Column {
                       font.family: root.contentFontFamily
                     }
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "(" + (root.selectedPlayerProfile && root.selectedPlayerProfile.transferHistory ? root.selectedPlayerProfile.transferHistory.length : 0) + ")"
                       font.pixelSize: Style.space(9)
@@ -1427,6 +1480,7 @@ Column {
                           spacing: Style.space(5)
 
                           Text {
+                            textFormat: Text.PlainText
                             id: transferDateText
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.year || modelData.date || "—"
@@ -1448,6 +1502,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.fromName || "Unknown"
                             font.pixelSize: Style.font.caption
@@ -1460,6 +1515,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             anchors.verticalCenter: parent.verticalCenter
                             text: "→"
                             font.pixelSize: Style.font.caption
@@ -1480,6 +1536,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.toName || "Unknown"
                             font.pixelSize: Style.font.caption
@@ -1492,6 +1549,7 @@ Column {
                           }
 
                           Text {
+                            textFormat: Text.PlainText
                             id: feeText
                             anchors.verticalCenter: parent.verticalCenter
                             text: " : " + modelData.fee
@@ -1659,6 +1717,7 @@ Column {
               }
 
               Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: clubProfileFavBtn.isPrimaryFav ? "" : ""
                 font.family: "Symbols Nerd Font, " + root.contentFontFamily
@@ -1746,6 +1805,7 @@ Column {
                     spacing: Style.space(6)
 
                     Text {
+                      textFormat: Text.PlainText
                       text: (root.selectedClubProfile && root.selectedClubProfile.displayName) ? root.selectedClubProfile.displayName : ""
                       color: root.contentForeground
                       font.family: root.contentFontFamily
@@ -1756,6 +1816,7 @@ Column {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       id: abbrevText
                       text: (root.selectedClubProfile && root.selectedClubProfile.abbreviation) ? root.selectedClubProfile.abbreviation : ""
                       color: root.favoriteTeamAccent
@@ -1768,6 +1829,7 @@ Column {
 
                   // Competition / Standing Summary line
                   Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: {
                       if (!root.selectedClubProfile) return ""
@@ -1798,6 +1860,7 @@ Column {
                       spacing: Style.space(4)
                       visible: !!(root.selectedClubProfile && root.selectedClubProfile.record)
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Record:"
                         font.family: root.contentFontFamily
@@ -1805,6 +1868,7 @@ Column {
                         color: Qt.darker(root.contentForeground, 1.6)
                       }
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: (root.selectedClubProfile && root.selectedClubProfile.record) ? root.selectedClubProfile.record : ""
                         color: root.contentForeground
@@ -1819,6 +1883,7 @@ Column {
                       spacing: Style.space(4)
                       visible: !!(root.selectedClubProfile && root.selectedClubProfile.venue)
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: "󰿹"
                         font.family: "Symbols Nerd Font, " + root.contentFontFamily
@@ -1826,6 +1891,7 @@ Column {
                         color: Qt.darker(root.contentForeground, 1.6)
                       }
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: (root.selectedClubProfile && root.selectedClubProfile.venue) ? root.selectedClubProfile.venue : ""
                         color: Qt.darker(root.contentForeground, 1.45)
@@ -1895,6 +1961,7 @@ Column {
               anchors.centerIn: parent
               spacing: Style.space(6)
               Text {
+                textFormat: Text.PlainText
                 text: "󰑮"
                 font.family: "Symbols Nerd Font, " + root.contentFontFamily
                 font.pixelSize: Style.font.caption
@@ -1902,6 +1969,7 @@ Column {
                 opacity: 0.5 + 0.5 * root._pulse
               }
               Text {
+                textFormat: Text.PlainText
                 text: "Updating stats & schedule…"
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.space(9)
@@ -1941,6 +2009,7 @@ Column {
                   width: parent.width * 0.42
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: (root.selectedClubProfile && root.selectedClubProfile.leagueSlug) ? (root.leagueLabel(root.selectedClubProfile.leagueSlug).toUpperCase() + " STANDINGS") : "LEAGUE STANDINGS"
                     font.pixelSize: Style.space(9)
@@ -1964,6 +2033,7 @@ Column {
                     onClicked: root.clubStandingsExpanded = !root.clubStandingsExpanded
 
                     Text {
+                      textFormat: Text.PlainText
                       id: miniTableToggleTxt
                       anchors.centerIn: parent
                       text: root.clubStandingsExpanded ? "Hide" : "Table"
@@ -1976,6 +2046,7 @@ Column {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
                   text: {
@@ -2013,38 +2084,38 @@ Column {
                 Column {
                   width: (parent.width - Style.space(20)) / 6
                   spacing: Style.space(2)
-                  Text { text: "PTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.points !== undefined && root.selectedClubProfile.points !== "") ? String(root.selectedClubProfile.points) : "0"; font.pixelSize: Style.font.body; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "PTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.points !== undefined && root.selectedClubProfile.points !== "") ? String(root.selectedClubProfile.points) : "0"; font.pixelSize: Style.font.body; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(20)) / 6
                   spacing: Style.space(2)
-                  Text { text: "W"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.wins !== undefined && root.selectedClubProfile.wins !== "") ? String(root.selectedClubProfile.wins) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "W"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.wins !== undefined && root.selectedClubProfile.wins !== "") ? String(root.selectedClubProfile.wins) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(20)) / 6
                   spacing: Style.space(2)
-                  Text { text: "D"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.ties !== undefined && root.selectedClubProfile.ties !== "") ? String(root.selectedClubProfile.ties) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "D"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.ties !== undefined && root.selectedClubProfile.ties !== "") ? String(root.selectedClubProfile.ties) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(20)) / 6
                   spacing: Style.space(2)
-                  Text { text: "L"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.losses !== undefined && root.selectedClubProfile.losses !== "") ? String(root.selectedClubProfile.losses) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "L"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.losses !== undefined && root.selectedClubProfile.losses !== "") ? String(root.selectedClubProfile.losses) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(20)) / 6
                   spacing: Style.space(2)
-                  Text { text: "DIFF"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.diff !== undefined && root.selectedClubProfile.diff !== "") ? String(root.selectedClubProfile.diff) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "DIFF"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.diff !== undefined && root.selectedClubProfile.diff !== "") ? String(root.selectedClubProfile.diff) : "0"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(20)) / 6
                   spacing: Style.space(2)
-                  Text { text: "GF:GA"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.goalsFor !== undefined && root.selectedClubProfile.goalsAgainst !== undefined && root.selectedClubProfile.goalsFor !== "") ? (root.selectedClubProfile.goalsFor + ":" + root.selectedClubProfile.goalsAgainst) : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "GF:GA"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.goalsFor !== undefined && root.selectedClubProfile.goalsAgainst !== undefined && root.selectedClubProfile.goalsFor !== "") ? (root.selectedClubProfile.goalsFor + ":" + root.selectedClubProfile.goalsAgainst) : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
               }
 
@@ -2059,12 +2130,12 @@ Column {
                   width: parent.width
                   height: Style.space(14)
 
-                  Text { width: Style.space(22); text: "#"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily }
-                  Text { width: parent.width - Style.space(126); text: "CLUB"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily }
-                  Text { width: Style.space(24); text: "GP"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignHCenter }
-                  Text { width: Style.space(38); text: "W-D-L"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignHCenter }
-                  Text { width: Style.space(20); text: "GD"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignRight }
-                  Text { width: Style.space(22); text: "PTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignRight }
+                  Text { textFormat: Text.PlainText; width: Style.space(22); text: "#"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; width: parent.width - Style.space(126); text: "CLUB"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; width: Style.space(24); text: "GP"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignHCenter }
+                  Text { textFormat: Text.PlainText; width: Style.space(38); text: "W-D-L"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignHCenter }
+                  Text { textFormat: Text.PlainText; width: Style.space(20); text: "GD"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignRight }
+                  Text { textFormat: Text.PlainText; width: Style.space(22); text: "PTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.8); font.family: root.contentFontFamily; horizontalAlignment: Text.AlignRight }
                 }
 
                 Repeater {
@@ -2113,6 +2184,7 @@ Column {
 
                       // Rank
                       Text {
+                        textFormat: Text.PlainText
                         width: Style.space(17)
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(modelData.rank)
@@ -2140,6 +2212,7 @@ Column {
                         }
 
                         Text {
+                          textFormat: Text.PlainText
                           anchors.verticalCenter: parent.verticalCenter
                           width: parent.width - Style.space(20)
                           text: modelData.name
@@ -2153,6 +2226,7 @@ Column {
 
                       // GP
                       Text {
+                        textFormat: Text.PlainText
                         width: Style.space(24)
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(modelData.gamesPlayed || "0")
@@ -2164,6 +2238,7 @@ Column {
 
                       // W-D-L
                       Text {
+                        textFormat: Text.PlainText
                         width: Style.space(38)
                         anchors.verticalCenter: parent.verticalCenter
                         text: (modelData.wins || "0") + "-" + (modelData.ties || "0") + "-" + (modelData.losses || "0")
@@ -2175,6 +2250,7 @@ Column {
 
                       // GD
                       Text {
+                        textFormat: Text.PlainText
                         width: Style.space(20)
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(modelData.diff || "0")
@@ -2186,6 +2262,7 @@ Column {
 
                       // PTS
                       Text {
+                        textFormat: Text.PlainText
                         width: Style.space(22)
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(modelData.points || "0")
@@ -2224,6 +2301,7 @@ Column {
                   visible: !!(root.selectedClubProfile && root.selectedClubProfile.form)
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: "FORM"
                     font.pixelSize: Style.space(8)
@@ -2266,6 +2344,7 @@ Column {
                   visible: !!(root.selectedClubProfile && (root.selectedClubProfile.homeRecord || root.selectedClubProfile.awayRecord || root.selectedClubProfile.streak))
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.selectedClubProfile && root.selectedClubProfile.streak ? ("Streak: " + root.selectedClubProfile.streak) : ""
                     font.pixelSize: Style.space(8)
@@ -2276,6 +2355,7 @@ Column {
                   }
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: "·"
                     font.pixelSize: Style.space(8)
@@ -2284,6 +2364,7 @@ Column {
                   }
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.selectedClubProfile && root.selectedClubProfile.homeRecord ? ("Home: " + root.selectedClubProfile.homeRecord) : ""
                     font.pixelSize: Style.space(8)
@@ -2293,6 +2374,7 @@ Column {
                   }
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: "·"
                     font.pixelSize: Style.space(8)
@@ -2301,6 +2383,7 @@ Column {
                   }
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.selectedClubProfile && root.selectedClubProfile.awayRecord ? ("Away: " + root.selectedClubProfile.awayRecord) : ""
                     font.pixelSize: Style.space(8)
@@ -2336,6 +2419,7 @@ Column {
                 width: parent.width
                 height: Style.space(14)
                 Text {
+                  textFormat: Text.PlainText
                   anchors.left: parent.left
                   anchors.verticalCenter: parent.verticalCenter
                   text: "TEAM PERFORMANCE & DISCIPLINE"
@@ -2363,8 +2447,9 @@ Column {
                     id: topScorerCol
                     anchors.fill: parent
                     spacing: Style.space(2)
-                    Text { text: "TOP SCORER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Text { textFormat: Text.PlainText; text: "TOP SCORER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                     Text {
+                      textFormat: Text.PlainText
                       text: (root.selectedClubProfile && root.selectedClubProfile.topScorer) ? root.selectedClubProfile.topScorer : "—"
                       font.pixelSize: Style.font.caption
                       font.bold: true
@@ -2403,8 +2488,9 @@ Column {
                     id: topAssisterCol
                     anchors.fill: parent
                     spacing: Style.space(2)
-                    Text { text: "TOP ASSISTER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Text { textFormat: Text.PlainText; text: "TOP ASSISTER"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                     Text {
+                      textFormat: Text.PlainText
                       text: (root.selectedClubProfile && root.selectedClubProfile.topAssister) ? root.selectedClubProfile.topAssister : "—"
                       font.pixelSize: Style.font.caption
                       font.bold: true
@@ -2443,8 +2529,9 @@ Column {
                     id: topCarderCol
                     anchors.fill: parent
                     spacing: Style.space(2)
-                    Text { text: "DISCIPLINE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                    Text { textFormat: Text.PlainText; text: "DISCIPLINE"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                     Text {
+                      textFormat: Text.PlainText
                       text: (root.selectedClubProfile && root.selectedClubProfile.topCarder) ? root.selectedClubProfile.topCarder : "—"
                       font.pixelSize: Style.font.caption
                       font.bold: true
@@ -2491,20 +2578,20 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 3
                   spacing: Style.space(2)
-                  Text { text: "POSSESSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.possession) ? root.selectedClubProfile.possession : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "POSSESSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.possession) ? root.selectedClubProfile.possession : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 3
                   spacing: Style.space(2)
-                  Text { text: "TOTAL SHOTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.shotsPerGame) ? root.selectedClubProfile.shotsPerGame : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "TOTAL SHOTS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.shotsPerGame) ? root.selectedClubProfile.shotsPerGame : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 3
                   spacing: Style.space(2)
-                  Text { text: "SHOTS ON TARGET"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.shotsOnTarget) ? root.selectedClubProfile.shotsOnTarget : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "SHOTS ON TARGET"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.shotsOnTarget) ? root.selectedClubProfile.shotsOnTarget : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
               }
 
@@ -2525,26 +2612,26 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "xG / MATCH"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.expectedGoals) ? root.selectedClubProfile.expectedGoals : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "xG / MATCH"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.expectedGoals) ? root.selectedClubProfile.expectedGoals : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.favoriteTeamAccent; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "xGA CONCEDED"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.expectedGoalsAgainst) ? root.selectedClubProfile.expectedGoalsAgainst : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "xGA CONCEDED"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.expectedGoalsAgainst) ? root.selectedClubProfile.expectedGoalsAgainst : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "BIG CHANCES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.bigChances) ? root.selectedClubProfile.bigChances : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "BIG CHANCES"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.bigChances) ? root.selectedClubProfile.bigChances : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "CONVERSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.goalConversion) ? root.selectedClubProfile.goalConversion : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "CONVERSION"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.goalConversion) ? root.selectedClubProfile.goalConversion : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
               }
 
@@ -2563,26 +2650,26 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "PASS ACCURACY"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.passPct) ? root.selectedClubProfile.passPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "PASS ACCURACY"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.passPct) ? root.selectedClubProfile.passPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "CLEAN SHEETS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.cleanSheets) ? root.selectedClubProfile.cleanSheets : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "CLEAN SHEETS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.cleanSheets) ? root.selectedClubProfile.cleanSheets : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "TACKLES WON"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.tackles) ? root.selectedClubProfile.tackles : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "TACKLES WON"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.tackles) ? root.selectedClubProfile.tackles : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "DUELS WON"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
-                  Text { text: (root.selectedClubProfile && root.selectedClubProfile.duelWinPct) ? root.selectedClubProfile.duelWinPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "DUELS WON"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: (root.selectedClubProfile && root.selectedClubProfile.duelWinPct) ? root.selectedClubProfile.duelWinPct : "—"; font.pixelSize: Style.font.caption; font.bold: true; color: root.contentForeground; font.family: root.contentFontFamily }
                 }
               }
 
@@ -2603,8 +2690,9 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "YELLOWS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "YELLOWS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text {
+                    textFormat: Text.PlainText
                     text: (root.selectedClubProfile && root.selectedClubProfile.yellowCards !== undefined && root.selectedClubProfile.yellowCards !== "") ? String(root.selectedClubProfile.yellowCards) : "0"
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -2615,8 +2703,9 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "REDS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "REDS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text {
+                    textFormat: Text.PlainText
                     text: (root.selectedClubProfile && root.selectedClubProfile.redCards !== undefined && root.selectedClubProfile.redCards !== "") ? String(root.selectedClubProfile.redCards) : "0"
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -2627,8 +2716,9 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "FOULS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "FOULS"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text {
+                    textFormat: Text.PlainText
                     text: (root.selectedClubProfile && root.selectedClubProfile.foulsCommitted !== undefined && root.selectedClubProfile.foulsCommitted !== "") ? String(root.selectedClubProfile.foulsCommitted) : "—"
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -2639,8 +2729,9 @@ Column {
                 Column {
                   width: (parent.width - Style.space(12)) / 4
                   spacing: Style.space(2)
-                  Text { text: "FAIR-PLAY"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
+                  Text { textFormat: Text.PlainText; text: "FAIR-PLAY"; font.pixelSize: Style.space(8); font.bold: true; color: Qt.darker(root.contentForeground, 1.6); font.family: root.contentFontFamily }
                   Text {
+                    textFormat: Text.PlainText
                     text: (root.selectedClubProfile && root.selectedClubProfile.disciplinaryPoints !== undefined && root.selectedClubProfile.disciplinaryPoints !== "") ? String(root.selectedClubProfile.disciplinaryPoints) : "0"
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -2676,6 +2767,7 @@ Column {
                 height: Style.space(14)
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.left: parent.left
                   anchors.verticalCenter: parent.verticalCenter
                   text: "SQUAD ROSTER"
@@ -2687,6 +2779,7 @@ Column {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   id: squadCountTxt
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
@@ -2777,6 +2870,7 @@ Column {
 
               // Empty / loading indicator
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 text: root.searchClubRosterRequest && root.searchClubRosterRequest.running ? "Loading squad roster…" : "No players found in this category"
                 font.family: root.contentFontFamily
@@ -2802,6 +2896,7 @@ Column {
 
                     // Jersey # pill
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       width: Style.space(20)
                       horizontalAlignment: Text.AlignHCenter
@@ -2828,6 +2923,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.centerIn: parent
                         text: ""
                         font.family: root.contentFontFamily
@@ -2844,6 +2940,7 @@ Column {
                       spacing: Style.space(1)
 
                       Text {
+                        textFormat: Text.PlainText
                         width: parent.width
                         text: modelData.name
                         font.family: root.contentFontFamily
@@ -2854,6 +2951,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         width: parent.width
                         text: (modelData.statsSummary && modelData.statsSummary !== "") ? (modelData.position + " · " + modelData.statsSummary) : modelData.position
                         font.family: root.contentFontFamily
@@ -2882,6 +2980,7 @@ Column {
                       }
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - Style.space(24)
                         text: modelData.country || ""
@@ -2894,6 +2993,7 @@ Column {
 
                     // Age badge
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       width: Style.space(28)
                       horizontalAlignment: Text.AlignRight
@@ -2988,6 +3088,7 @@ Column {
                 height: Style.space(18)
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.left: parent.left
                   anchors.verticalCenter: parent.verticalCenter
                   text: root.clubFixtureViewMode === "results" ? "RECENT RESULTS" : "UPCOMING FIXTURES"
@@ -3022,6 +3123,7 @@ Column {
                   }
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: (root.clubFixtureCarouselIndex + 1) + " / " + Math.max(1, root.activeClubFixturesList().length)
                     font.pixelSize: Style.space(8)
@@ -3072,6 +3174,7 @@ Column {
                     height: Style.space(14)
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.left: parent.left
                       anchors.verticalCenter: parent.verticalCenter
                       text: root.activeClubFixture() ? root.activeClubFixture().competition.toUpperCase() : ""
@@ -3085,6 +3188,7 @@ Column {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.right: parent.right
                       anchors.verticalCenter: parent.verticalCenter
                       text: root.activeClubFixture() ? (root.activeClubFixture().date + (root.activeClubFixture().time !== "" ? (" · " + root.activeClubFixture().time) : "")) : ""
@@ -3133,6 +3237,7 @@ Column {
                         }
 
                         Text {
+                          textFormat: Text.PlainText
                           anchors.verticalCenter: parent.verticalCenter
                           width: parent.width - Style.space(30)
                           text: root.activeClubFixture() ? root.activeClubFixture().homeTeam : ""
@@ -3171,6 +3276,7 @@ Column {
                       height: Style.space(20)
 
                       Text {
+                        textFormat: Text.PlainText
                         anchors.centerIn: parent
                         text: (root.activeClubFixture() && root.activeClubFixture().isCompleted && root.activeClubFixture().score) ? root.activeClubFixture().score : "VS"
                         font.pixelSize: (root.activeClubFixture() && root.activeClubFixture().isCompleted) ? Style.font.body : Style.space(9)
@@ -3200,6 +3306,7 @@ Column {
                         spacing: Style.space(6)
 
                         Text {
+                          textFormat: Text.PlainText
                           anchors.verticalCenter: parent.verticalCenter
                           width: parent.width - Style.space(30)
                           horizontalAlignment: Text.AlignRight
@@ -3251,6 +3358,7 @@ Column {
                     visible: !!(root.activeClubFixture() && !root.activeClubFixture().isCompleted && root.activeClubFixture().broadcast)
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "󰢹"
                       font.family: "Symbols Nerd Font, " + root.contentFontFamily
@@ -3259,6 +3367,7 @@ Column {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "Broadcast: " + (root.activeClubFixture() ? root.activeClubFixture().broadcast : "")
                       font.pixelSize: Style.space(8)
@@ -3273,6 +3382,7 @@ Column {
 
               // Empty Fixtures State
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: root.clubFixtureViewMode === "results" ? "No recent match results available" : "No upcoming fixtures scheduled"

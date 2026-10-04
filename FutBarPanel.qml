@@ -1601,14 +1601,7 @@ Panel {
     root.requestError = ""
   }
 
-  // In-memory only (never written to the favorite file) cache of each
-  // followed club's already-fetched dashboard state, keyed by teamKey().
-  // Switching clubs used to reset*() + refetch from zero every single
-  // time, even switching straight back to a club you were looking at
-  // seconds ago -- this is what let switchActiveTeam() skip that for a
-  // club already in here. Session-only by design: a stale-for-days cache
-  // surviving a restart would be worse than just refetching once on
-  // startup, so this intentionally starts empty every launch.
+  // In-memory session cache of each followed club's dashboard state, keyed by teamKey().
   property var _teamStateCache: ({})
 
   function snapshotTeamState() {
@@ -1625,12 +1618,7 @@ Panel {
     }
   }
 
-  // Restores exactly the fields resetTeamData() clears -- deliberately not
-  // the resetMatchList()/standings/stats fields (the fixtures-browser and
-  // standings/stats sub-views): those are opt-in views nobody sees on a
-  // plain tab switch, so caching them would add complexity for state the
-  // dashboard's default view never renders. A club whose fixtures browser
-  // you've already opened once just pays that specific sub-fetch again.
+  // Restores dashboard fields cleared by resetTeamData().
   function restoreTeamState(snap) {
     root.competitionSlugs = snap.competitionSlugs
     root.competitionRefresh = snap.competitionRefresh
@@ -1641,13 +1629,7 @@ Panel {
     root.liveMatch = snap.liveMatch
     root.liveEvents = snap.liveEvents
     root.collectedEvents = snap.collectedEvents
-    // Computed fresh rather than carried over from the snapshot: this is
-    // what tells refresh() "the currently-live properties already belong
-    // to this club" so it skips its own resetTeamData() and loading=true
-    // -- deriving it here guarantees that match instead of trusting it
-    // stayed valid since the snapshot was taken (resolvedTeamId in
-    // particular could in principle have been re-resolved differently
-    // meanwhile, e.g. by the picker's own team search).
+    // Computed fresh so refresh() knows properties belong to this club.
     root._fixtureTeamKey = root.fixtureTeamKey()
   }
   property var _leagueStateCache: ({})
@@ -6827,9 +6809,9 @@ onStreamFinished: root.warnStderr("", text)
                 type: itemType,
                 id: rawId,
                 uid: rawUid,
-                displayName: String(item.displayName || ""),
-                subtitle: String(item.subtitle || item.description || ""),
-                description: String(item.description || ""),
+                displayName: root.sanitizePlainText(String(item.displayName || "")),
+                subtitle: root.sanitizePlainText(String(item.subtitle || item.description || "")),
+                description: root.sanitizePlainText(String(item.description || "")),
                 leagueSlug: String(item.defaultLeagueSlug || ""),
                 image: img,
                 webUrl: item.link && item.link.web ? String(item.link.web) : ""
@@ -6883,16 +6865,16 @@ onStreamFinished: root.warnStderr("", text)
             var bCountry = p.birthPlace && p.birthPlace.country ? String(p.birthPlace.country) : ""
             var birthplace = bCity !== "" ? (bCountry !== "" ? bCity + ", " + bCountry : bCity) : bCountry
             var prof = Object.assign({}, root.selectedPlayerProfile || {})
-            prof.fullName = String(p.fullName || p.displayName || prof.fullName || "")
-            prof.jersey = p.jersey ? String(p.jersey) : (prof.jersey || "")
-            prof.age = p.age ? String(p.age) : (prof.age || "")
-            prof.position = p.position && p.position.displayName ? String(p.position.displayName) : (p.position && p.position.name ? String(p.position.name) : (prof.position || ""))
-            prof.displayHeight = p.displayHeight ? String(p.displayHeight) : (prof.displayHeight || "")
-            prof.displayWeight = p.displayWeight ? String(p.displayWeight) : (prof.displayWeight || "")
-            prof.citizenship = p.citizenship ? String(p.citizenship) : (p.citizenshipCountry ? String(p.citizenshipCountry) : (prof.citizenship || ""))
-            prof.birthplace = birthplace !== "" ? birthplace : (prof.birthplace || "")
-            prof.dateOfBirth = dobStr !== "" ? dobStr : (prof.dateOfBirth || "")
-            prof.status = p.status && p.status.name ? String(p.status.name) : (prof.status || "Active")
+            prof.fullName = root.sanitizePlainText(String(p.fullName || p.displayName || prof.fullName || ""))
+            prof.jersey = root.sanitizePlainText(p.jersey ? String(p.jersey) : (prof.jersey || ""))
+            prof.age = root.sanitizePlainText(p.age ? String(p.age) : (prof.age || ""))
+            prof.position = root.sanitizePlainText(p.position && p.position.displayName ? String(p.position.displayName) : (p.position && p.position.name ? String(p.position.name) : (prof.position || "")))
+            prof.displayHeight = root.sanitizePlainText(p.displayHeight ? String(p.displayHeight) : (prof.displayHeight || ""))
+            prof.displayWeight = root.sanitizePlainText(p.displayWeight ? String(p.displayWeight) : (prof.displayWeight || ""))
+            prof.citizenship = root.sanitizePlainText(p.citizenship ? String(p.citizenship) : (p.citizenshipCountry ? String(p.citizenshipCountry) : (prof.citizenship || "")))
+            prof.birthplace = root.sanitizePlainText(birthplace !== "" ? birthplace : (prof.birthplace || ""))
+            prof.dateOfBirth = root.sanitizePlainText(dobStr !== "" ? dobStr : (prof.dateOfBirth || ""))
+            prof.status = root.sanitizePlainText(p.status && p.status.name ? String(p.status.name) : (prof.status || "Active"))
             if (p.headshot && p.headshot.href) prof.headshot = String(p.headshot.href)
             if (p.flag && p.flag.href) prof.flag = String(p.flag.href)
             if (teamCrestUrl !== "") prof.teamCrest = teamCrestUrl
@@ -7933,12 +7915,12 @@ onStreamFinished: root.warnStderr("", text)
 
               var prof = Object.assign({}, root.selectedClubProfile)
               prof.id = String(t.id || prof.id || "")
-              prof.displayName = String(t.displayName || t.name || prof.displayName || "")
-              if (t.nickname) prof.nickname = String(t.nickname)
-              if (t.abbreviation) prof.abbreviation = String(t.abbreviation)
-              if (t.location) prof.location = String(t.location)
-              if (t.standingSummary) prof.standingSummary = String(t.standingSummary)
-              if (rec && rec.summary) prof.record = String(rec.summary)
+              prof.displayName = root.sanitizePlainText(String(t.displayName || t.name || prof.displayName || ""))
+              if (t.nickname) prof.nickname = root.sanitizePlainText(String(t.nickname))
+              if (t.abbreviation) prof.abbreviation = root.sanitizePlainText(String(t.abbreviation))
+              if (t.location) prof.location = root.sanitizePlainText(String(t.location))
+              if (t.standingSummary) prof.standingSummary = root.sanitizePlainText(String(t.standingSummary))
+              if (rec && rec.summary) prof.record = root.sanitizePlainText(String(rec.summary))
               if (pts !== "") prof.points = pts
               if (wins !== "") prof.wins = wins
               if (ties !== "") prof.ties = ties
@@ -9230,7 +9212,7 @@ onStreamFinished: root.warnStderr("", text)
     searchCareerAggRequest.running = false
     root.resetPanelScroll()
     root.selectedPlayerProfile = {
-      fullName: item.displayName,
+      fullName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
       jersey: "",
       age: "",
       position: "",
@@ -9240,11 +9222,11 @@ onStreamFinished: root.warnStderr("", text)
       birthplace: "",
       dateOfBirth: "",
       status: "Active",
-      headshot: item.image,
+      headshot: item ? item.image : "",
       flag: "",
-      teamName: item.subtitle,
+      teamName: item ? root.sanitizePlainText(String(item.subtitle || "")) : "",
       teamCrest: "",
-      leagueName: item.description,
+      leagueName: item ? root.sanitizePlainText(String(item.description || "")) : "",
       careerAppearances: "",
       careerGoals: "",
       careerAssists: "",
@@ -9727,9 +9709,9 @@ onStreamFinished: root.warnStderr("", text)
     var lg = (item && item.leagueSlug) ? item.leagueSlug : (root.league !== "" ? root.league : "esp.1")
     root.selectedClubProfile = {
       id: item ? item.id : "",
-      displayName: item ? item.displayName : "",
+      displayName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
       nickname: "",
-      leagueName: item ? (item.subtitle || "") : "",
+      leagueName: item ? root.sanitizePlainText(String(item.subtitle || "")) : "",
       abbreviation: "",
       location: "",
       leagueSlug: lg,
@@ -10752,6 +10734,7 @@ root.warnStderr("team select failed", text)
                   Row {
                     spacing: Style.space(6)
                     Text {
+                      textFormat: Text.PlainText
                       text: modelData.displayName
                       color: root.contentForeground
                       font.family: root.contentFontFamily
@@ -10760,6 +10743,7 @@ root.warnStderr("team select failed", text)
                       elide: Text.ElideRight
                     }
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       text: "· " + (modelData.type === "player" ? "Player" : "Club")
                       font.family: root.contentFontFamily
@@ -10770,6 +10754,7 @@ root.warnStderr("team select failed", text)
                   }
 
                   Text {
+                    textFormat: Text.PlainText
                     text: modelData.subtitle
                     color: Qt.darker(root.contentForeground, 1.4)
                     font.family: root.contentFontFamily
