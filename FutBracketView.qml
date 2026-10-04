@@ -423,7 +423,18 @@ Column {
 
                       Text {
                         textFormat: Text.PlainText
-                        text: mCard.modelData ? (mCard.modelData.homeAgg !== undefined && mCard.modelData.homeAgg !== "" ? mCard.modelData.homeAgg : (mCard.modelData.homeScore || "")) : ""
+                        text: {
+                          if (!mCard.modelData) return ""
+                          if (mCard.modelData.homeAgg !== undefined && mCard.modelData.homeAgg !== null && mCard.modelData.homeAgg !== "") {
+                            return String(mCard.modelData.homeAgg)
+                          }
+                          if (mCard.modelData.hasTwoLegs && mCard.modelData.homeLeg1 !== undefined && mCard.modelData.homeLeg2 !== undefined && mCard.modelData.homeLeg1 !== "" && mCard.modelData.homeLeg2 !== "" && mCard.modelData.homeLeg1 !== "—" && mCard.modelData.homeLeg2 !== "—") {
+                            var v1 = parseInt(mCard.modelData.homeLeg1)
+                            var v2 = parseInt(mCard.modelData.homeLeg2)
+                            if (!isNaN(v1) && !isNaN(v2)) return String(v1 + v2)
+                          }
+                          return mCard.modelData.homeScore || ""
+                        }
                         color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.homeName))
                           ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
@@ -513,7 +524,18 @@ Column {
 
                       Text {
                         textFormat: Text.PlainText
-                        text: mCard.modelData ? (mCard.modelData.awayAgg !== undefined && mCard.modelData.awayAgg !== "" ? mCard.modelData.awayAgg : (mCard.modelData.awayScore || "")) : ""
+                        text: {
+                          if (!mCard.modelData) return ""
+                          if (mCard.modelData.awayAgg !== undefined && mCard.modelData.awayAgg !== null && mCard.modelData.awayAgg !== "") {
+                            return String(mCard.modelData.awayAgg)
+                          }
+                          if (mCard.modelData.hasTwoLegs && mCard.modelData.awayLeg1 !== undefined && mCard.modelData.awayLeg2 !== undefined && mCard.modelData.awayLeg1 !== "" && mCard.modelData.awayLeg2 !== "" && mCard.modelData.awayLeg1 !== "—" && mCard.modelData.awayLeg2 !== "—") {
+                            var v1 = parseInt(mCard.modelData.awayLeg1)
+                            var v2 = parseInt(mCard.modelData.awayLeg2)
+                            if (!isNaN(v1) && !isNaN(v2)) return String(v1 + v2)
+                          }
+                          return mCard.modelData.awayScore || ""
+                        }
                         color: (mCard.modelData && bracketView.isTeamAdvancing(mCard.modelData.winner, mCard.modelData.awayName))
                           ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family

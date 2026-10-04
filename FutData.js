@@ -828,10 +828,10 @@ var leagues = [
             }
           }
 
-          var dispAggA = sObj.agg_A !== "" ? sObj.agg_A : (has2Legs ? String(numAggA !== null ? numAggA : "") : sObj.leg1_A);
-          var dispAggB = sObj.agg_B !== "" ? sObj.agg_B : (has2Legs ? String(numAggB !== null ? numAggB : "") : sObj.leg1_B);
-          if (dispAggA && dispAggA.indexOf(".0") === dispAggA.length - 2) dispAggA = dispAggA.substring(0, dispAggA.length - 2);
-          if (dispAggB && dispAggB.indexOf(".0") === dispAggB.length - 2) dispAggB = dispAggB.substring(0, dispAggB.length - 2);
+          var dispAggA = sObj.agg_A !== "" ? String(sObj.agg_A) : (numAggA !== null ? String(numAggA) : (has2Legs ? "" : String(sObj.leg1_A || "")));
+          var dispAggB = sObj.agg_B !== "" ? String(sObj.agg_B) : (numAggB !== null ? String(numAggB) : (has2Legs ? "" : String(sObj.leg1_B || "")));
+          dispAggA = dispAggA.replace(/\.0$/, "");
+          dispAggB = dispAggB.replace(/\.0$/, "");
 
           roundMatchups.push({
             homeName: cleanText(sObj.teamA),
