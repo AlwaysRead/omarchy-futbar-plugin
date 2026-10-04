@@ -7814,17 +7814,24 @@ onStreamFinished: root.warnStderr("", text)
                   var nm = stList[si].name
                   if (/^avg/i.test(nm) || /^time/i.test(nm) || /pct$/i.test(nm)) continue
                   var raw = typeof stList[si].value === "number" ? stList[si].value : parseFloat(String(stList[si].displayValue !== undefined ? stList[si].displayValue : "").replace(/,/g, ""))
-                  if (isNaN(raw)) continue
-                  if (root.clubAggSums[nm] === undefined) root.clubAggSums[nm] = 0
-                  root.clubAggSums[nm] += raw
+                  if (!isNaN(raw)) {
+                    if (root.clubAggSums[nm] === undefined) root.clubAggSums[nm] = 0
+                    root.clubAggSums[nm] += raw
+                  }
                 }
               }
             } catch (e2) {}
           }
-          if (p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) {
-            root._fetchNextClubStat()
-          }
+          if (p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) root._fetchNextClubStat()
         } catch (e) {}
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (root.clubAggQueue.length > 0) root.clubAggQueue.shift()
+        var p = root.selectedPlayerProfile
+        if (p && p.clubFilterId === root.clubAggTarget && p.clubFilterLoading) root._fetchNextClubStat()
       }
     }
   }
@@ -9411,6 +9418,30 @@ onStreamFinished: root.warnStderr("", text)
     searchTeamNameRequest.running = true
   }
 
+  function clubFilterLabel(teamId) {
+    var p = root.selectedPlayerProfile
+    if (!p || teamId === "all") return ""
+    var opts = (p.clubOptions || []).concat(p.careerHistory || [])
+    for (var i = 0; i < opts.length; i++) {
+      if (String(opts[i].teamId) === String(teamId)) {
+        return opts[i].name + (opts[i].years ? (" (" + opts[i].years + ")") : "")
+      }
+    }
+    return "Club"
+  }
+
+  function playerClubOptions() {
+    var p = root.selectedPlayerProfile
+    if (!p) return []
+    if (p.clubOptions && p.clubOptions.length > 0) return p.clubOptions
+    if (p.careerHistory && p.careerHistory.length > 0) {
+      return p.careerHistory.map(function(c) {
+        return { teamId: c.teamId, name: c.name || ("Club " + c.teamId), logo: c.teamLogo || "", years: c.years || "" }
+      })
+    }
+    return []
+  }
+
   function selectClubFilter(teamId) {
     var p = root.selectedPlayerProfile
     if (!p) return
@@ -9419,14 +9450,22 @@ onStreamFinished: root.warnStderr("", text)
       p.clubFilterId = teamId
       p.clubStatMap = p.clubAggCache[teamId]
       p.clubFilterLoading = false
+      root.playerStatsLoading = false
       root.selectedPlayerProfile = Object.assign({}, p)
+      root.applySingleStatMap(p.clubStatMap, root.clubFilterLabel(teamId))
       return
     }
     p.clubFilterId = teamId
     p.clubStatMap = null
     p.clubFilterLoading = teamId !== "all"
+    if (teamId === "all") {
+      root.playerStatsLoading = false
+      root.selectedPlayerProfile = Object.assign({}, p)
+      root.applyPlayerStatsView()
+      return
+    }
+    root.playerStatsLoading = true
     root.selectedPlayerProfile = Object.assign({}, p)
-    if (teamId === "all") return
     var urls = []
     if (teamId === "national") {
       urls = root.nationalStatUrls()
@@ -9438,6 +9477,7 @@ onStreamFinished: root.warnStderr("", text)
     root.clubAggTarget = teamId
     if (urls.length === 0) {
       p.clubFilterLoading = false
+      root.playerStatsLoading = false
       root.selectedPlayerProfile = Object.assign({}, p)
       return
     }
@@ -9450,28 +9490,27 @@ onStreamFinished: root.warnStderr("", text)
       return
     }
     searchClubStatRequest.running = false
-    searchClubStatRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-      root.clubAggQueue[0]]
+    searchClubStatRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", root.clubAggQueue[0]]
     searchClubStatRequest.running = true
   }
 
   function _writeClubAggMap(finished) {
     var p = root.selectedPlayerProfile
     if (!p || p.clubFilterId !== root.clubAggTarget) return
-    var sums = root.clubAggSums
-    var out = {}
-    var keys = Object.keys(sums)
-    for (var i = 0; i < keys.length; i++) {
-      out[keys[i]] = String(Math.round(sums[keys[i]]))
-    }
+    var sums = root.clubAggSums, out = {}, keys = Object.keys(sums)
+    for (var i = 0; i < keys.length; i++) out[keys[i]] = String(Math.round(sums[keys[i]]))
     if (sums["totalPasses"] > 0 && sums["accuratePasses"] !== undefined) {
       out["passPct"] = Math.round(sums["accuratePasses"] / sums["totalPasses"] * 100) + "%"
     }
     p.clubStatMap = out
     if (!p.clubAggCache) p.clubAggCache = ({})
     p.clubAggCache[root.clubAggTarget] = out
-    if (finished) p.clubFilterLoading = false
+    if (finished) {
+      p.clubFilterLoading = false
+      root.playerStatsLoading = false
+    }
     root.selectedPlayerProfile = Object.assign({}, p)
+    root.applySingleStatMap(out, root.clubFilterLabel(root.clubAggTarget))
   }
 
   function _finishClubAgg() {
@@ -9497,83 +9536,51 @@ onStreamFinished: root.warnStderr("", text)
   function moreRows(group) {
     var defs = {
       scoring: [
-        { label: "Free-kick goals", names: ["freeKickGoals"] },
-        { label: "Penalty goals", names: ["penaltyKickGoals"] },
-        { label: "Penalties missed", names: ["penaltyKicksMissed"] },
-        { label: "Game-winning goals", names: ["gameWinningGoals"] },
-        { label: "Headed goals", names: ["headedGoals"] },
-        { label: "Left-foot shots", names: ["leftFootedShots"] },
-        { label: "Right-foot shots", names: ["rightFootedShots"] },
-        { label: "Shots", names: ["totalShots"] },
-        { label: "Shots on target", names: ["shotsOnTarget"] },
-        { label: "Shot %", names: ["shotPct"] },
-        { label: "In-box attempts", names: ["attemptsInBox"] },
-        { label: "Out-box attempts", names: ["attemptsOutBox"] },
-        { label: "Offsides", names: ["offsides"] },
-        { label: "Big chances missed", names: ["bigChanceMissed"] },
-        { label: "Shootout goals", names: ["shootOutGoals"] },
-        { label: "Shootout misses", names: ["shootOutMisses"] }
+        ["Free-kick goals", ["freeKickGoals"]], ["Penalty goals", ["penaltyKickGoals"]],
+        ["Penalties missed", ["penaltyKicksMissed"]], ["Game-winning goals", ["gameWinningGoals"]],
+        ["Headed goals", ["headedGoals"]], ["Left-foot shots", ["leftFootedShots"]],
+        ["Right-foot shots", ["rightFootedShots"]], ["Shots", ["totalShots"]],
+        ["Shots on target", ["shotsOnTarget"]], ["Shot %", ["shotPct"]],
+        ["In-box attempts", ["attemptsInBox"]], ["Out-box attempts", ["attemptsOutBox"]],
+        ["Offsides", ["offsides"]], ["Big chances missed", ["bigChanceMissed"]],
+        ["Shootout goals", ["shootOutGoals"]], ["Shootout misses", ["shootOutMisses"]]
       ],
       passing: [
-        { label: "Accurate passes", names: ["accuratePasses"] },
-        { label: "Total passes", names: ["totalPasses"] },
-        { label: "Accurate crosses", names: ["accurateCrosses"] },
-        { label: "Accurate long balls", names: ["accurateLongBalls"] },
-        { label: "Accurate through balls", names: ["accurateThroughBalls"] },
-        { label: "Cross %", names: ["crossPct"] },
-        { label: "Long-ball %", names: ["longballPct"] },
-        { label: "Through-ball %", names: ["throughBallPct"] },
-        { label: "Key passes", names: ["shotAssists"] },
-        { label: "Big chances created", names: ["bigChanceCreated"] },
-        { label: "Second assists", names: ["secondAssists"] },
-        { label: "Game-winning assists", names: ["gameWinningAssists"] }
+        ["Accurate passes", ["accuratePasses"]], ["Total passes", ["totalPasses"]],
+        ["Accurate crosses", ["accurateCrosses"]], ["Accurate long balls", ["accurateLongBalls"]],
+        ["Accurate through balls", ["accurateThroughBalls"]], ["Cross %", ["crossPct"]],
+        ["Long-ball %", ["longballPct"]], ["Through-ball %", ["throughBallPct"]],
+        ["Key passes", ["shotAssists"]], ["Big chances created", ["bigChanceCreated"]],
+        ["Second assists", ["secondAssists"]], ["Game-winning assists", ["gameWinningAssists"]]
       ],
       defending: [
-        { label: "Tackles", names: ["effectiveTackles", "totalTackles"] },
-        { label: "Tackle %", names: ["tacklePct"] },
-        { label: "Interceptions", names: ["interceptions"] },
-        { label: "Clearances", names: ["totalClearance", "effectiveClearance"] },
-        { label: "Blocked shots", names: ["blockedShots"] },
-        { label: "Recoveries", names: ["recoveries"] },
-        { label: "Duels won", names: ["duelsWon"] },
-        { label: "Duels lost", names: ["duelsLost"] },
-        { label: "Tackles lost", names: ["tacklesLost"] },
-        { label: "Fouls committed", names: ["foulsCommitted"] },
-        { label: "Fouls suffered", names: ["foulsSuffered"] }
+        ["Tackles", ["effectiveTackles", "totalTackles"]], ["Tackle %", ["tacklePct"]],
+        ["Interceptions", ["interceptions"]], ["Clearances", ["totalClearance", "effectiveClearance"]],
+        ["Blocked shots", ["blockedShots"]], ["Recoveries", ["recoveries"]],
+        ["Duels won", ["duelsWon"]], ["Duels lost", ["duelsLost"]],
+        ["Tackles lost", ["tacklesLost"]], ["Fouls committed", ["foulsCommitted"]],
+        ["Fouls suffered", ["foulsSuffered"]]
       ],
       keeper: [
-        { label: "Saves", names: ["saves"] },
-        { label: "Shots faced", names: ["shotsFaced"] },
-        { label: "Goals conceded", names: ["goalsConceded"] },
-        { label: "Clean sheets", names: ["cleanSheet"] },
-        { label: "Penalty saves", names: ["penaltyKicksSaved"] },
-        { label: "Penalties faced", names: ["penaltyKicksFaced"] },
-        { label: "Crosses caught", names: ["crossesCaught"] },
-        { label: "Punches", names: ["punches"] },
-        { label: "Big-chance saves", names: ["bigChanceSaves"] },
-        { label: "Shootout saves", names: ["shootOutKicksSaved"] }
+        ["Saves", ["saves"]], ["Shots faced", ["shotsFaced"]], ["Goals conceded", ["goalsConceded"]],
+        ["Clean sheets", ["cleanSheet"]], ["Penalty saves", ["penaltyKicksSaved"]],
+        ["Penalties faced", ["penaltyKicksFaced"]], ["Crosses caught", ["crossesCaught"]],
+        ["Punches", ["punches"]], ["Big-chance saves", ["bigChanceSaves"]],
+        ["Shootout saves", ["shootOutKicksSaved"]]
       ],
       general: [
-        { label: "Minutes", names: ["minutes"] },
-        { label: "Starts", names: ["starts"] },
-        { label: "Sub ins", names: ["subIns"] },
-        { label: "Sub outs", names: ["subOuts"] },
-        { label: "Wins", names: ["wins"] },
-        { label: "Draws", names: ["draws"] },
-        { label: "Losses", names: ["losses"] },
-        { label: "Yellow cards", names: ["yellowCards"] },
-        { label: "Red cards", names: ["redCards"] },
-        { label: "Touches", names: ["touches"] },
-        { label: "Touches in opp box", names: ["touchesInOppBox"] },
-        { label: "Progressive carries", names: ["progressiveCarries"] },
-        { label: "Own goals", names: ["ownGoals"] }
+        ["Minutes", ["minutes"]], ["Starts", ["starts"]], ["Sub ins", ["subIns"]],
+        ["Sub outs", ["subOuts"]], ["Wins", ["wins"]], ["Draws", ["draws"]],
+        ["Losses", ["losses"]], ["Yellow cards", ["yellowCards"]], ["Red cards", ["redCards"]],
+        ["Touches", ["touches"]], ["Touches in opp box", ["touchesInOppBox"]],
+        ["Progressive carries", ["progressiveCarries"]], ["Own goals", ["ownGoals"]]
       ]
     }
     var out = []
     var list = defs[group] || []
     for (var i = 0; i < list.length; i++) {
-      var v = root.pickStat(list[i].names)
-      if (v !== "") out.push({ label: list[i].label, value: v })
+      var v = root.pickStat(list[i][1])
+      if (v !== "") out.push({ label: list[i][0], value: v })
     }
     return out
   }
@@ -9623,23 +9630,16 @@ onStreamFinished: root.warnStderr("", text)
     if (root.careerAggQueue.length === 0) {
       var p = root.selectedPlayerProfile
       if (p && root.statsPlayerKey === root.careerAggTarget) {
-        if (root.careerAggSums["goalAssists"] > 0) {
-          p.careerAssists = String(Math.round(root.careerAggSums["goalAssists"]))
-        }
-        if (root.careerAggSums["appearances"] > 0) {
-          p.careerAppearances = String(Math.round(root.careerAggSums["appearances"]))
-        }
-        if (root.careerAggSums["totalGoals"] > 0) {
-          p.careerGoals = String(Math.round(root.careerAggSums["totalGoals"]))
-        }
+        if (root.careerAggSums["goalAssists"] > 0) p.careerAssists = String(Math.round(root.careerAggSums["goalAssists"]))
+        if (root.careerAggSums["appearances"] > 0) p.careerAppearances = String(Math.round(root.careerAggSums["appearances"]))
+        if (root.careerAggSums["totalGoals"] > 0) p.careerGoals = String(Math.round(root.careerAggSums["totalGoals"]))
         p.careerAggDone = true
         root.selectedPlayerProfile = Object.assign({}, p)
       }
       return
     }
     searchCareerAggRequest.running = false
-    searchCareerAggRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-      root.careerAggQueue[0]]
+    searchCareerAggRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", root.careerAggQueue[0]]
     searchCareerAggRequest.running = true
   }
 

@@ -720,6 +720,31 @@ Column {
                   anchors.margins: Style.space(8)
                   spacing: Style.space(6)
 
+                  Item {
+                    id: statPulseAnim
+                    property real pulseOpacity: 1.0
+                    property real transitionOpacity: 1.0
+
+                    SequentialAnimation on pulseOpacity {
+                      running: !!root.playerStatsLoading
+                      loops: Animation.Infinite
+                      NumberAnimation { to: 0.45; duration: 400; easing.type: Easing.InOutQuad }
+                      NumberAnimation { to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
+                    }
+
+                    Timer {
+                      id: statQuickRefreshTimer
+                      interval: 220
+                      repeat: false
+                      onTriggered: statPulseAnim.transitionOpacity = 1.0
+                    }
+
+                    function triggerQuickRefresh() {
+                      statPulseAnim.transitionOpacity = 0.4
+                      statQuickRefreshTimer.restart()
+                    }
+                  }
+
                   // Header Row: STATISTICS on Left, Season Navigator on Right
                   Item {
                     width: parent.width
@@ -740,15 +765,40 @@ Column {
                         font.family: root.contentFontFamily
                       }
 
-                      Text {
-                        textFormat: Text.PlainText
+                      Row {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "· Loading…"
-                        font.pixelSize: Style.space(8)
-                        font.italic: true
-                        color: Qt.darker(root.contentForeground, 1.8)
-                        font.family: root.contentFontFamily
+                        spacing: Style.space(4)
                         visible: !!root.playerStatsLoading
+
+                        Text {
+                          id: statLoadingSpinner
+                          textFormat: Text.PlainText
+                          anchors.verticalCenter: parent.verticalCenter
+                          text: "⟳"
+                          font.pixelSize: Style.space(9)
+                          font.bold: true
+                          color: root.favoriteTeamAccent
+                          font.family: root.contentFontFamily
+                          transformOrigin: Item.Center
+                          NumberAnimation on rotation {
+                            running: !!root.playerStatsLoading
+                            from: 0
+                            to: 360
+                            duration: 750
+                            loops: Animation.Infinite
+                          }
+                        }
+
+                        Text {
+                          textFormat: Text.PlainText
+                          anchors.verticalCenter: parent.verticalCenter
+                          text: "Updating…"
+                          font.pixelSize: Style.space(8)
+                          font.italic: true
+                          font.bold: true
+                          color: root.favoriteTeamAccent
+                          font.family: root.contentFontFamily
+                        }
                       }
                     }
 
@@ -766,12 +816,16 @@ Column {
                         horizontalPadding: Style.space(6)
                         verticalPadding: 0
                         text: "◀"
+                        visible: !(root.searchPlayerStatsTab === "club" && root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId && root.selectedPlayerProfile.clubFilterId !== "all")
                         enabled: root.selectedPlayerProfile && root.selectedPlayerProfile.availableSeasons && ((root.selectedPlayerProfile.selectedSeasonIndex || 0) < (root.selectedPlayerProfile.availableSeasons.length - 1))
                         opacity: enabled ? 1.0 : 0.35
                         fontFamily: root.contentFontFamily
                         foreground: root.contentForeground
                         accent: root.contentForeground
-                        onClicked: root.changePlayerSeason(1)
+                        onClicked: {
+                          statPulseAnim.triggerQuickRefresh()
+                          root.changePlayerSeason(1)
+                        }
                       }
 
                       Text {
@@ -779,7 +833,11 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
                           var prof = root.selectedPlayerProfile
-                          if (!prof || !prof.availableSeasons || prof.availableSeasons.length === 0) return ""
+                          if (!prof) return ""
+                          if (root.searchPlayerStatsTab === "club" && prof.clubFilterId && prof.clubFilterId !== "all") {
+                            return root.clubFilterLabel(prof.clubFilterId)
+                          }
+                          if (!prof.availableSeasons || prof.availableSeasons.length === 0) return ""
                           var sIdx = prof.selectedSeasonIndex || 0
                           var s = prof.availableSeasons[sIdx]
                           return s ? (s.seasonYear || String(s.year)) : ""
@@ -788,6 +846,10 @@ Column {
                         font.bold: true
                         color: root.favoriteTeamAccent
                         font.family: root.contentFontFamily
+                        opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
+                        Behavior on opacity {
+                          NumberAnimation { duration: 150 }
+                        }
                       }
 
                       // Newer Season (▶)
@@ -797,12 +859,16 @@ Column {
                         horizontalPadding: Style.space(6)
                         verticalPadding: 0
                         text: "▶"
+                        visible: !(root.searchPlayerStatsTab === "club" && root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId && root.selectedPlayerProfile.clubFilterId !== "all")
                         enabled: root.selectedPlayerProfile && (root.selectedPlayerProfile.selectedSeasonIndex || 0) > 0
                         opacity: enabled ? 1.0 : 0.35
                         fontFamily: root.contentFontFamily
                         foreground: root.contentForeground
                         accent: root.contentForeground
-                        onClicked: root.changePlayerSeason(-1)
+                        onClicked: {
+                          statPulseAnim.triggerQuickRefresh()
+                          root.changePlayerSeason(-1)
+                        }
                       }
                     }
                   }
@@ -822,7 +888,10 @@ Column {
                       fontFamily: root.contentFontFamily
                       foreground: root.contentForeground
                       accent: root.contentForeground
-                      onClicked: root.setPlayerStatsTab("all")
+                      onClicked: {
+                        statPulseAnim.triggerQuickRefresh()
+                        root.setPlayerStatsTab("all")
+                      }
                     }
 
                     Button {
@@ -835,7 +904,13 @@ Column {
                       fontFamily: root.contentFontFamily
                       foreground: root.contentForeground
                       accent: root.contentForeground
-                      onClicked: root.setPlayerStatsTab("club")
+                      onClicked: {
+                        statPulseAnim.triggerQuickRefresh()
+                        root.setPlayerStatsTab("club")
+                        if (root.selectedPlayerProfile && root.selectedPlayerProfile.clubFilterId && root.selectedPlayerProfile.clubFilterId !== "all") {
+                          root.selectClubFilter(root.selectedPlayerProfile.clubFilterId)
+                        }
+                      }
                     }
 
                     Button {
@@ -848,7 +923,10 @@ Column {
                       fontFamily: root.contentFontFamily
                       foreground: root.contentForeground
                       accent: root.contentForeground
-                      onClicked: root.setPlayerStatsTab("country")
+                      onClicked: {
+                        statPulseAnim.triggerQuickRefresh()
+                        root.setPlayerStatsTab("country")
+                      }
                     }
 
                     Button {
@@ -861,7 +939,10 @@ Column {
                       fontFamily: root.contentFontFamily
                       foreground: root.contentForeground
                       accent: root.contentForeground
-                      onClicked: root.setPlayerStatsTab("tournament")
+                      onClicked: {
+                        statPulseAnim.triggerQuickRefresh()
+                        root.setPlayerStatsTab("tournament")
+                      }
                     }
 
                     Button {
@@ -874,7 +955,68 @@ Column {
                       fontFamily: root.contentFontFamily
                       foreground: root.contentForeground
                       accent: root.contentForeground
-                      onClicked: root.setPlayerStatsTab("career")
+                      onClicked: {
+                        statPulseAnim.triggerQuickRefresh()
+                        root.setPlayerStatsTab("career")
+                      }
+                    }
+                  }
+
+                  // Club selector row (visible when Club filter is selected)
+                  Item {
+                    id: clubRowContainer
+                    width: parent.width
+                    height: Style.space(24)
+                    visible: root.searchPlayerStatsTab === "club"
+                    clip: true
+
+                    Flickable {
+                      id: clubFlick
+                      anchors.fill: parent
+                      contentWidth: clubRow.implicitWidth
+                      contentHeight: height
+                      boundsBehavior: Flickable.StopAtBounds
+                      flickableDirection: Flickable.HorizontalFlick
+
+                      Row {
+                        id: clubRow
+                        spacing: Style.space(4)
+
+                        Button {
+                          height: Style.space(20)
+                          fontSize: Style.space(8)
+                          horizontalPadding: Style.space(6)
+                          verticalPadding: 0
+                          text: "Active Season"
+                          selected: !root.selectedPlayerProfile || !root.selectedPlayerProfile.clubFilterId || root.selectedPlayerProfile.clubFilterId === "all"
+                          fontFamily: root.contentFontFamily
+                          foreground: root.contentForeground
+                          accent: root.contentForeground
+                          onClicked: {
+                            statPulseAnim.triggerQuickRefresh()
+                            root.selectClubFilter("all")
+                          }
+                        }
+
+                        Repeater {
+                          model: root.playerClubOptions()
+                          delegate: Button {
+                            height: Style.space(20)
+                            fontSize: Style.space(8)
+                            horizontalPadding: Style.space(6)
+                            verticalPadding: 0
+                            text: (modelData.name || ("Club " + modelData.teamId)) + (modelData.years ? (" (" + modelData.years + ")") : "")
+                            selected: !!(root.selectedPlayerProfile && String(root.selectedPlayerProfile.clubFilterId) === String(modelData.teamId))
+                            fontFamily: root.contentFontFamily
+                            foreground: root.contentForeground
+                            accent: root.contentForeground
+                            onClicked: {
+                              statPulseAnim.triggerQuickRefresh()
+                              root.selectClubFilter(modelData.teamId)
+                            }
+                          }
+                        }
+                      }
                     }
                   }
 
@@ -910,7 +1052,10 @@ Column {
                             fontFamily: root.contentFontFamily
                             foreground: root.contentForeground
                             accent: root.contentForeground
-                            onClicked: root.selectPlayerTournament(index)
+                            onClicked: {
+                              statPulseAnim.triggerQuickRefresh()
+                              root.selectPlayerTournament(index)
+                            }
                           }
                         }
                       }
@@ -936,6 +1081,10 @@ Column {
                   Row {
                     width: parent.width
                     spacing: Style.space(4)
+                    opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
+                    Behavior on opacity {
+                      NumberAnimation { duration: 150 }
+                    }
 
                     Column {
                       width: (parent.width - Style.space(12)) / 4
@@ -1015,6 +1164,10 @@ Column {
                 border.width: Style.spacing.hairline
                 border.color: Util.alpha(root.contentForeground, 0.08)
                 visible: root.searchPlayerCardTab === "stats" && root.selectedPlayerProfile
+                opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
+                Behavior on opacity {
+                  NumberAnimation { duration: 150 }
+                }
 
                 Column {
                   id: playerEfficiencyCol
@@ -1102,6 +1255,10 @@ Column {
                 border.width: Style.spacing.hairline
                 border.color: Util.alpha(root.contentForeground, 0.08)
                 visible: root.searchPlayerCardTab === "stats" && root.selectedPlayerProfile
+                opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
+                Behavior on opacity {
+                  NumberAnimation { duration: 150 }
+                }
 
                 Column {
                   id: playerDisciplineCol
@@ -1359,14 +1516,19 @@ Column {
 
                     Repeater {
                       model: root.selectedPlayerProfile ? root.selectedPlayerProfile.careerHistory : []
-                      delegate: Item {
+                      delegate: Rectangle {
                         width: parent.width
-                        height: Style.space(22)
+                        height: Style.space(24)
+                        radius: Style.space(4)
+                        color: careerClubArea.containsMouse ? Util.alpha(root.favoriteTeamAccent, 0.12) : "transparent"
+                        border.width: careerClubArea.containsMouse ? Style.spacing.hairline : 0
+                        border.color: Util.alpha(root.favoriteTeamAccent, 0.25)
 
                         Row {
                           anchors.left: parent.left
-                          anchors.right: clubYearsText.left
-                          anchors.rightMargin: Style.space(8)
+                          anchors.leftMargin: Style.space(4)
+                          anchors.right: careerClubYearsRow.left
+                          anchors.rightMargin: Style.space(6)
                           anchors.verticalCenter: parent.verticalCenter
                           spacing: Style.space(8)
 
@@ -1388,22 +1550,50 @@ Column {
                             text: ((modelData.name && modelData.name !== "") ? modelData.name : ((root.teamNameCache && root.teamNameCache[modelData.teamId]) ? root.teamNameCache[modelData.teamId] : "Club"))
                             font.family: root.contentFontFamily
                             font.pixelSize: Style.font.caption
-                            color: root.contentForeground
+                            color: careerClubArea.containsMouse ? root.favoriteTeamAccent : root.contentForeground
                             font.bold: true
                             elide: Text.ElideRight
                           }
                         }
 
-                        Text {
-                          textFormat: Text.PlainText
-                          id: clubYearsText
+                        Row {
+                          id: careerClubYearsRow
                           anchors.right: parent.right
+                          anchors.rightMargin: Style.space(4)
                           anchors.verticalCenter: parent.verticalCenter
-                          text: modelData.years || ""
-                          font.family: root.contentFontFamily
-                          font.pixelSize: Style.font.caption - 1
-                          color: Qt.darker(root.contentForeground, 1.45)
-                          font.bold: true
+                          spacing: Style.space(4)
+
+                          Text {
+                            textFormat: Text.PlainText
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.years || ""
+                            font.family: root.contentFontFamily
+                            font.pixelSize: Style.font.caption - 1
+                            color: Qt.darker(root.contentForeground, 1.45)
+                            font.bold: true
+                          }
+
+                          Text {
+                            textFormat: Text.PlainText
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "›"
+                            font.family: root.contentFontFamily
+                            font.pixelSize: Style.font.caption
+                            color: careerClubArea.containsMouse ? root.favoriteTeamAccent : Qt.darker(root.contentForeground, 2.0)
+                            font.bold: true
+                          }
+                        }
+
+                        MouseArea {
+                          id: careerClubArea
+                          anchors.fill: parent
+                          hoverEnabled: true
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: {
+                            root.searchPlayerCardTab = "stats"
+                            root.setPlayerStatsTab("club")
+                            root.selectClubFilter(modelData.teamId)
+                          }
                         }
                       }
                     }
