@@ -3566,7 +3566,7 @@ Panel {
     var args = ["notify-send", "-a", "futbar"]
     var cleanGlyph = root.sanitizePlainText(String(glyph || ""))
     if (cleanGlyph !== "") args.push("-h", "string:omarchy-glyph:" + cleanGlyph)
-    args.push(cleanTitle, cleanBody)
+    args.push("--", cleanTitle, cleanBody)
     var q = root._notifyQueue.slice()
     q.push(args)
     root._notifyQueue = q
