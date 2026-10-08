@@ -307,7 +307,7 @@ Column {
       if (e.date) {
         var dObj = new Date(e.date)
         kTime = (root && root.kickoffTime) ? root.kickoffTime({ date: dObj }) : Qt.formatTime(dObj, "HH:mm")
-        kDate = Qt.formatDate(dObj, "ddd d MMM")
+        kDate = Qt.formatDate(dObj, "ddd d MMM yyyy")
       }
 
       parsed.push({

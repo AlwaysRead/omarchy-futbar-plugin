@@ -2201,7 +2201,7 @@ Panel {
   }
 
   function kickoffDay(event) {
-    return event ? root.sanitizePlainText(Qt.formatDate(new Date(event.date), "ddd d MMM")) : ""
+    return event ? root.sanitizePlainText(Qt.formatDate(new Date(event.date), "ddd d MMM yyyy")) : ""
   }
   function kickoffTime(event) {
     if (!event) return ""
@@ -2258,6 +2258,14 @@ Panel {
     var comp = (event.competitions && event.competitions[0]) || event
     if (comp.series && comp.series.summary) return root.sanitizePlainText(String(comp.series.summary))
     if (comp.series && comp.series.title) return root.sanitizePlainText(String(comp.series.title))
+    if (Array.isArray(comp.notes) && comp.notes.length > 0 && comp.notes[0] && comp.notes[0].headline) {
+      var h = String(comp.notes[0].headline).trim()
+      var hl = h.toLowerCase()
+      if (hl.indexOf("penalt") !== -1 || hl.indexOf("win") !== -1 || hl.indexOf("won") !== -1 ||
+          hl.indexOf("advance") !== -1 || hl.indexOf("aggregate") !== -1 || hl.indexOf("tied") !== -1) {
+        return root.sanitizePlainText(h)
+      }
+    }
     return ""
   }
 
@@ -2266,16 +2274,23 @@ Panel {
     var comp = (event.competitions && event.competitions[0]) || event
     if (Array.isArray(comp.notes) && comp.notes.length > 0 && comp.notes[0] && comp.notes[0].headline) {
       var h = String(comp.notes[0].headline).trim()
-      if (h !== "" && h.toLowerCase().indexOf("penalty") === -1) return root.sanitizePlainText(h)
+      var hl = h.toLowerCase()
+      var isOutcomeNote = hl.indexOf("penalt") !== -1 || hl.indexOf("shootout") !== -1 ||
+                          hl.indexOf("win") !== -1 || hl.indexOf("won") !== -1 ||
+                          hl.indexOf("advance") !== -1 || hl.indexOf("aggregate") !== -1 ||
+                          hl.indexOf("tied") !== -1 || /\b\d+\s*[-–]\s*\d+\b/.test(hl)
+      if (h !== "" && !isOutcomeNote) return root.sanitizePlainText(h)
     }
     if (event.season && typeof event.season.slug === "string" && event.season.slug !== "") {
       var sl = event.season.slug.toLowerCase().trim()
       if (sl === "final") return "Final"
-      if (sl === "semifinals") return "Semifinals"
-      if (sl === "quarterfinals") return "Quarterfinals"
-      if (sl === "round-of-16") return "Round of 16"
-      if (sl === "knockout-round-playoffs") return "Playoffs"
+      if (sl === "semifinals" || sl === "semi-finals") return "Semifinals"
+      if (sl === "quarterfinals" || sl === "quarter-finals") return "Quarterfinals"
+      if (sl === "round-of-16" || sl === "round_of_16") return "Round of 16"
+      if (sl === "round-of-32" || sl === "round_of_32") return "Round of 32"
+      if (sl === "knockout-round-playoffs" || sl === "playoffs" || sl === "play-offs") return "Playoffs"
       if (sl === "group-stage" || sl === "group") return "Group Stage"
+      if (sl === "third-place" || sl === "3rd-place") return "3rd Place"
     }
     return ""
   }
@@ -2615,7 +2630,7 @@ Panel {
     var initDateStr = ""
     if (match.date) {
       var mdObj = new Date(match.date)
-      var mdDay = Qt.formatDate(mdObj, "ddd d MMM")
+      var mdDay = Qt.formatDate(mdObj, "ddd d MMM yyyy")
       var mdTime = Qt.formatTime(mdObj, "HH:mm")
       initDateStr = mdDay + (mdTime !== "" ? (" · " + mdTime) : "")
     } else if (match.dateText || match.timeText) {
@@ -2663,7 +2678,7 @@ Panel {
       competitionLogo: root.sanitizeImageUrl(cLogo),
       status: root.sanitizePlainText(initStatus),
       dateFormatted: root.sanitizePlainText(initDateStr),
-      dateText: root.sanitizePlainText(match.dateText || (match.date ? Qt.formatDate(new Date(match.date), "ddd d MMM") : "")),
+      dateText: root.sanitizePlainText(match.dateText || (match.date ? Qt.formatDate(new Date(match.date), "ddd d MMM yyyy") : "")),
       timeText: root.sanitizePlainText(match.timeText || (match.date ? Qt.formatTime(new Date(match.date), "HH:mm") : "")),
       home: {
         name: root.sanitizePlainText(hName),
@@ -3344,7 +3359,7 @@ Panel {
       // and time; started matches just show their state ("67'", "HT", "FT").
       var detail = root.statusFor(e)
       var status = state === "pre"
-        ? root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM · HH:mm"))
+        ? root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM yyyy · HH:mm"))
         : detail
       var row = {
         state: state,
@@ -3353,7 +3368,7 @@ Panel {
         // Split kickoff parts so upcoming rows can stack time over date
         // inside the narrow centre column without truncation.
         timeText: root.kickoffTime(e) || root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "HH:mm")),
-        dateText: root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM")),
+        dateText: root.sanitizePlainText(Qt.formatDateTime(new Date(e.date), "ddd d MMM yyyy")),
         // Local calendar day, not the raw UTC slice of the ISO timestamp:
         // an evening UTC kickoff lands on the next day east of Greenwich,
         // which otherwise splits rounds and mislabels the date range.
@@ -5721,10 +5736,35 @@ onStreamFinished: root.warnStderr("", text)
               } else if (ntText.toLowerCase().indexOf("penalties") !== -1 && shootoutNote === "") {
                 shootoutNote = ntText
                 shootoutText = "After Penalties"
+              }
+              var ntLower = ntText.toLowerCase()
+              var isOutcome = ntLower.indexOf("penalt") !== -1 || ntLower.indexOf("shootout") !== -1 ||
+                              ntLower.indexOf("win") !== -1 || ntLower.indexOf("won") !== -1 ||
+                              ntLower.indexOf("advance") !== -1 || ntLower.indexOf("aggregate") !== -1 ||
+                              ntLower.indexOf("tied") !== -1 || /\b\d+\s*[-–]\s*\d+\b/.test(ntLower)
+              if (isOutcome) {
+                if (seriesNote === "") seriesNote = root.sanitizePlainText(ntText)
               } else if (roundName === "" && ntText !== "") {
-                roundName = ntText
+                roundName = root.sanitizePlainText(ntText)
               }
             }
+          }
+          if (roundName === "") {
+            var sName = String((hdr.season && hdr.season.name) || (comp.season && comp.season.name) || "").trim()
+            if (sName.indexOf(",") !== -1) {
+              roundName = root.sanitizePlainText(sName.split(",").pop().trim())
+            }
+          }
+          if (roundName === "") {
+            var sSlug = String((comp.season && comp.season.slug) || (data.season && data.season.slug) || "").toLowerCase().trim()
+            if (sSlug === "final") roundName = "Final"
+            else if (sSlug === "semifinals" || sSlug === "semi-finals") roundName = "Semifinals"
+            else if (sSlug === "quarterfinals" || sSlug === "quarter-finals") roundName = "Quarterfinals"
+            else if (sSlug === "round-of-16" || sSlug === "round_of_16") roundName = "Round of 16"
+            else if (sSlug === "round-of-32" || sSlug === "round_of_32") roundName = "Round of 32"
+            else if (sSlug === "knockout-round-playoffs" || sSlug === "playoffs" || sSlug === "play-offs") roundName = "Playoffs"
+            else if (sSlug === "group-stage" || sSlug === "group") roundName = "Group Stage"
+            else if (sSlug === "third-place" || sSlug === "3rd-place") roundName = "3rd Place"
           }
 
           var parsedShootoutKicks = []
@@ -6370,17 +6410,18 @@ onStreamFinished: root.warnStderr("", text)
             }
 
             var curHomeScore = isActuallyStarted ? String(homeComp && homeComp.score !== undefined ? homeComp.score : "0") : ""
+            var curAwayScore = isActuallyStarted ? String(awayComp && awayComp.score !== undefined ? awayComp.score : "0") : ""
             var seriesRes = FutData.resolveMatchSeries(comp, homeTeam, awayTeam, curHomeScore, curAwayScore, statusDesc, stageCombined, seriesNote)
             var hasTwoLegs = seriesRes.hasTwoLegs
             var isSeriesCompleted = seriesRes.isSeriesCompleted
-            var curSeriesWinner = seriesRes.curSeriesWinner
-            var curAggHome = seriesRes.curAggHome
-            var curAggAway = seriesRes.curAggAway
-            var curHomeLeg1 = seriesRes.curHomeLeg1
-            var curHomeLeg2 = seriesRes.curHomeLeg2
-            var curAwayLeg1 = seriesRes.curAwayLeg1
-            var curAwayLeg2 = seriesRes.curAwayLeg2
-            var curSeriesSummary = seriesRes.curSeriesSummary
+            var curSeriesWinner = String(seriesRes.curSeriesWinner || "")
+            var curAggHome = String(seriesRes.curAggHome || "")
+            var curAggAway = String(seriesRes.curAggAway || "")
+            var curHomeLeg1 = String(seriesRes.curHomeLeg1 || "")
+            var curHomeLeg2 = String(seriesRes.curHomeLeg2 || "")
+            var curAwayLeg1 = String(seriesRes.curAwayLeg1 || "")
+            var curAwayLeg2 = String(seriesRes.curAwayLeg2 || "")
+            var curSeriesSummary = String(seriesRes.curSeriesSummary || "")
 
             var currentMatchup = {
               homeName: root.sanitizePlainText(String(homeTeam.displayName || homeTeam.name || "Home")),
@@ -6413,7 +6454,7 @@ onStreamFinished: root.warnStderr("", text)
                   matchups.push(currentMatchup)
                 } else if (ri > activeRoundIdx && mi === 0) {
                   var advTeamName = curSeriesWinner !== "" ? curSeriesWinner : ("Winner of " + currentMatchup.homeName + " vs " + currentMatchup.awayName)
-                  var advTeamLogo = curSeriesWinner !== "" ? ((curSeriesWinner === currentMatchup.homeName || currentMatchup.homeName.indexOf(curSeriesWinner) !== -1 || curSeriesWinner.indexOf(currentMatchup.homeName) !== -1) ? currentMatchup.homeLogo : currentMatchup.awayLogo) : ""
+                  var advTeamLogo = curSeriesWinner !== "" ? ((curSeriesWinner === currentMatchup.homeName || (currentMatchup.homeName && currentMatchup.homeName.indexOf(curSeriesWinner) !== -1) || curSeriesWinner.indexOf(currentMatchup.homeName) !== -1) ? currentMatchup.homeLogo : currentMatchup.awayLogo) : ""
                   var advStatus = curSeriesWinner !== "" ? "Advanced" : "Next Round"
                   matchups.push({
                     homeName: root.sanitizePlainText(advTeamName),
@@ -6484,6 +6525,7 @@ onStreamFinished: root.warnStderr("", text)
             shootoutNote: root.sanitizePlainText(shootoutNote),
             shootoutScore: root.sanitizePlainText(shootoutScore),
             shootoutText: root.sanitizePlainText(shootoutText),
+            dateFormatted: (root.matchDetail && root.matchDetail.dateFormatted) || (comp.date ? root.sanitizePlainText(Qt.formatDate(new Date(comp.date), "ddd d MMM yyyy")) : ""),
             home: {
               name: root.sanitizePlainText(String(homeTeam.displayName || homeTeam.name || (root.matchDetail && root.matchDetail.home && root.matchDetail.home.name) || "Home")),
               logo: root.sanitizeImageUrl((homeTeam.logos && homeTeam.logos[0] ? String(homeTeam.logos[0].href || "") : "") || String(homeTeam.logo || "") || (homeTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + root.safeIdentifier(String(homeTeam.id)) + ".png") : "") || (root.matchDetail && root.matchDetail.home && root.matchDetail.home.logo) || ""),
@@ -6538,7 +6580,12 @@ onStreamFinished: root.warnStderr("", text)
       waitForEnd: true
       onStreamFinished: {
         root.warnStderr("matchDetail", text)
-        root.matchDetailLoading = false
+        if (root.matchDetailLoading) {
+          root.matchDetailLoading = false
+          if (root.matchDetailError === "") {
+            root.matchDetailError = "Could not load match details"
+          }
+        }
       }
     }
   }
@@ -10963,8 +11010,8 @@ root.warnStderr("team select failed", text)
             readonly property string cardDateText: {
               var d = ""
               if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") d = matchRow.modelData.dateText
-              else if (matchRow.modelData.kickoff) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM"))
-              else if (matchRow.modelData.date) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM"))
+              else if (matchRow.modelData.kickoff) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM yyyy"))
+              else if (matchRow.modelData.date) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM yyyy"))
               var rnd = matchRow.modelData.roundName ? (matchRow.modelData.roundName + (d !== "" ? " · " : "")) : ""
               if (d !== "" && matchRow.modelData.state === "pre") {
                 var t = matchRow.modelData.timeText || (matchRow.modelData.kickoff ? root.kickoffTime({ date: matchRow.modelData.kickoff }) : "")
@@ -11170,10 +11217,14 @@ root.warnStderr("team select failed", text)
                         }
                         if (matchRow.modelData.state === "post") {
                           var s = matchRow.modelData.status || "FT"
-                          if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
-                            s += " (" + matchRow.modelData.shootoutNote + ")"
-                          } else if (matchRow.modelData.seriesNote && matchRow.modelData.seriesNote !== "") {
-                            s += " (" + matchRow.modelData.seriesNote + ")"
+                          var shoot = matchRow.modelData.shootoutNote || ""
+                          var ser = matchRow.modelData.seriesNote || ""
+                          var sLower = s.toLowerCase()
+                          var hasShoot = sLower.indexOf("pen") !== -1 || sLower.indexOf("shootout") !== -1
+                          var hasWon = sLower.indexOf("won") !== -1 || sLower.indexOf("advance") !== -1 || sLower.indexOf("win") !== -1
+                          if (!hasShoot && !hasWon) {
+                            if (shoot !== "") s += " (" + shoot + ")"
+                            else if (ser !== "") s += " (" + ser + ")"
                           }
                           return s
                         }
