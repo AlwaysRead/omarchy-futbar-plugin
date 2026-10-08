@@ -2010,11 +2010,23 @@ var leagues = [
     return changed ? merged : existing;
   }
 
-  function formatTransferValue(rawAmt, amtType, currencyObj) {
+  function isValidEspnApiUrl(url) {
+    if (typeof url !== "string" || url.length === 0 || url.length > 1024) return false;
+    var trimmed = url.trim();
+    if (trimmed.charAt(0) === "-") return false;
+    var regex = /^https:\/\/(?:sports\.core\.api|site\.api|site\.web\.api)\.espn\.com\/(?:v2\/sports\/soccer|apis)\/[a-zA-Z0-9_.\/?:=&%+-]+$/;
+    return regex.test(trimmed);
+  }
+
+  function formatTransferValue(rawAmt, amtType, currencyObj, sanitizeFn) {
+    var sanitize = sanitizeFn || function(s) {
+      if (s === undefined || s === null) return "";
+      return String(s).replace(/<[^>]*>/g, "").replace(/["'\\\r\n\t]/g, "").trim();
+    };
     var currSign = "€";
     if (currencyObj) {
       if (currencyObj.sign) {
-        currSign = currencyObj.sign;
+        currSign = sanitize(currencyObj.sign);
       } else if (currencyObj.code === "GBP") {
         currSign = "£";
       } else if (currencyObj.code === "USD") {
@@ -2035,13 +2047,13 @@ var leagues = [
         return currSign + Math.round(numVal);
       }
     }
-    var strAmt = String(rawAmt || "").toLowerCase().trim();
-    var strType = String(amtType || "").toLowerCase().trim();
+    var strAmt = sanitize(String(rawAmt || "")).toLowerCase().trim();
+    var strType = sanitize(String(amtType || "")).toLowerCase().trim();
     if (strAmt === "free" || strType === "free") return "Free Transfer";
     if (strAmt === "loan" || strType === "loan") return "Loan";
     if (strAmt === "undisclosed" || strType === "undisclosed") return "Undisclosed";
     if (strType === "fee" && (rawAmt === "" || numVal === 0)) return "Undisclosed Fee";
-    if (rawAmt !== "" && isNaN(numVal)) return String(rawAmt);
-    if (amtType !== "") return String(amtType);
+    if (rawAmt !== "" && isNaN(numVal)) return sanitize(String(rawAmt));
+    if (amtType !== "") return sanitize(String(amtType));
     return "Undisclosed";
   }

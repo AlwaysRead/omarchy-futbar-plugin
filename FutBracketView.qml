@@ -91,8 +91,8 @@ Column {
       iconText: "◀"
       tooltipText: "Scroll left"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.space(8)
       horizontalPadding: 0
       verticalPadding: 0
@@ -105,7 +105,7 @@ Column {
       width: parent.width - Style.space(64)
       height: Style.space(24)
       radius: Style.space(4)
-      color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.04)
+      color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.04)
 
       Row {
         anchors.centerIn: parent
@@ -115,14 +115,14 @@ Column {
           textFormat: Text.PlainText
           text: "󰒺"
           font.pixelSize: Style.space(8.5)
-          color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+          color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
           anchors.verticalCenter: parent.verticalCenter
         }
 
         Text {
           textFormat: Text.PlainText
           text: "Swipe or scroll horizontally to explore full draw"
-          color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+          color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
           font.family: root ? root.contentFontFamily : Style.font.family
           font.pixelSize: Style.space(7.5)
           anchors.verticalCenter: parent.verticalCenter
@@ -136,8 +136,8 @@ Column {
       iconText: "▶"
       tooltipText: "Scroll right"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.space(8)
       horizontalPadding: 0
       verticalPadding: 0
@@ -220,7 +220,7 @@ Column {
                   y: Math.round(connPair.c1Y - Style.space(1))
                   width: connPair.isFeederPair ? bracketView.connW / 2 : bracketView.connW
                   height: Style.space(1.5)
-                  color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.25)
+                  color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.25)
                 }
 
                 // Feeder 2 stem (when two feeders merge into one)
@@ -230,7 +230,7 @@ Column {
                   width: bracketView.connW / 2
                   height: Style.space(1.5)
                   visible: connPair.isFeederPair
-                  color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.25)
+                  color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.25)
                 }
 
                 // Vertical joining crossbar
@@ -240,7 +240,7 @@ Column {
                   width: Style.space(1.5)
                   height: Math.max(0, Math.round(connPair.c2Y - connPair.c1Y))
                   visible: connPair.isFeederPair
-                  color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.25)
+                  color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.25)
                 }
 
                 // Output stem into current card
@@ -250,7 +250,7 @@ Column {
                   width: bracketView.connW / 2
                   height: Style.space(1.5)
                   visible: connPair.isFeederPair
-                  color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.25)
+                  color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.25)
                 }
               }
             }
@@ -273,10 +273,10 @@ Column {
               height: Style.space(26)
               radius: Style.space(4)
               color: roundTreeBranch.modelData.isCurrentRound
-                ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.15)
+                ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent, 0.15)
                 : Qt.rgba(root ? root.contentForeground.r : 1, root ? root.contentForeground.g : 1, root ? root.contentForeground.b : 1, 0.05)
               border.color: roundTreeBranch.modelData.isCurrentRound
-                ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent) : "transparent"
+                ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent) : "transparent"
               border.width: roundTreeBranch.modelData.isCurrentRound ? 1 : 0
 
               Text {
@@ -284,8 +284,8 @@ Column {
                 anchors.centerIn: parent
                 text: roundTreeBranch.modelData.roundName
                 color: roundTreeBranch.modelData.isCurrentRound
-                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent)
-                  : (root ? root.contentForeground : Color.foreground)
+                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent)
+                  : (root ? root.contentForeground : ShellColor.foreground)
                 font.family: root ? root.contentFontFamily : Style.font.family
                 font.pixelSize: Style.space(8.5)
                 font.bold: true
@@ -309,10 +309,10 @@ Column {
                 clip: true
 
                 color: (mCard.modelData && mCard.modelData.isCurrent)
-                  ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12)
+                  ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent, 0.12)
                   : Qt.rgba(root ? root.contentForeground.r : 1, root ? root.contentForeground.g : 1, root ? root.contentForeground.b : 1, 0.03)
                 border.color: (mCard.modelData && mCard.modelData.isCurrent)
-                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent)
+                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent)
                   : Qt.rgba(root ? root.contentForeground.r : 1, root ? root.contentForeground.g : 1, root ? root.contentForeground.b : 1, 0.1)
                 border.width: (mCard.modelData && mCard.modelData.isCurrent) ? 1.5 : 1
 
@@ -331,7 +331,7 @@ Column {
                       width: bText.implicitWidth + Style.space(6)
                       radius: 2
                       visible: !!(mCard.modelData && mCard.modelData.isCurrent)
-                      color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+                      color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
 
                       Text {
                         id: bText
@@ -358,7 +358,7 @@ Column {
                       Text {
                         textFormat: Text.PlainText
                         text: "1st"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.8)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.8)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(6.5)
                         width: Style.space(11)
@@ -367,7 +367,7 @@ Column {
                       Text {
                         textFormat: Text.PlainText
                         text: "2nd"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.8)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.8)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(6.5)
                         width: Style.space(11)
@@ -377,7 +377,7 @@ Column {
                       Text {
                         textFormat: Text.PlainText
                         text: "AGG"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(6.5)
                         font.bold: true
@@ -419,7 +419,7 @@ Column {
                         textFormat: Text.PlainText
                         visible: !!(mCard.modelData && mCard.modelData.hasTwoLegs)
                         text: mCard.modelData ? (mCard.modelData.homeLeg1 || "—") : "—"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(7.5)
                         width: Style.space(11)
@@ -430,7 +430,7 @@ Column {
                         textFormat: Text.PlainText
                         visible: !!(mCard.modelData && mCard.modelData.hasTwoLegs)
                         text: mCard.modelData ? (mCard.modelData.homeLeg2 || "—") : "—"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(7.5)
                         width: Style.space(11)
@@ -441,7 +441,7 @@ Column {
                         visible: !!(mCard.modelData && mCard.modelData.hasTwoLegs)
                         width: Style.spacing.hairline
                         height: Style.space(9)
-                        color: root ? root.contentForeground : Color.foreground
+                        color: root ? root.contentForeground : ShellColor.foreground
                         opacity: 0.2
                         anchors.verticalCenter: parent.verticalCenter
                       }
@@ -461,7 +461,7 @@ Column {
                           return mCard.modelData.homeScore !== undefined && mCard.modelData.homeScore !== null ? String(mCard.modelData.homeScore) : ""
                         }
                         color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, true))
-                          ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
+                          ? "#4ade80" : (root ? root.contentForeground : ShellColor.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8.5)
                         font.bold: true
@@ -475,7 +475,7 @@ Column {
                       textFormat: Text.PlainText
                       text: mCard.modelData ? (mCard.modelData.homeName || "TBD") : "TBD"
                       color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, true))
-                        ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
+                        ? "#4ade80" : (root ? root.contentForeground : ShellColor.foreground)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8)
                       font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isMatchupTeamAdvancing(mCard.modelData, true)))
@@ -520,7 +520,7 @@ Column {
                         textFormat: Text.PlainText
                         visible: !!(mCard.modelData && mCard.modelData.hasTwoLegs)
                         text: mCard.modelData ? (mCard.modelData.awayLeg1 || "—") : "—"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(7.5)
                         width: Style.space(11)
@@ -531,7 +531,7 @@ Column {
                         textFormat: Text.PlainText
                         visible: !!(mCard.modelData && mCard.modelData.hasTwoLegs)
                         text: mCard.modelData ? (mCard.modelData.awayLeg2 || "—") : "—"
-                        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(7.5)
                         width: Style.space(11)
@@ -542,7 +542,7 @@ Column {
                         visible: !!(mCard.modelData && mCard.modelData.hasTwoLegs)
                         width: Style.spacing.hairline
                         height: Style.space(9)
-                        color: root ? root.contentForeground : Color.foreground
+                        color: root ? root.contentForeground : ShellColor.foreground
                         opacity: 0.2
                         anchors.verticalCenter: parent.verticalCenter
                       }
@@ -562,7 +562,7 @@ Column {
                           return mCard.modelData.awayScore !== undefined && mCard.modelData.awayScore !== null ? String(mCard.modelData.awayScore) : ""
                         }
                         color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, false))
-                          ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
+                          ? "#4ade80" : (root ? root.contentForeground : ShellColor.foreground)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8.5)
                         font.bold: true
@@ -576,7 +576,7 @@ Column {
                       textFormat: Text.PlainText
                       text: mCard.modelData ? (mCard.modelData.awayName || "TBD") : "TBD"
                       color: (mCard.modelData && bracketView.isMatchupTeamAdvancing(mCard.modelData, false))
-                        ? "#4ade80" : (root ? root.contentForeground : Color.foreground)
+                        ? "#4ade80" : (root ? root.contentForeground : ShellColor.foreground)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8)
                       font.bold: !!(mCard.modelData && (mCard.modelData.isCurrent || bracketView.isMatchupTeamAdvancing(mCard.modelData, false)))
@@ -597,7 +597,7 @@ Column {
                       var raw = (mCard.modelData && mCard.modelData.statusText) ? String(mCard.modelData.statusText) : ""
                       return raw.replace(/^(?:(?:[0-9]+(?:st|nd|rd|th)\s+leg|leg\s+[0-9]+)\s*[-–,]?\s*)+/i, "").trim()
                     }
-                    color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+                    color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.space(7)
                     visible: text !== "" && !(mCard.modelData && mCard.modelData.isCurrent)
@@ -622,13 +622,13 @@ Column {
     Rectangle {
       anchors.fill: parent
       radius: 2
-      color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.08)
+      color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.08)
     }
 
     Rectangle {
       height: parent.height
       radius: 2
-      color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+      color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
       width: Math.max(Style.space(24), parent.width * (bracketFlickable.width / Math.max(1, bracketFlickable.contentWidth)))
       x: Math.max(0, Math.min(parent.width - width, (bracketFlickable.contentX / Math.max(1, bracketFlickable.contentWidth - bracketFlickable.width)) * (parent.width - width)))
     }

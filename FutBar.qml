@@ -500,7 +500,7 @@ BarWidget {
       : (barCustomContentRow.implicitWidth + Style.space(16))
     horizontalMargin: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? 0 : 8.5
     active: root.live
-    activeColor: Color.accent
+    activeColor: ShellColor.accent
     tooltipText: root.tooltip
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.MiddleButton) root.refresh()

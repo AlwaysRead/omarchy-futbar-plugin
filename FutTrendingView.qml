@@ -442,11 +442,11 @@ Column {
     width: parent.width
     height: Style.space(38)
     radius: Style.cornerRadius
-    color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.07)
+    color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.07)
     border.width: Style.spacing.hairline
     border.color: trendingSearchInput.activeFocus
-      ? (root ? root.favoriteTeamAccent : Color.accent)
-      : Util.alpha(root ? root.contentForeground : Color.foreground, 0.15)
+      ? (root ? root.favoriteTeamAccent : ShellColor.accent)
+      : Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.15)
 
     Row {
       anchors.fill: parent
@@ -460,7 +460,7 @@ Column {
         text: "󰍉"
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.bodySmall
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
       }
 
       TextField {
@@ -473,7 +473,7 @@ Column {
         placeholderText: "Filter matches by team, league, or round…"
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.bodySmall
-        foreground: root ? root.contentForeground : Color.foreground
+        foreground: root ? root.contentForeground : ShellColor.foreground
         background: null
         text: trendingView.trendingFilterText
         onTextChanged: trendingView.trendingFilterText = text
@@ -497,8 +497,8 @@ Column {
         iconText: "󰅖"
         iconSize: Style.font.caption
         fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: root ? root.contentForeground : Color.foreground
+        foreground: root ? root.contentForeground : ShellColor.foreground
+        accent: root ? root.contentForeground : ShellColor.foreground
         horizontalPadding: 0
         verticalPadding: 0
         visible: trendingSearchInput.text.length > 0
@@ -521,8 +521,8 @@ Column {
       text: "Yesterday"
       tooltipText: "View yesterday's completed matches"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.font.caption - 1
       selected: trendingView.dayOffset === -1
       horizontalPadding: Style.space(10)
@@ -541,8 +541,8 @@ Column {
       text: "Today"
       tooltipText: "View today's live & upcoming matches"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.font.caption - 1
       selected: trendingView.dayOffset === 0
       horizontalPadding: Style.space(10)
@@ -561,8 +561,8 @@ Column {
       text: "Tomorrow"
       tooltipText: "View tomorrow's upcoming fixtures"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.font.caption - 1
       selected: trendingView.dayOffset === 1
       horizontalPadding: Style.space(10)
@@ -604,8 +604,8 @@ Column {
           text: "All"
           tooltipText: "All Matches (1)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: trendingView.activeCategory === "all"
           horizontalPadding: Style.space(12)
@@ -618,8 +618,8 @@ Column {
           text: "Live"
           tooltipText: "Live Matches (2)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: trendingView.activeCategory === "live"
           horizontalPadding: Style.space(12)
@@ -632,8 +632,8 @@ Column {
           text: "International"
           tooltipText: "International Tournaments (3)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: trendingView.activeCategory === "international"
           horizontalPadding: Style.space(12)
@@ -646,8 +646,8 @@ Column {
           text: "Club Leagues"
           tooltipText: "Club Leagues & Tournaments (4)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: trendingView.activeCategory === "club"
           horizontalPadding: Style.space(12)
@@ -666,8 +666,8 @@ Column {
       iconText: "󰑐"
       tooltipText: "Refresh trending matches"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       iconSize: Style.font.caption
       iconSpinning: trendingView.trendingLoading
       horizontalPadding: 0
@@ -703,7 +703,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         textFormat: Text.PlainText
         text: "󰈸"
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.8)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.8)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.space(26)
         horizontalAlignment: Text.AlignHCenter
@@ -718,7 +718,7 @@ Column {
           if (trendingView.activeCategory === "live") return "No live matches at the moment"
           return "No matches in this category"
         }
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -751,7 +751,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         textFormat: Text.PlainText
         text: trendingView.trendingError || "Failed to load matches"
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         horizontalAlignment: Text.AlignHCenter
@@ -763,8 +763,8 @@ Column {
         text: "Retry"
         iconText: "󰑐"
         fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: root ? root.contentForeground : Color.foreground
+        foreground: root ? root.contentForeground : ShellColor.foreground
+        accent: root ? root.contentForeground : ShellColor.foreground
         fontSize: Style.font.caption
         iconSize: Style.font.caption
         horizontalPadding: Style.space(12)
@@ -779,7 +779,7 @@ Column {
     width: parent.width
     height: Style.space(22)
     radius: Style.cornerRadius
-    color: Util.alpha(Color.foreground, 0.05)
+    color: Util.alpha(ShellColor.foreground, 0.05)
     visible: trendingView.trendingError !== "" && trendingView.rawMatches.length > 0
 
     Row {
@@ -791,7 +791,7 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         text: "󰒲"
         font.pixelSize: Style.font.caption
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
       }
 
       Text {
@@ -800,7 +800,7 @@ Column {
         text: (root && root.formatCachedTimeAgo) ? root.formatCachedTimeAgo(trendingView.lastRefreshTime) : "Cached · Updated recently"
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption - 1
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
       }
     }
   }
@@ -840,7 +840,7 @@ Column {
           Rectangle {
             anchors.fill: parent
             radius: Style.space(4)
-            color: root ? root.contentForeground : Color.foreground
+            color: root ? root.contentForeground : ShellColor.foreground
             opacity: headerMouseArea.containsMouse ? 0.05 : 0.0
           }
 
@@ -881,7 +881,7 @@ Column {
               width: parent.width - (tournamentSectionLogo.visible ? tournamentSectionLogo.width + parent.spacing : 0)
               anchors.verticalCenter: parent.verticalCenter
               text: tournamentSection.modelData.name
-              color: root ? root.contentForeground : Color.foreground
+              color: root ? root.contentForeground : ShellColor.foreground
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -895,7 +895,7 @@ Column {
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
             text: trendingView.collapsedMap[tournamentSection.modelData.key] ? "󰅂" : "󰅃"
-            color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.6)
+            color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.6)
             font.family: root ? root.contentFontFamily : Style.font.family
             font.pixelSize: Style.font.caption
           }
@@ -922,14 +922,14 @@ Column {
               Rectangle {
                 anchors.fill: parent
                 radius: Style.space(6)
-                color: root ? root.contentForeground : Color.foreground
+                color: root ? root.contentForeground : ShellColor.foreground
                 opacity: matchRow.isKeyboardSelected
                   ? 0.12
                   : (matchRow.modelData.isLive
                     ? 0.08
                     : (rowMouseArea.containsMouse ? 0.06 : 0.03))
                 border.color: matchRow.isKeyboardSelected
-                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent)
+                  ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent)
                   : (matchRow.hasFollowedTeam ? (root ? root.favoriteTeamAccent : "#facc15") : "transparent")
                 border.width: matchRow.isKeyboardSelected ? 1.5 : (matchRow.hasFollowedTeam ? 1 : 0)
                 Behavior on opacity { NumberAnimation { duration: 120 } }
@@ -1007,7 +1007,7 @@ Column {
                       textFormat: Text.PlainText
                       visible: text !== ""
                       text: matchRow.modelData.roundName || ""
-                      color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.45)
+                      color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.45)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8.5)
                       font.bold: true
@@ -1038,7 +1038,7 @@ Column {
                         }
                         return d
                       }
-                      color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.55)
+                      color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.55)
                       font.family: root ? root.contentFontFamily : Style.font.family
                       font.pixelSize: Style.space(8.5)
                       font.bold: true
@@ -1055,8 +1055,8 @@ Column {
                       tooltipText: (root && root.isLeagueMatchFollowed && root.isLeagueMatchFollowed(matchRow.modelData.id))
                         ? "Stop notifications for this match" : "Notify on goals, cards, and match events"
                       fontFamily: root ? root.contentFontFamily : Style.font.family
-                      foreground: root ? root.contentForeground : Color.foreground
-                      accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+                      foreground: root ? root.contentForeground : ShellColor.foreground
+                      accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
                       fontSize: Style.space(7.5)
                       iconSize: Style.space(7.5)
                       horizontalPadding: Style.space(4)
@@ -1108,7 +1108,7 @@ Column {
                     width: (parent.width - parent.spacing * 4 - (root ? root.matchScoreWidth : Style.space(80)) - (root ? root.matchLogoSize : Style.space(24)) * 2) / 2
                     anchors.verticalCenter: parent.verticalCenter
                     text: matchRow.modelData.homeName
-                    color: root ? root.contentForeground : Color.foreground
+                    color: root ? root.contentForeground : ShellColor.foreground
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: text.length > 22 ? Style.space(10) : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
                     font.bold: matchRow.modelData.isLive
@@ -1141,8 +1141,8 @@ Column {
                             ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
                             : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
                         color: (root && root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
-                          ? (root.favoriteTeamAccent || (root ? root.contentForeground : Color.foreground))
-                          : (matchRow.modelData.isLive ? "#4ade80" : (root ? root.contentForeground : Color.foreground))
+                          ? (root.favoriteTeamAccent || (root ? root.contentForeground : ShellColor.foreground))
+                          : (matchRow.modelData.isLive ? "#4ade80" : (root ? root.contentForeground : ShellColor.foreground))
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: (root && root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
                           ? Style.font.caption
@@ -1173,7 +1173,7 @@ Column {
                           return ""
                         }
                         color: matchRow.modelData.isLive
-                          ? "#4ade80" : Qt.darker(root ? root.contentForeground : Color.foreground, 1.6)
+                          ? "#4ade80" : Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.6)
                         font.family: root ? root.contentFontFamily : Style.font.family
                         font.pixelSize: Style.space(8)
                         font.bold: true
@@ -1198,7 +1198,7 @@ Column {
                     width: (parent.width - parent.spacing * 4 - (root ? root.matchScoreWidth : Style.space(80)) - (root ? root.matchLogoSize : Style.space(24)) * 2) / 2
                     anchors.verticalCenter: parent.verticalCenter
                     text: matchRow.modelData.awayName
-                    color: root ? root.contentForeground : Color.foreground
+                    color: root ? root.contentForeground : ShellColor.foreground
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: text.length > 22 ? Style.space(10) : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
                     font.bold: matchRow.modelData.isLive
@@ -1244,7 +1244,7 @@ Column {
             Rectangle {
               anchors.fill: parent
               radius: Style.space(4)
-              color: root ? root.contentForeground : Color.foreground
+              color: root ? root.contentForeground : ShellColor.foreground
               opacity: showMoreMouseArea.containsMouse ? 0.08 : 0.03
             }
 
@@ -1266,7 +1266,7 @@ Column {
                 text: tournamentSection.isExpanded
                   ? "Show less"
                   : ("Show " + (tournamentSection.modelData.matches.length - tournamentSection.visibleMatches.length) + " more")
-                color: root ? root.contentForeground : Color.foreground
+                color: root ? root.contentForeground : ShellColor.foreground
                 font.family: root ? root.contentFontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
@@ -1276,7 +1276,7 @@ Column {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 text: tournamentSection.isExpanded ? "󰅃" : "󰅂"
-                color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+                color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
                 font.family: root ? root.contentFontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
               }

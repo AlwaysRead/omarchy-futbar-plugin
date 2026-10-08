@@ -34,7 +34,7 @@ Column {
         width: parent.width
         textFormat: Text.PlainText
         text: sRow.title
-        color: root ? root.contentForeground : Color.foreground
+        color: root ? root.contentForeground : ShellColor.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -46,7 +46,7 @@ Column {
         textFormat: Text.PlainText
         visible: sRow.description !== ""
         text: sRow.description
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
+        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.space(9)
         wrapMode: Text.WordWrap
@@ -59,8 +59,8 @@ Column {
       anchors.rightMargin: Style.space(2)
       anchors.verticalCenter: parent.verticalCenter
       checked: sRow.checked
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
       onToggled: sRow.toggled()
     }
 
@@ -81,9 +81,9 @@ Column {
     width: parent ? parent.width : 0
     implicitHeight: cardCol.implicitHeight
     radius: Style.cornerRadius
-    color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.04)
+    color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.04)
     border.width: Style.spacing.hairline
-    border.color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.12)
+    border.color: Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.12)
 
     Column {
       id: cardCol
@@ -94,7 +94,7 @@ Column {
         width: parent.width
         height: Style.space(38)
         radius: Style.cornerRadius
-        color: headerMouse.containsMouse ? Util.alpha(root ? root.contentForeground : Color.foreground, 0.07) : "transparent"
+        color: headerMouse.containsMouse ? Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.07) : "transparent"
 
         Item {
           anchors.fill: parent
@@ -113,7 +113,7 @@ Column {
               anchors.verticalCenter: parent.verticalCenter
               text: scCard.icon
               font.pixelSize: Style.font.body
-              color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : (root ? root.contentForeground : Color.foreground)
+              color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : (root ? root.contentForeground : ShellColor.foreground)
             }
 
             Text {
@@ -121,7 +121,7 @@ Column {
               width: parent.width - Style.space(28)
               textFormat: Text.PlainText
               text: scCard.title
-              color: root ? root.contentForeground : Color.foreground
+              color: root ? root.contentForeground : ShellColor.foreground
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -136,7 +136,7 @@ Column {
             anchors.verticalCenter: parent.verticalCenter
             text: scCard.expanded ? "󰅃" : "󰅂"
             font.pixelSize: Style.font.caption
-            color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+            color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
           }
         }
 
@@ -178,8 +178,8 @@ Column {
       text: "Back"
       tooltipText: "Return to match center"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.font.caption
       horizontalPadding: Style.space(8)
       verticalPadding: Style.space(4)
@@ -190,7 +190,7 @@ Column {
       anchors.verticalCenter: parent.verticalCenter
       textFormat: Text.PlainText
       text: "Settings & Preferences"
-      color: root ? root.contentForeground : Color.foreground
+      color: root ? root.contentForeground : ShellColor.foreground
       font.family: root ? root.contentFontFamily : Style.font.family
       font.pixelSize: Style.font.body
       font.bold: true
@@ -232,9 +232,9 @@ Column {
           width: parent.width
           height: Style.space(38)
           radius: Style.cornerRadius
-          color: (index === 0) ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.05)
+          color: (index === 0) ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent, 0.12) : Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.05)
           border.width: Style.spacing.hairline
-          border.color: (index === 0) ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.1)
+          border.color: (index === 0) ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent) : Util.alpha(root ? root.contentForeground : ShellColor.foreground, 0.1)
 
           Row {
             anchors.fill: parent
@@ -246,7 +246,7 @@ Column {
               anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
               text: index === 0 ? "" : String(index + 1)
-              color: index === 0 ? "#f59e0b" : Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+              color: index === 0 ? "#f59e0b" : Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -259,7 +259,7 @@ Column {
               text: modelData.followLeague
                 ? ((root ? root.leagueLabel(modelData.league) : modelData.league) + " (League)")
                 : (modelData.teamName + " (" + (root ? root.leagueLabel(modelData.league) : modelData.league) + ")")
-              color: root ? root.contentForeground : Color.foreground
+              color: root ? root.contentForeground : ShellColor.foreground
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: index === 0
@@ -273,8 +273,8 @@ Column {
               iconText: "󰐊"
               tooltipText: "Set as Primary Bar Club"
               fontFamily: root ? root.contentFontFamily : Style.font.family
-              foreground: root ? root.contentForeground : Color.foreground
-              accent: root ? root.contentForeground : Color.foreground
+              foreground: root ? root.contentForeground : ShellColor.foreground
+              accent: root ? root.contentForeground : ShellColor.foreground
               fontSize: Style.font.caption
               horizontalPadding: Style.space(6)
               verticalPadding: Style.space(2)
@@ -303,8 +303,8 @@ Column {
         iconText: "󰐕"
         text: "Follow Another Club or League"
         fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+        foreground: root ? root.contentForeground : ShellColor.foreground
+        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
         fontSize: Style.font.caption
         horizontalPadding: Style.space(10)
         verticalPadding: Style.space(6)
@@ -331,7 +331,7 @@ Column {
       Text {
         textFormat: Text.PlainText
         text: "Tab Labels Format"
-        color: root ? root.contentForeground : Color.foreground
+        color: root ? root.contentForeground : ShellColor.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -346,8 +346,8 @@ Column {
           text: "3 Letters"
           tooltipText: "Ultra-compact 3-letter codes (e.g. BAR, UCL, WOL)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.tabLabelStyle === "abbrev" : true
           horizontalPadding: 0
@@ -360,8 +360,8 @@ Column {
           text: "Short"
           tooltipText: "Short recognizable names (e.g. Barça, UCL, Wolves)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.tabLabelStyle === "short" : false
           horizontalPadding: 0
@@ -374,8 +374,8 @@ Column {
           text: "Full"
           tooltipText: "Full official names (e.g. Barcelona, UEFA Champions League)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.tabLabelStyle === "full" : false
           horizontalPadding: 0
@@ -393,7 +393,7 @@ Column {
       Text {
         textFormat: Text.PlainText
         text: "Top Bar Widget"
-        color: root ? root.contentForeground : Color.foreground
+        color: root ? root.contentForeground : ShellColor.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -408,8 +408,8 @@ Column {
           text: "Icon Only"
           tooltipText: "Minimal ball icon on desktop bar (󰒸)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.barWidgetMode === "icon" : true
           horizontalPadding: 0
@@ -422,8 +422,8 @@ Column {
           text: "Live Score"
           tooltipText: "Show active live match score on desktop bar"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.barWidgetMode === "score" : false
           horizontalPadding: 0
@@ -436,8 +436,8 @@ Column {
           text: "Next Match"
           tooltipText: "Show upcoming fixture and kickoff time on desktop bar"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.barWidgetMode === "next" : false
           horizontalPadding: 0
@@ -455,7 +455,7 @@ Column {
       Text {
         textFormat: Text.PlainText
         text: "Kickoff Time Format"
-        color: root ? root.contentForeground : Color.foreground
+        color: root ? root.contentForeground : ShellColor.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -470,8 +470,8 @@ Column {
           text: "24-Hour"
           tooltipText: "24-hour clock (e.g. 20:00)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? (root.kickoffTimeFormat === "24h" || root.timeFormat === "24h") : true
           horizontalPadding: 0
@@ -484,8 +484,8 @@ Column {
           text: "12-Hour"
           tooltipText: "12-hour clock (e.g. 8:00 PM)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? (root.kickoffTimeFormat === "12h" || root.timeFormat === "12h") : false
           horizontalPadding: 0
@@ -498,8 +498,8 @@ Column {
           text: "Relative"
           tooltipText: "Relative countdown (e.g. in 2h 15m)"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? (root.kickoffTimeFormat === "relative" || root.timeFormat === "relative") : false
           horizontalPadding: 0
@@ -583,7 +583,7 @@ Column {
       Text {
         textFormat: Text.PlainText
         text: "Notification Scope"
-        color: root ? root.contentForeground : Color.foreground
+        color: root ? root.contentForeground : ShellColor.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -598,8 +598,8 @@ Column {
           text: "Primary Club Only"
           tooltipText: "Alerts only for your primary desktop bar club"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.notifyScope === "primary" : true
           horizontalPadding: 0
@@ -612,8 +612,8 @@ Column {
           text: "All Followed Tabs"
           tooltipText: "Alerts for all followed clubs and tournaments"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.notifyScope === "all" : false
           horizontalPadding: 0
@@ -638,7 +638,7 @@ Column {
       Text {
         textFormat: Text.PlainText
         text: "Live Match Refresh Rate"
-        color: root ? root.contentForeground : Color.foreground
+        color: root ? root.contentForeground : ShellColor.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -653,8 +653,8 @@ Column {
           text: "10s (Fast)"
           tooltipText: "Real-time live score updates"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.livePollRate === 10 : true
           horizontalPadding: 0
@@ -667,8 +667,8 @@ Column {
           text: "30s"
           tooltipText: "Balanced polling cadence"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.livePollRate === 30 : false
           horizontalPadding: 0
@@ -681,8 +681,8 @@ Column {
           text: "60s (Saver)"
           tooltipText: "Battery saver mode for laptops"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
+          foreground: root ? root.contentForeground : ShellColor.foreground
+          accent: root ? root.contentForeground : ShellColor.foreground
           fontSize: Style.font.caption
           selected: root ? root.livePollRate === 60 : false
           horizontalPadding: 0
@@ -698,8 +698,8 @@ Column {
       text: "Clear Cache & Reload"
       tooltipText: "Flush cached standings, rosters, and statistics and fetch fresh data"
       fontFamily: root ? root.contentFontFamily : Style.font.family
-      foreground: root ? root.contentForeground : Color.foreground
-      accent: root ? root.contentForeground : Color.foreground
+      foreground: root ? root.contentForeground : ShellColor.foreground
+      accent: root ? root.contentForeground : ShellColor.foreground
       fontSize: Style.font.caption
       horizontalPadding: Style.space(10)
       verticalPadding: Style.space(6)
@@ -724,8 +724,8 @@ Column {
         text: (root && root.settingsJustReset) ? "Reset Done" : "Reset"
         tooltipText: "Reset all preferences back to default values"
         fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: root ? root.contentForeground : Color.foreground
+        foreground: root ? root.contentForeground : ShellColor.foreground
+        accent: root ? root.contentForeground : ShellColor.foreground
         fontSize: Style.font.caption
         horizontalPadding: Style.space(8)
         verticalPadding: Style.space(6)
@@ -739,8 +739,8 @@ Column {
         text: (root && root.settingsJustSaved) ? "Confirmed" : "Confirm"
         tooltipText: "Confirm and apply all preferences to the desktop bar"
         fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+        foreground: root ? root.contentForeground : ShellColor.foreground
+        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
         selected: true
         fontSize: Style.font.caption
         horizontalPadding: Style.space(8)

@@ -163,7 +163,7 @@ Panel {
   onEnableTrendingChanged: if (!enableTrending && showTrending) showTrending = false
   // Bar widgets expose their text color as barForeground. Using `foreground`
   // here resolves to an invalid (transparent) color on the popup.
-  readonly property color contentForeground: bar ? bar.barForeground : Color.foreground
+  readonly property color contentForeground: bar ? bar.barForeground : ShellColor.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property string themeColorsPath: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
   property var themePalette: ({})
@@ -186,11 +186,11 @@ Panel {
 
   readonly property color statsHomeColor: (root.themePalette && (root.themePalette.cyan || root.themePalette.blue || root.themePalette.bright_cyan || root.themePalette.bright_blue))
     ? (root.themePalette.cyan || root.themePalette.blue || root.themePalette.bright_cyan || root.themePalette.bright_blue)
-    : Color.accent
+    : ShellColor.accent
 
   readonly property color statsAwayColor: (root.themePalette && (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta))
     ? (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta)
-    : Color.urgent
+    : ShellColor.urgent
 
   readonly property bool anyLoading: root.loading || root.matchListLoading || root.standingsLoading || root.statsLoading || root.matchDetailLoading || root.teamsLoading || root.searchLoading || root.searchPlayerLoading || root.searchClubLoading
 
@@ -247,7 +247,7 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       checked: sRow.checked
       foreground: root.contentForeground
-      accent: root.favoriteTeamAccent || Color.accent
+      accent: root.favoriteTeamAccent || ShellColor.accent
       onToggled: sRow.toggled()
     }
 
@@ -1419,8 +1419,8 @@ Panel {
   readonly property real matchRowHeight: Style.space(52)
   readonly property real matchLogoSize: Style.space(26)
   readonly property real matchScoreWidth: Style.space(92)
-  readonly property color favoriteTeamAccent: Color.accent
-  readonly property color favoriteTeamTint: Util.alpha(Color.accent, 0.45)
+  readonly property color favoriteTeamAccent: ShellColor.accent
+  readonly property color favoriteTeamTint: Util.alpha(ShellColor.accent, 0.45)
   function isFavoriteStanding(entry) {
     if (!entry) return false
     var tid = String(entry.teamId || "")
@@ -1800,17 +1800,17 @@ Panel {
     var leagueCode = root.safeIdentifier(root.league)
     if (next.kind === "teams") {
       if (leagueCode === "") { root.loading = false; return }
-      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
         "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
     } else if (next.kind === "schedule" || next.kind === "schedule_past" || next.kind === "schedule_future") {
       if (team === "") { root.loading = false; return }
-      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "4194304",
+      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "4194304", "--",
         "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/teams/" + encodeURIComponent(team) + "/schedule",
         "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/teams/" + encodeURIComponent(team) + "/schedule?fixture=true"]
     } else if (next.kind === "discover") {
       if (team === "") { root.finishFetch(); return }
       var window = root.clubSeasonWindow()
-      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      fixtureRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(team) + "/events?dates=" + encodeURIComponent(window) + "&limit=100"]
     }
     fixtureRequest.running = true
@@ -1846,8 +1846,8 @@ Panel {
           var slug = root.safeIdentifier(rawSlug)
           if (slug === "") continue
           root.sbSlugs[i] = slug
-          procs[i].command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
-            "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?limit=500"]
+          procs[i].command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/scoreboard?limit=500"]
           procs[i].running = true
           assigned = true
           break
@@ -2402,8 +2402,8 @@ Panel {
     if (panelSummaryRequest.running) return
     var slug = root.safeIdentifier(String(root.liveMatch.competitionSlug || root.league))
     if (slug === "") return
-    panelSummaryRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
+    panelSummaryRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     panelSummaryRequest.running = true
   }
 
@@ -2420,8 +2420,8 @@ Panel {
     standingsLoading = true
     standingsError = ""
     var season = root.standingsSeasonYear - root.standingsSeasonOffset
-    standingsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(leagueCode)
+    standingsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(leagueCode)
       + "/standings?season=" + encodeURIComponent(String(season))]
     standingsRequest.running = true
   }
@@ -2548,10 +2548,10 @@ Panel {
     var lateYear = root.tournamentBracketWindowQueryYear(seasonYear, "late", leagueCode)
     var base = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/scoreboard?limit=500&dates="
     if (root._tournamentBracketAcc.remaining > 1 && earlyYear !== lateYear) {
-      tournamentBracketRequestEarly.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "8388608", base + encodeURIComponent(String(earlyYear))]
+      tournamentBracketRequestEarly.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "8388608", "--", base + encodeURIComponent(String(earlyYear))]
       tournamentBracketRequestEarly.running = true
     }
-    tournamentBracketRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "8388608", base + encodeURIComponent(String(lateYear))]
+    tournamentBracketRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "8388608", "--", base + encodeURIComponent(String(lateYear))]
     tournamentBracketRequest.running = true
   }
 
@@ -2634,7 +2634,7 @@ Panel {
     if (root.statsSeasonOffset > 0) {
       statsUrl += "?season=" + encodeURIComponent(String(targetYear))
     }
-    statsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", statsUrl]
+    statsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--", statsUrl]
     statsRequest.running = true
   }
 
@@ -2760,8 +2760,8 @@ Panel {
       info: { venue: "", attendance: "", officials: "" }
     }
 
-    matchDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(mid)]
+    matchDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(mid)]
     matchDetailRequest.running = true
   }
 
@@ -2922,16 +2922,16 @@ Panel {
 
     if (athIds.length > 0) {
       if (!athletesRequest.running) {
-        athletesRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-          "https://sports.core.api.espn.com/v2/sports/soccer/athletes/{" + athIds.join(",") + "}"]
+        athletesRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://sports.core.api.espn.com/v2/sports/soccer/athletes/{" + athIds.join(",") + "}"]
         athletesRequest.running = true
       }
       var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
       var seasonYear = root.statsSeasonOffset > 0 ? String(targetYear) : (data.season && data.season.year ? String(data.season.year) : String(targetYear))
       var leagueCode = root.safeIdentifier(root.league)
       if (leagueCode !== "" && !athleteStatsRequest.running) {
-        athleteStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-          "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(leagueCode)
+        athleteStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(leagueCode)
           + "/seasons/" + encodeURIComponent(seasonYear) + "/types/1/athletes/{" + athIds.join(",") + "}/statistics/0"]
         athleteStatsRequest.running = true
       }
@@ -3240,7 +3240,7 @@ Panel {
         var calUrl = isPastSeason
           ? ("https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/seasons/" + encodeURIComponent(String(targetYear)) + "/types/1/calendar/ondays?lang=en&region=us")
           : ("https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/calendar/ondays?lang=en&region=us")
-        leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576", calUrl]
+        leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576", "--", calUrl]
         leagueCalendarRequest.running = true
       }
     }
@@ -3291,7 +3291,7 @@ Panel {
       }
     }
 
-    var cmd = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880"]
+    var cmd = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", "--"]
     for (var i = 0; i < days.length; i++) {
       cmd.push("https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
         + "/scoreboard?dates=" + encodeURIComponent(days[i]) + "&limit=500")
@@ -3797,8 +3797,8 @@ Panel {
     if (activityRequest.running) return
     var slug = root.safeIdentifier(String(target.competitionSlug || root.league))
     if (slug === "") return
-    activityRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
+    activityRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(id)]
     activityRequest.running = true
   }
 
@@ -4205,8 +4205,8 @@ Panel {
     var queue = root._livePollQueue.slice()
     var slug = queue.shift()
     root._livePollQueue = queue
-    livePollProcess.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "5242880",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
+    livePollProcess.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "5242880", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
       + "/scoreboard?limit=500"]
     livePollProcess.running = true
   }
@@ -4323,7 +4323,7 @@ Panel {
     var leagueCode = root.safeIdentifier(root.selectedLeague)
     if (leagueCode !== "") {
       teamsRequest.running = false
-      teamsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
+      teamsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
         "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/teams"]
       teamsRequest.running = true
     }
@@ -4469,8 +4469,8 @@ Panel {
     root.leagueCurrentId = root.leagueSummaryQueue[0]
     var slug = root.safeIdentifier(root.league)
     if (slug === "") { root.leagueSummaryQueue.shift(); root.pollNextLeagueSummary(); return }
-    leagueSummaryRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
+    leagueSummaryRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug)
       + "/summary?event=" + encodeURIComponent(root.leagueCurrentId)]
     leagueSummaryRequest.running = true
   }
@@ -6166,8 +6166,8 @@ onStreamFinished: root.warnStderr("", text)
           var seasonYear = root.statsSeasonOffset > 0 ? String(targetYear) : (data.season && data.season.year ? String(data.season.year) : String(targetYear))
           var leagueCode = root.safeIdentifier(root.league)
           if (leagueCode !== "") {
-            cardLeadersRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-              "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(leagueCode)
+            cardLeadersRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(leagueCode)
               + "/seasons/" + encodeURIComponent(seasonYear) + "/types/1/leaders"]
             cardLeadersRequest.running = true
           }
@@ -6261,8 +6261,8 @@ onStreamFinished: root.warnStderr("", text)
   Process {
     id: teamsRequest
     // Fetched per league when the user picks one in the first-run picker.
-    command: ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(root.safeIdentifier(root.selectedLeague)) + "/teams"]
+    command: ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(root.safeIdentifier(root.selectedLeague)) + "/teams"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -6611,8 +6611,8 @@ onStreamFinished: root.warnStderr("", text)
           var slug = root.safeIdentifier(String(root.matchDetail.competitionSlug || root.league || "eng.1"))
           var mid = root.safeIdentifier(String(root.matchDetail.id))
           if (slug !== "" && mid !== "") {
-            matchDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152",
-              "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(mid)]
+            matchDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(slug) + "/summary?event=" + encodeURIComponent(mid)]
             matchDetailRequest.running = true
           }
         }
@@ -6904,8 +6904,12 @@ onStreamFinished: root.warnStderr("", text)
     }, root.selectedPlayerProfile, root.teamNameForId)
   }
 
+  function isValidEspnApiUrl(url) {
+    return FutData.isValidEspnApiUrl(url)
+  }
+
   function formatTransferValue(rawAmt, amtType, currencyObj) {
-    return FutData.formatTransferValue(rawAmt, amtType, currencyObj)
+    return FutData.formatTransferValue(rawAmt, amtType, currencyObj, root.sanitizePlainText)
   }
 
   function updateTransferTeamNames() {
@@ -6978,8 +6982,8 @@ onStreamFinished: root.warnStderr("", text)
       return
     }
     root._transferTeamInFlight = tid
-    searchTransferTeamRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576",
-      "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(tid)]
+    searchTransferTeamRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576", "--",
+        "https://sports.core.api.espn.com/v2/sports/soccer/teams/" + encodeURIComponent(tid)]
     searchTransferTeamRequest.running = true
   }
 
@@ -7142,7 +7146,7 @@ onStreamFinished: root.warnStderr("", text)
             var rawAmt = item.displayAmount !== undefined ? String(item.displayAmount) : (item.amount !== undefined ? String(item.amount) : "")
             var amtType = item.type ? String(item.type) : ""
             var numVal = Number(rawAmt)
-            var feeVal = root.formatTransferValue(rawAmt, amtType, item.currency)
+            var feeVal = root.sanitizePlainText(root.formatTransferValue(rawAmt, amtType, item.currency))
 
             var dStr = ""
             var yStr = ""
@@ -7186,7 +7190,7 @@ onStreamFinished: root.warnStderr("", text)
               toAbbr: toInfo.abbrev || root.teamTabLabel(toInfo.name, "", "abbrev", toInfo.id) || toInfo.name || "Unknown",
               toLogo: toInfo.logo || "",
               toId: toInfo.id || "",
-              fee: feeVal,
+              fee: root.sanitizePlainText(feeVal),
               rawAmount: !isNaN(numVal) ? numVal : 0,
               type: amtType,
               date: dStr !== "" ? dStr : yStr,
@@ -7281,7 +7285,7 @@ onStreamFinished: root.warnStderr("", text)
                 teamMap[teamId].leagues.push(lgSlug)
               }
               var cleanStatUrl = statUrl.replace(/^http:\/\//i, "https://")
-              if (cleanStatUrl !== "" && teamMap[teamId].urls.indexOf(cleanStatUrl) === -1) {
+              if (cleanStatUrl !== "" && root.isValidEspnApiUrl(cleanStatUrl) && teamMap[teamId].urls.indexOf(cleanStatUrl) === -1) {
                 teamMap[teamId].urls.push(cleanStatUrl)
               }
             }
@@ -7354,6 +7358,7 @@ onStreamFinished: root.warnStderr("", text)
                 if (!seasonCompsByYear[yr]) seasonCompsByYear[yr] = []
                 var cInfo = root.formatCompetitionName(lg)
                 var cleanUrl = stUrl.replace(/^http:\/\//i, "https://")
+                if (!root.isValidEspnApiUrl(cleanUrl)) continue
                 var existing = false
                 for (var ci2 = 0; ci2 < seasonCompsByYear[yr].length; ci2++) {
                   if (seasonCompsByYear[yr][ci2].url === cleanUrl || (seasonCompsByYear[yr][ci2].league === lg && String(seasonCompsByYear[yr][ci2].teamId) === String(teamId))) {
@@ -8451,8 +8456,8 @@ onStreamFinished: root.warnStderr("", text)
     root.searchLoading = true
     root.searchError = ""
     searchRequest.running = false
-    searchRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/search/v2?query=" + encodeURIComponent(q) + "&limit=12"]
+    searchRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/search/v2?query=" + encodeURIComponent(q) + "&limit=12"]
     searchRequest.running = true
   }
 
@@ -8646,7 +8651,7 @@ onStreamFinished: root.warnStderr("", text)
       return
     }
     var nextUrl = root.playerCompStatQueue.shift()
-    if (!nextUrl || nextUrl === "") {
+    if (!nextUrl || nextUrl === "" || !root.isValidEspnApiUrl(nextUrl)) {
       root._fetchNextCompQueue()
       return
     }
@@ -8658,7 +8663,7 @@ onStreamFinished: root.warnStderr("", text)
     root.compStatInFlightGen = root._compStatRequestGen
     root.playerStatsLoading = true
     searchCompQueueRequest.running = false
-    searchCompQueueRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "2097152", nextUrl]
+    searchCompQueueRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "2097152", "--", nextUrl]
     searchCompQueueRequest.running = true
   }
   function applySingleStatMap(statMap, label) {
@@ -8868,29 +8873,29 @@ onStreamFinished: root.warnStderr("", text)
       root.statsPlayerKey = item.id
       root.statsPlayerLeague = item.leagueSlug || (root.league !== "all" ? root.league : "")
       searchPlayerDetailRequest.running = false
-      searchPlayerDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id)]
       searchPlayerDetailRequest.running = true
 
       searchPlayerBioRequest.running = false
-      searchPlayerBioRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerBioRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/" + encodeURIComponent(item.id) + "/bio"]
       searchPlayerBioRequest.running = true
 
       searchPlayerOverviewRequest.running = false
-      searchPlayerOverviewRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerOverviewRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/" + encodeURIComponent(item.id) + "/overview"]
       searchPlayerOverviewRequest.running = true
 
       searchPlayerTransactionsRequest.running = false
-      searchPlayerTransactionsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerTransactionsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id) + "/transactions"]
       searchPlayerTransactionsRequest.running = true
 
       // Career clubs (Info tab) load eagerly; heavy stats stay lazy
       // until the Stats/More tab is first opened (see ensurePlayerStats).
       searchPlayerLogRequest.running = false
-      searchPlayerLogRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerLogRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(item.id) + "/statisticslog?lang=en&region=us"]
       searchPlayerLogRequest.running = true
 
@@ -8912,19 +8917,19 @@ onStreamFinished: root.warnStderr("", text)
     root.playerStatsLoading = true
     if (!haveCareer) {
       searchPlayerStatsRequest.running = false
-      searchPlayerStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(pid) + "/statistics"]
       searchPlayerStatsRequest.running = true
     }
     if (!haveSeason && defLg !== "") {
       searchPlayerSeasonStatsRequest.running = false
-      searchPlayerSeasonStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerSeasonStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(defLg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/athletes/" + encodeURIComponent(pid) + "/statistics/1?lang=en&region=us"]
       searchPlayerSeasonStatsRequest.running = true
     }
     if (!p.transferFetched && !searchPlayerTransactionsRequest.running) {
       searchPlayerTransactionsRequest.running = false
-      searchPlayerTransactionsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
+      searchPlayerTransactionsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
         "https://sports.core.api.espn.com/v2/sports/soccer/athletes/" + encodeURIComponent(pid) + "/transactions"]
       searchPlayerTransactionsRequest.running = true
     }
@@ -9040,8 +9045,8 @@ onStreamFinished: root.warnStderr("", text)
       return
     }
     searchTeamNameRequest.running = false
-    searchTeamNameRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(t.leagues[0]) + "/teams/" + encodeURIComponent(teamId)]
+    searchTeamNameRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "15", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(t.leagues[0]) + "/teams/" + encodeURIComponent(teamId)]
     searchTeamNameRequest.running = true
   }
 
@@ -9297,7 +9302,7 @@ onStreamFinished: root.warnStderr("", text)
     // Prefetch league standings for mini-table if not yet in cache
     if (!root._leagueStandingsCache[lg]) {
       searchClubStandingsRequest.running = false
-      searchClubStandingsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
+      searchClubStandingsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
         "https://site.web.api.espn.com/apis/v2/sports/soccer/" + encodeURIComponent(lg) + "/standings"]
       searchClubStandingsRequest.running = true
     }
@@ -9306,34 +9311,34 @@ onStreamFinished: root.warnStderr("", text)
     clubFetchTimeoutTimer.restart()
 
     searchClubDetailRequest.running = false
-    searchClubDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
+    searchClubDetailRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
     searchClubDetailRequest.running = true
 
     searchClubScheduleRequest.running = false
-    searchClubScheduleRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule"]
+    searchClubScheduleRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule"]
     searchClubScheduleRequest.running = true
 
     searchClubFixturesRequest.running = false
-    searchClubFixturesRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule?fixture=true"]
+    searchClubFixturesRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/schedule?fixture=true"]
     searchClubFixturesRequest.running = true
 
     searchClubRosterRequest.running = false
-    searchClubRosterRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/roster"]
+    searchClubRosterRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
+        "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id) + "/roster"]
     searchClubRosterRequest.running = true
 
     var curYear = new Date().getFullYear()
     searchClubStatsRequest.running = false
-    searchClubStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
-      "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/statistics"]
+    searchClubStatsRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
+        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/seasons/" + encodeURIComponent(String(curYear)) + "/types/1/teams/" + encodeURIComponent(item.id) + "/statistics"]
     searchClubStatsRequest.running = true
 
     searchClubCoreRequest.running = false
-    searchClubCoreRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152",
-      "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
+    searchClubCoreRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "12", "--max-filesize", "2097152", "--",
+        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(lg) + "/teams/" + encodeURIComponent(item.id)]
     searchClubCoreRequest.running = true
   }
 
@@ -10383,7 +10388,7 @@ root.warnStderr("team select failed", text)
               color: root.contentForeground
               opacity: matchRow.modelData.state === "in" ? 0.07 : ((rowMouseArea.containsMouse || matchRow.isKeyboardSelected) ? 0.06 : 0.03)
               border.width: matchRow.isKeyboardSelected ? 2 : 0
-              border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
+              border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
               Behavior on opacity { NumberAnimation { duration: 120 } }
             }
 
@@ -10461,7 +10466,7 @@ root.warnStderr("team select failed", text)
                   text: matchRow.cardStageText
                   color: (root.showClubFixtures && root.favoriteTeamAccent && root.favoriteTeamAccent !== "")
                     ? root.favoriteTeamAccent
-                    : (root.showClubFixtures ? Color.accent : Qt.darker(root.contentForeground, 1.7))
+                    : (root.showClubFixtures ? ShellColor.accent : Qt.darker(root.contentForeground, 1.7))
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.space(8.5)
                   font.letterSpacing: 0.5
@@ -11253,7 +11258,7 @@ root.warnStderr("team select failed", text)
           color: root.contentForeground
           opacity: (liveCardArea.containsMouse || liveMatchCard.isKeyboardSelected) ? 0.09 : 0.07
           border.width: liveMatchCard.isKeyboardSelected ? 2 : 0
-          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
         }
 
         MouseArea {
@@ -11479,7 +11484,7 @@ root.warnStderr("team select failed", text)
           color: root.contentForeground
           opacity: (nextCardArea.containsMouse || nextMatchCard.isKeyboardSelected) ? 0.08 : 0.03
           border.width: nextMatchCard.isKeyboardSelected ? 2 : 0
-          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
         }
 
         MouseArea {
@@ -11652,7 +11657,7 @@ root.warnStderr("team select failed", text)
           color: root.contentForeground
           opacity: (prevCardArea.containsMouse || prevMatchCard.isKeyboardSelected) ? 0.08 : 0.03
           border.width: prevMatchCard.isKeyboardSelected ? 2 : 0
-          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
         }
 
         MouseArea {
@@ -11838,7 +11843,7 @@ root.warnStderr("team select failed", text)
         width: parent.width
         implicitHeight: staleErrCol.implicitHeight + Style.space(12)
         radius: Style.cornerRadius
-        color: Util.alpha(Color.accent, 0.12)
+        color: Util.alpha(ShellColor.accent, 0.12)
 
         Column {
           id: staleErrCol

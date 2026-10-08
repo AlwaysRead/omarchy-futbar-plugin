@@ -156,7 +156,7 @@ Column {
               width: parent.width
               height: playerProfileInnerCol.implicitHeight + Style.space(24)
               radius: Style.cornerRadius
-              color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.65)
+              color: Qt.rgba(ShellColor.popups.background.r, ShellColor.popups.background.g, ShellColor.popups.background.b, 0.65)
               clip: true
               readonly property color playerBrandColor: root.safeClubAccent("", root.favoriteTeamAccent)
               readonly property real brandLuminance: {
@@ -1709,7 +1709,15 @@ Column {
                           visible: transferMouseArea.containsMouse
                           delay: 350
                           timeout: 4000
-                          text: (modelData.fromName || "Unknown") + " → " + (modelData.toName || "Unknown") + " : " + modelData.fee + (modelData.date ? (" (" + modelData.date + ")") : "")
+                          textFormat: Text.PlainText
+                          text: (modelData.fromName || "Unknown") + " → " + (modelData.toName || "Unknown") + " : " + (modelData.fee || "") + (modelData.date ? (" (" + modelData.date + ")") : "")
+                          contentItem: Text {
+                            textFormat: Text.PlainText
+                            text: (modelData.fromName || "Unknown") + " → " + (modelData.toName || "Unknown") + " : " + (modelData.fee || "") + (modelData.date ? (" (" + modelData.date + ")") : "")
+                            color: root ? root.contentForeground : "#ffffff"
+                            font.family: root ? root.contentFontFamily : ""
+                            font.pixelSize: Style.space(9)
+                          }
                         }
 
                         Row {
@@ -1844,7 +1852,7 @@ Column {
             width: parent.width
             height: clubProfileInnerCol.implicitHeight + Style.space(24)
             radius: Style.cornerRadius
-            color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.65)
+            color: Qt.rgba(ShellColor.popups.background.r, ShellColor.popups.background.g, ShellColor.popups.background.b, 0.65)
             clip: true
             readonly property color clubBrandColor: root.safeClubAccent(root.selectedClubProfile ? root.selectedClubProfile.color : "", root.favoriteTeamAccent)
             readonly property real brandLuminance: {

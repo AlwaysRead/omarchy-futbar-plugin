@@ -24,7 +24,7 @@ Item {
   Rectangle {
     anchors.fill: parent
     radius: Style.cornerRadius
-    color: Color.popups.background
+    color: ShellColor.popups.background
     opacity: 0.90
   }
 
@@ -53,14 +53,14 @@ Item {
           ctx.beginPath()
           ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
           ctx.lineWidth = Style.space(3)
-          ctx.strokeStyle = Util.alpha((root && root.contentForeground) ? root.contentForeground : Color.foreground, 0.15)
+          ctx.strokeStyle = Util.alpha((root && root.contentForeground) ? root.contentForeground : ShellColor.foreground, 0.15)
           ctx.stroke()
 
           ctx.beginPath()
           ctx.arc(cx, cy, radius, -Math.PI / 2, Math.PI / 4)
           ctx.lineWidth = Style.space(3.5)
           ctx.lineCap = "round"
-          ctx.strokeStyle = (root && root.contentForeground) ? root.contentForeground : Color.foreground
+          ctx.strokeStyle = (root && root.contentForeground) ? root.contentForeground : ShellColor.foreground
           ctx.stroke()
         }
       }
@@ -78,7 +78,7 @@ Item {
       textFormat: Text.PlainText
       anchors.horizontalCenter: parent.horizontalCenter
       text: root ? root.sanitizePlainText(overlay.text) : overlay.text
-      color: (root && root.contentForeground) ? root.contentForeground : Color.foreground
+      color: (root && root.contentForeground) ? root.contentForeground : ShellColor.foreground
       font.family: (root && root.contentFontFamily) ? root.contentFontFamily : Style.font.family
       font.pixelSize: Style.font.caption
       font.bold: true
