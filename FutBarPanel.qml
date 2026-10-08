@@ -12,7 +12,7 @@ Panel {
   id: root
   moduleName: "devbook.futbar"
   ipcTarget: "devbook.futbar"
-  manageIpc: false
+  manageIpc: true
 
   property var anchorItem: null
   property var hostWidget: null
