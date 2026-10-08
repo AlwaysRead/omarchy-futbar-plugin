@@ -13,6 +13,7 @@ Column {
   visible: root ? (root.showStats && !root.showMatchDetail && !root.showTrending) : false
 
   component LoadingOverlay: FutLoadingOverlay { root: statsView.root }
+  readonly property int currentStatsCount: root ? (root.statsCategory === "goals" ? root.statsGoals.length : (root.statsCategory === "assists" ? root.statsAssists.length : (root.statsCategory === "yellow" ? root.statsYellow.length : (root.statsCategory === "red" ? root.statsRed.length : (root.statsSaves ? root.statsSaves.length : 0))))) : 0
 
         Item {
           width: parent.width
@@ -150,6 +151,21 @@ Column {
             selected: root.statsCategory === "red"
             onClicked: root.statsCategory = "red"
           }
+
+          Button {
+            id: savesTabButton
+            height: Style.space(22)
+            text: "Saves"
+            tooltipText: "Top goalkeepers by saves"
+            fontFamily: root.contentFontFamily
+            foreground: root.contentForeground
+            accent: root.contentForeground
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(10)
+            verticalPadding: 0
+            selected: root.statsCategory === "saves"
+            onClicked: root.statsCategory = "saves"
+          }
         }
 
         Text {
@@ -158,7 +174,7 @@ Column {
           opacity: root.statsLoading ? 0.4 + 0.6 * root._pulse : 1.0
           text: root.statsLoading ? "Fetching statistics…"
             : (root.statsError !== "" ? root.statsError
-            : ((root.statsCategory === "goals" ? root.statsGoals.length : (root.statsCategory === "assists" ? root.statsAssists.length : (root.statsCategory === "yellow" ? root.statsYellow.length : root.statsRed.length))) === 0 ? "No stats available" : ""))
+            : (statsView.currentStatsCount === 0 ? "No stats available" : ""))
           color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
@@ -169,7 +185,7 @@ Column {
         Column {
           width: parent.width
           spacing: 0
-          visible: (root.statsCategory === "goals" ? root.statsGoals.length : (root.statsCategory === "assists" ? root.statsAssists.length : (root.statsCategory === "yellow" ? root.statsYellow.length : root.statsRed.length))) > 0
+          visible: statsView.currentStatsCount > 0
 
           Row {
             width: parent.width
@@ -218,7 +234,7 @@ Column {
               textFormat: Text.PlainText
               width: Style.space(48)
               height: parent.height
-              text: root.statsCategory === "goals" ? "Goals" : (root.statsCategory === "assists" ? "Assists" : (root.statsCategory === "yellow" ? "Yellow" : "Red"))
+              text: root.statsCategory === "goals" ? "Goals" : (root.statsCategory === "assists" ? "Assists" : (root.statsCategory === "yellow" ? "Yellow" : (root.statsCategory === "red" ? "Red" : "Saves")))
               color: root.statsCategory === "yellow" ? "#eab308" : (root.statsCategory === "red" ? "#ef4444" : root.favoriteTeamAccent)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
@@ -229,7 +245,7 @@ Column {
           }
 
           Repeater {
-            model: (root.statsCategory === "goals" ? root.statsGoals : (root.statsCategory === "assists" ? root.statsAssists : (root.statsCategory === "yellow" ? root.statsYellow : root.statsRed))).slice(0, 15)
+            model: (root.statsCategory === "goals" ? root.statsGoals : (root.statsCategory === "assists" ? root.statsAssists : (root.statsCategory === "yellow" ? root.statsYellow : (root.statsCategory === "red" ? root.statsRed : (root.statsSaves || []))))).slice(0, 15)
 
             delegate: Item {
               id: statRow

@@ -93,7 +93,7 @@ BarWidget {
   implicitHeight: button.implicitHeight
   readonly property real openPanelIndicatorWidth: (root.barWidgetMode === "icon" || root.barDisplayText === "")
     ? Math.max(Style.space(10), Math.round(Style.bar.iconSlot * 0.55))
-    : button.labelWidth
+    : (button.labelVisible ? button.labelWidth : (barCustomContentRow ? barCustomContentRow.implicitWidth : button.width))
   opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
 
   SequentialAnimation on _pulse {
@@ -381,6 +381,66 @@ BarWidget {
     return ""
   }
 
+  readonly property string barHomeLogo: {
+    var p = panelLoader.item
+    if (!p) return ""
+    var mode = root.barWidgetMode
+    if (mode === "icon") return ""
+    var isClub = root.primaryItem ? !root.primaryItem.followLeague : (root.teamName !== "")
+    var primaryKey = p.teamKey ? p.teamKey(root.teamName, root.league) : ""
+    var cached = (primaryKey && p._teamStateCache) ? p._teamStateCache[primaryKey] : null
+
+    if (mode === "score") {
+      if (isClub) {
+        var lm = (!p.leagueMode && p.teamName === root.teamName) ? p.liveMatch : (cached ? cached.liveMatch : p.liveMatch)
+        if (lm) return p.teamLogoFor ? p.teamLogoFor(lm, "home") : ""
+        var prev = (!p.leagueMode && p.teamName === root.teamName) ? p.previousMatch : (cached ? cached.previousMatch : p.previousMatch)
+        if (prev) return p.teamLogoFor ? p.teamLogoFor(prev, "home") : ""
+      } else {
+        if (Array.isArray(p.leagueLive) && p.leagueLive.length > 0 && p.leagueLive[0].homeLogo) return p.leagueLive[0].homeLogo
+        if (Array.isArray(p.leagueRecent) && p.leagueRecent.length > 0 && p.leagueRecent[0].homeLogo) return p.leagueRecent[0].homeLogo
+      }
+    } else if (mode === "next") {
+      if (isClub) {
+        var nm = (!p.leagueMode && p.teamName === root.teamName) ? p.nextMatch : (cached ? cached.nextMatch : p.nextMatch)
+        if (nm) return p.teamLogoFor ? p.teamLogoFor(nm, "home") : ""
+      } else {
+        if (Array.isArray(p.leagueUpcoming) && p.leagueUpcoming.length > 0 && p.leagueUpcoming[0].homeLogo) return p.leagueUpcoming[0].homeLogo
+      }
+    }
+    return ""
+  }
+
+  readonly property string barAwayLogo: {
+    var p = panelLoader.item
+    if (!p) return ""
+    var mode = root.barWidgetMode
+    if (mode === "icon") return ""
+    var isClub = root.primaryItem ? !root.primaryItem.followLeague : (root.teamName !== "")
+    var primaryKey = p.teamKey ? p.teamKey(root.teamName, root.league) : ""
+    var cached = (primaryKey && p._teamStateCache) ? p._teamStateCache[primaryKey] : null
+
+    if (mode === "score") {
+      if (isClub) {
+        var lm = (!p.leagueMode && p.teamName === root.teamName) ? p.liveMatch : (cached ? cached.liveMatch : p.liveMatch)
+        if (lm) return p.teamLogoFor ? p.teamLogoFor(lm, "away") : ""
+        var prev = (!p.leagueMode && p.teamName === root.teamName) ? p.previousMatch : (cached ? cached.previousMatch : p.previousMatch)
+        if (prev) return p.teamLogoFor ? p.teamLogoFor(prev, "away") : ""
+      } else {
+        if (Array.isArray(p.leagueLive) && p.leagueLive.length > 0 && p.leagueLive[0].awayLogo) return p.leagueLive[0].awayLogo
+        if (Array.isArray(p.leagueRecent) && p.leagueRecent.length > 0 && p.leagueRecent[0].awayLogo) return p.leagueRecent[0].awayLogo
+      }
+    } else if (mode === "next") {
+      if (isClub) {
+        var nm = (!p.leagueMode && p.teamName === root.teamName) ? p.nextMatch : (cached ? cached.nextMatch : p.nextMatch)
+        if (nm) return p.teamLogoFor ? p.teamLogoFor(nm, "away") : ""
+      } else {
+        if (Array.isArray(p.leagueUpcoming) && p.leagueUpcoming.length > 0 && p.leagueUpcoming[0].awayLogo) return p.leagueUpcoming[0].awayLogo
+      }
+    }
+    return ""
+  }
+
   // Refresh cadence for the shared data fetches (scoreboard, fixtures).
   // Fast while a match is live so goals reach the bar and popup promptly;
   // relaxed otherwise to stay off ESPN's back. Notification bodies never
@@ -433,9 +493,11 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? "󰒸" : root.barDisplayText
-    labelVisible: true
+    labelVisible: (root.barWidgetMode === "icon" || root.barDisplayText === "")
     fontSize: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? Style.bar.iconFont : Style.font.caption
-    fixedWidth: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? Style.bar.iconSlot : -1
+    fixedWidth: (root.barWidgetMode === "icon" || root.barDisplayText === "")
+      ? Style.bar.iconSlot
+      : (barCustomContentRow.implicitWidth + Style.space(16))
     horizontalMargin: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? 0 : 8.5
     active: root.live
     activeColor: Color.accent
@@ -446,6 +508,53 @@ BarWidget {
       else {
         if (!panelLoader.item || !panelLoader.item.fixtureFresh()) root.refresh()
         root.togglePanel()
+      }
+    }
+
+    Row {
+      id: barCustomContentRow
+      anchors.centerIn: parent
+      spacing: Style.space(4)
+      visible: root.barWidgetMode !== "icon" && root.barDisplayText !== ""
+
+      Image {
+        width: Style.space(14)
+        height: Style.space(14)
+        anchors.verticalCenter: parent.verticalCenter
+        source: root.barHomeLogo
+        fillMode: Image.PreserveAspectFit
+        sourceSize.width: 32
+        sourceSize.height: 32
+        asynchronous: true
+        cache: true
+        mipmap: true
+        smooth: true
+        visible: String(source) !== "" && status === Image.Ready
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.barDisplayText
+        color: button.active && button.useActiveColor ? button.activeColor : button.foreground
+        font.family: button.fontFamily
+        font.pixelSize: button.fontSize
+        renderType: Text.NativeRendering
+      }
+
+      Image {
+        width: Style.space(14)
+        height: Style.space(14)
+        anchors.verticalCenter: parent.verticalCenter
+        source: root.barAwayLogo
+        fillMode: Image.PreserveAspectFit
+        sourceSize.width: 32
+        sourceSize.height: 32
+        asynchronous: true
+        cache: true
+        mipmap: true
+        smooth: true
+        visible: String(source) !== "" && status === Image.Ready
       }
     }
 

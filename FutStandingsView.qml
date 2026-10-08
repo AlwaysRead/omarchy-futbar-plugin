@@ -346,17 +346,50 @@ Column {
                   smooth: true
                   visible: String(source) !== ""
                 }
-                Text {
-                  textFormat: Text.PlainText
+                Row {
                   width: standingsView.standingsTeamWidth
                   height: parent.height
-                  text: rowRect.entry.teamName
-                  color: rowRect.favorite ? rowRect.rowAccent : (root ? root.contentForeground : Color.foreground)
-                  font.family: root ? root.contentFontFamily : Style.font.family
-                  font.pixelSize: Style.font.caption
-                  font.bold: rowRect.favorite
-                  elide: Text.ElideRight
-                  verticalAlignment: Text.AlignVCenter
+                  spacing: Style.space(3)
+                  clip: true
+
+                  Text {
+                    id: standingsTeamNameText
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: rowRect.entry.teamName
+                    color: rowRect.favorite ? rowRect.rowAccent : (root ? root.contentForeground : Color.foreground)
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: rowRect.favorite
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                    width: Math.min(implicitWidth, parent.width - (deductionBadge.visible ? (deductionBadge.width + parent.spacing) : 0))
+                  }
+
+                  Rectangle {
+                    id: deductionBadge
+                    anchors.verticalCenter: parent.verticalCenter
+                    readonly property string ded: (rowRect.entry.stats && rowRect.entry.stats.deductions && rowRect.entry.stats.deductions !== "0" && rowRect.entry.stats.deductions !== "0.0")
+                      ? String(rowRect.entry.stats.deductions) : ""
+                    visible: ded !== ""
+                    height: Style.space(13)
+                    width: dedText.implicitWidth + Style.space(6)
+                    radius: Style.space(2)
+                    color: Qt.rgba(0.9, 0.3, 0.3, 0.15)
+                    border.width: 1
+                    border.color: Qt.rgba(0.9, 0.3, 0.3, 0.35)
+
+                    Text {
+                      id: dedText
+                      textFormat: Text.PlainText
+                      anchors.centerIn: parent
+                      text: deductionBadge.ded.startsWith("-") ? (deductionBadge.ded + "p") : ("-" + deductionBadge.ded + "p")
+                      color: Qt.rgba(0.95, 0.35, 0.35, 0.95)
+                      font.family: root ? root.contentFontFamily : Style.font.family
+                      font.pixelSize: Style.font.caption - 3
+                      font.bold: true
+                    }
+                  }
                 }
                 Repeater {
                   model: root ? root.standingsColumns : []

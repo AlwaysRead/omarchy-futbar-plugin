@@ -1265,8 +1265,10 @@ Panel {
   property var statsAssists: []
   property var statsYellow: []
   property var statsRed: []
+  property var statsSaves: []
   property var rawYellowLeaders: []
   property var rawRedLeaders: []
+  property var rawSavesLeaders: []
   property var athleteMap: ({})
   property bool statsLoading: false
   property string statsError: ""
@@ -2540,7 +2542,7 @@ Panel {
     statsRequest.running = false; cardLeadersRequest.running = false; athletesRequest.running = false; athleteStatsRequest.running = false
     root.statsLoading = true
     root.statsError = ""
-    root.statsGoals = []; root.statsAssists = []; root.rawYellowLeaders = []; root.rawRedLeaders = []; root.statsYellow = []; root.statsRed = []
+    root.statsGoals = []; root.statsAssists = []; root.rawYellowLeaders = []; root.rawRedLeaders = []; root.rawSavesLeaders = []; root.statsYellow = []; root.statsRed = []; root.statsSaves = []
     root.athleteMap = ({})
     var targetYear = root.standingsSeasonYear - root.statsSeasonOffset
     var statsUrl = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/" + encodeURIComponent(leagueCode) + "/statistics"
@@ -2767,18 +2769,40 @@ Panel {
       })
     }
     root.statsRed = root.sortLeaders(red)
+
+    var saves = []
+    for (var s = 0; s < root.rawSavesLeaders.length; s++) {
+      var ls = root.rawSavesLeaders[s]
+      var aidS = ls.athleteId
+      var athS = root.athleteMap[aidS]
+      var nameS = athS ? athS.name : (ls.name || "Goalkeeper")
+      var jerseyS = athS ? athS.jersey : ""
+      var appsS = athS && athS.appearances ? athS.appearances : "—"
+      var teamNameS = root.teamNameForId(ls.teamId)
+      saves.push({
+        rank: s + 1,
+        name: nameS,
+        jersey: jerseyS,
+        teamName: teamNameS,
+        teamLogo: ls.teamLogo,
+        appearances: appsS,
+        value: ls.value
+      })
+    }
+    root.statsSaves = root.sortLeaders(saves)
   }
 
   function parseCoreLeaders(data) {
     var rawYellow = []
     var rawRed = []
+    var rawSaves = []
     var athIds = []
     var cats = data && Array.isArray(data.categories) ? data.categories : []
     for (var c = 0; c < cats.length; c++) {
       var cat = cats[c]
       if (!cat) continue
       var catName = String(cat.name || "")
-      if (catName === "yellowCards" || catName === "redCards") {
+      if (catName === "yellowCards" || catName === "redCards" || catName === "saves") {
         var leaders = Array.isArray(cat.leaders) ? cat.leaders : []
         var list = []
         for (var j = 0; j < leaders.length && j < 15; j++) {
@@ -2802,10 +2826,12 @@ Panel {
         }
         if (catName === "yellowCards") rawYellow = list
         else if (catName === "redCards") rawRed = list
+        else if (catName === "saves") rawSaves = list
       }
     }
     root.rawYellowLeaders = rawYellow
     root.rawRedLeaders = rawRed
+    root.rawSavesLeaders = rawSaves
     root.rebuildCardStats()
 
     if (athIds.length > 0) {
@@ -3594,7 +3620,8 @@ Panel {
     q.push(args)
     root._notifyQueue = q
     root._runNextNotify()
-    if (isGoal && root.notifyAudio) {
+    var isRedAlert = title && (title.indexOf("Red Card") !== -1 || title.indexOf("Sent Off") !== -1)
+    if ((isGoal || isRedAlert) && root.notifyAudio) {
       goalSoundProcess.running = false
       goalSoundProcess.running = true
     }

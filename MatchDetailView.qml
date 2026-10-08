@@ -41,6 +41,77 @@ Column {
     return keyList.length >= 4 ? keyList : all.slice(0, 8)
   }
 
+  property string commentaryFilter: "all"
+  property bool copySuccess: false
+
+  Timer {
+    id: copyResetTimer
+    interval: 2000
+    onTriggered: matchDetailView.copySuccess = false
+  }
+
+  Process {
+    id: copyProcess
+    running: false
+  }
+
+  function copyMatchSummary() {
+    if (!root || !root.matchDetail) return
+    var md = root.matchDetail
+    var hName = md.home ? (md.home.name || "Home") : "Home"
+    var aName = md.away ? (md.away.name || "Away") : "Away"
+    var hScore = (md.home && md.home.score !== undefined) ? String(md.home.score) : ""
+    var aScore = (md.away && md.away.score !== undefined) ? String(md.away.score) : ""
+    var status = md.status || (md.started ? "FT" : "Scheduled")
+    var comp = md.competitionName || ""
+
+    var summary = ""
+    if (md.started) {
+      summary = hName + " " + hScore + " – " + aScore + " " + aName + " (" + status + ")"
+    } else {
+      summary = hName + " vs " + aName + " (" + status + ")"
+    }
+    if (comp !== "") summary += " · " + comp
+    if ((md.homeScorers && md.homeScorers.length > 0) || (md.awayScorers && md.awayScorers.length > 0)) {
+      var hs = (md.homeScorers || []).join(", ")
+      var as = (md.awayScorers || []).join(", ")
+      summary += "\n" + hName + ": " + (hs || "None") + " | " + aName + ": " + (as || "None")
+    }
+
+    copyProcess.command = ["wl-copy", summary]
+    copyProcess.running = false
+    copyProcess.running = true
+    matchDetailView.copySuccess = true
+    copyResetTimer.restart()
+  }
+
+  function filteredCommentary() {
+    if (!root || !root.matchDetail || !Array.isArray(root.matchDetail.commentary)) return []
+    var all = root.matchDetail.commentary
+    if (matchDetailView.commentaryFilter === "all") return all
+    var res = []
+    for (var i = 0; i < all.length; i++) {
+      var item = all[i]
+      if (!item) continue
+      var txt = (item.text || "").toLowerCase()
+      var typ = (item.type || "").toLowerCase()
+      if (matchDetailView.commentaryFilter === "goals_cards") {
+        if (txt.indexOf("goal") !== -1 || txt.indexOf("penalty") !== -1 || txt.indexOf("card") !== -1 || txt.indexOf("sent off") !== -1 || typ.indexOf("goal") !== -1 || typ.indexOf("card") !== -1) {
+          res.push(item)
+        }
+      } else if (matchDetailView.commentaryFilter === "shots") {
+        if (txt.indexOf("shot") !== -1 || txt.indexOf("attempt") !== -1 || txt.indexOf("header") !== -1 || txt.indexOf("crossbar") !== -1 || txt.indexOf("post") !== -1 || typ.indexOf("shot") !== -1) {
+          res.push(item)
+        }
+      } else if (matchDetailView.commentaryFilter === "subs") {
+        if (txt.indexOf("substitution") !== -1 || txt.indexOf("replaces") !== -1 || typ.indexOf("sub") !== -1) {
+          res.push(item)
+        }
+      }
+    }
+    return res
+  }
+
   component LoadingOverlay: FutLoadingOverlay { root: matchDetailView.root }
 
         Row {
@@ -67,7 +138,7 @@ Column {
           Column {
             id: matchDetailTitleCol
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - backBtn.width - parent.spacing
+            width: parent.width - backBtn.width - copyMatchBtn.width - (parent.spacing * 2)
             spacing: Style.space(1)
 
             Text {
@@ -92,6 +163,23 @@ Column {
               font.bold: true
               elide: Text.ElideRight
             }
+          }
+
+          Button {
+            id: copyMatchBtn
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(26)
+            height: Style.space(26)
+            iconText: matchDetailView.copySuccess ? "\uf00c" : "\uf0c5"
+            tooltipText: matchDetailView.copySuccess ? "Copied match summary!" : "Copy match summary to clipboard"
+            fontFamily: root.contentFontFamily
+            foreground: matchDetailView.copySuccess ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent) : root.contentForeground
+            accent: root.contentForeground
+            iconSize: Style.font.caption
+            horizontalPadding: 0
+            verticalPadding: 0
+            visible: !!root.matchDetail
+            onClicked: matchDetailView.copyMatchSummary()
           }
         }
 
@@ -1299,7 +1387,7 @@ Column {
         // Commentary Tab
         Column {
           width: parent.width
-          spacing: Style.space(6)
+          spacing: Style.space(8)
           visible: root.matchDetail && root.matchDetail.isLive && root.matchDetailTab === "commentary"
 
           Text {
@@ -1312,6 +1400,45 @@ Column {
             visible: !root.matchDetail || !root.matchDetail.commentary || root.matchDetail.commentary.length === 0
           }
 
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+            visible: root.matchDetail && root.matchDetail.commentary && root.matchDetail.commentary.length > 0
+
+            Repeater {
+              model: [
+                { id: "all", label: "All" },
+                { id: "goals_cards", label: "Goals & Cards" },
+                { id: "shots", label: "Shots" },
+                { id: "subs", label: "Subs" }
+              ]
+
+              Button {
+                required property var modelData
+                height: Style.space(20)
+                text: modelData.label
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.contentForeground
+                fontSize: Style.font.caption - 2
+                horizontalPadding: Style.space(8)
+                verticalPadding: 0
+                selected: matchDetailView.commentaryFilter === modelData.id
+                onClicked: matchDetailView.commentaryFilter = modelData.id
+              }
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "No commentary events match the selected filter"
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            visible: root.matchDetail && root.matchDetail.commentary && root.matchDetail.commentary.length > 0 && matchDetailView.filteredCommentary().length === 0
+          }
+
           Flickable {
             id: commFlickable
             width: parent.width
@@ -1319,7 +1446,7 @@ Column {
             contentHeight: commCol.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            visible: root.matchDetail && root.matchDetail.commentary && root.matchDetail.commentary.length > 0
+            visible: root.matchDetail && root.matchDetail.commentary && root.matchDetail.commentary.length > 0 && matchDetailView.filteredCommentary().length > 0
 
             Column {
               id: commCol
@@ -1327,7 +1454,7 @@ Column {
               spacing: Style.space(4)
 
               Repeater {
-                model: root.matchDetail ? (root.matchDetail.commentary || []) : []
+                model: matchDetailView.filteredCommentary()
 
                 delegate: Rectangle {
                   id: commItem
