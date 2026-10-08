@@ -49,6 +49,19 @@ Column {
   property real lastRefreshTime: 0
   property var collapsedMap: ({})
   property var expandedMap: ({})
+  property int dayOffset: 0
+
+  function dateParamForOffset(offset) {
+    if (offset === 0) return ""
+    var d = new Date()
+    d.setDate(d.getDate() + offset)
+    var y = d.getFullYear()
+    var m = String(d.getMonth() + 1)
+    if (m.length < 2) m = "0" + m
+    var day = String(d.getDate())
+    if (day.length < 2) day = "0" + day
+    return "" + y + m + day
+  }
 
   function toggleCollapse(key) {
     var next = Object.assign({}, collapsedMap)
@@ -115,7 +128,13 @@ Column {
     if (trendingLoading) return
     if (showLoading && rawMatches.length === 0) trendingLoading = true
     trendingError = ""
+    var dStr = dateParamForOffset(dayOffset)
+    var url = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?limit=300"
+    if (dStr !== "") {
+      url += "&dates=" + dStr
+    }
     trendingRequest.running = false
+    trendingRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", url]
     trendingRequest.running = true
   }
 
@@ -486,6 +505,72 @@ Column {
           trendingSearchInput.text = ""
           trendingView.trendingFilterText = ""
           trendingSearchInput.forceActiveFocus()
+        }
+      }
+    }
+  }
+
+  // CONTROLS BAR: Day Selector (Yesterday, Today, Tomorrow)
+  Row {
+    width: parent.width
+    spacing: Style.space(4)
+
+    Button {
+      height: Style.space(22)
+      text: "Yesterday"
+      tooltipText: "View yesterday's completed matches"
+      fontFamily: root ? root.contentFontFamily : Style.font.family
+      foreground: root ? root.contentForeground : Color.foreground
+      accent: root ? root.contentForeground : Color.foreground
+      fontSize: Style.font.caption - 1
+      selected: trendingView.dayOffset === -1
+      horizontalPadding: Style.space(10)
+      verticalPadding: 0
+      onClicked: {
+        if (trendingView.dayOffset !== -1) {
+          trendingView.dayOffset = -1
+          trendingView.rawMatches = []
+          trendingView.refresh(true)
+        }
+      }
+    }
+
+    Button {
+      height: Style.space(22)
+      text: "Today"
+      tooltipText: "View today's live & upcoming matches"
+      fontFamily: root ? root.contentFontFamily : Style.font.family
+      foreground: root ? root.contentForeground : Color.foreground
+      accent: root ? root.contentForeground : Color.foreground
+      fontSize: Style.font.caption - 1
+      selected: trendingView.dayOffset === 0
+      horizontalPadding: Style.space(10)
+      verticalPadding: 0
+      onClicked: {
+        if (trendingView.dayOffset !== 0) {
+          trendingView.dayOffset = 0
+          trendingView.rawMatches = []
+          trendingView.refresh(true)
+        }
+      }
+    }
+
+    Button {
+      height: Style.space(22)
+      text: "Tomorrow"
+      tooltipText: "View tomorrow's upcoming fixtures"
+      fontFamily: root ? root.contentFontFamily : Style.font.family
+      foreground: root ? root.contentForeground : Color.foreground
+      accent: root ? root.contentForeground : Color.foreground
+      fontSize: Style.font.caption - 1
+      selected: trendingView.dayOffset === 1
+      horizontalPadding: Style.space(10)
+      verticalPadding: 0
+      onClicked: {
+        if (trendingView.dayOffset !== 1) {
+          trendingView.dayOffset = 1
+          trendingView.rawMatches = []
+          trendingView.refresh(true)
         }
       }
     }

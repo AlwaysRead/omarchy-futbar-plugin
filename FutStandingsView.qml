@@ -304,17 +304,32 @@ Column {
                 width: parent.width
                 height: parent.height
 
-                Text {
-                  textFormat: Text.PlainText
+                Row {
                   width: standingsView.standingsRankWidth
                   height: parent.height
-                  text: rowRect.entry.rank
-                  color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
-                  font.family: root ? root.contentFontFamily : Style.font.family
-                  font.pixelSize: Style.font.caption
-                  font.bold: rowRect.favorite
-                  horizontalAlignment: Text.AlignRight
-                  verticalAlignment: Text.AlignVCenter
+                  spacing: Style.space(1)
+                  layoutDirection: Qt.RightToLeft
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: rowRect.entry.rank
+                    color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: rowRect.favorite
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    readonly property real rc: (rowRect.entry.stats && rowRect.entry.stats.rankChange) ? parseFloat(rowRect.entry.stats.rankChange) : 0
+                    visible: !isNaN(rc) && rc !== 0
+                    text: rc > 0 ? "▲" : "▼"
+                    color: rc > 0 ? (root ? root.favoriteTeamAccent : Color.accent) : Qt.rgba(0.9, 0.3, 0.3, 0.85)
+                    font.family: root ? root.contentFontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption - 4
+                  }
                 }
                 Item { width: standingsView.standingsRankGap; height: 1 }
                 Image {

@@ -124,6 +124,12 @@ Panel {
     }
     return root.toBool(setting("notifyEvents", true), true)
   }
+  readonly property bool notifyAudio: {
+    if (root.savedFavorite && root.savedFavorite.notifyAudio !== undefined) {
+      return root.toBool(root.savedFavorite.notifyAudio, root.toBool(setting("notifyAudio", false), false))
+    }
+    return root.toBool(setting("notifyAudio", false), false)
+  }
   readonly property string notifyScope: {
     var raw = (root.savedFavorite && root.savedFavorite.notifyScope !== undefined && root.savedFavorite.notifyScope !== "")
       ? String(root.savedFavorite.notifyScope) : setting("notifyScope", "primary")
@@ -544,6 +550,10 @@ Panel {
 
   function setNotifyEvents(on) {
     root.setSettingValue("notifyEvents", root.toBool(on, true))
+  }
+
+  function setNotifyAudio(on) {
+    root.setSettingValue("notifyAudio", root.toBool(on, false))
   }
 
   function setAntiSpoiler(on) {
@@ -3566,6 +3576,10 @@ Panel {
     q.push(args)
     root._notifyQueue = q
     root._runNextNotify()
+    if (isGoal && root.notifyAudio) {
+      goalSoundProcess.running = false
+      goalSoundProcess.running = true
+    }
     if (isMatchAlert) root.activityPulse()
   }
   function _runNextNotify() {
@@ -5164,6 +5178,12 @@ onStreamFinished: root.warnStderr("", text)
   }
 
   Process {
+    id: goalSoundProcess
+    running: false
+    command: ["canberra-gtk-play", "-i", "message-new-instant"]
+  }
+
+  Process {
     id: standingsRequest
     stdout: StdioCollector {
       waitForEnd: true
@@ -5583,6 +5603,48 @@ onStreamFinished: root.warnStderr("", text)
             }
           }
 
+          var parsedShootoutKicks = []
+          if (Array.isArray(data.commentary)) {
+            for (var cmi = 0; cmi < data.commentary.length; cmi++) {
+              var cItem = data.commentary[cmi]
+              if (!cItem || !cItem.play) continue
+              var pPlay = cItem.play
+              if (pPlay.period && pPlay.period.number === 5) {
+                var pType = (pPlay.type && pPlay.type.text) ? pPlay.type.text : ""
+                if (pType === "Penalty - Scored" || pType === "Penalty - Missed") {
+                  var pTeam = (pPlay.team && pPlay.team.displayName) ? String(pPlay.team.displayName) : ""
+                  var pAth = (pPlay.participants && pPlay.participants[0] && pPlay.participants[0].athlete && pPlay.participants[0].athlete.displayName)
+                    ? String(pPlay.participants[0].athlete.displayName) : ""
+                  parsedShootoutKicks.push({
+                    scored: pType === "Penalty - Scored",
+                    team: root.sanitizePlainText(pTeam),
+                    athlete: root.sanitizePlainText(pAth),
+                    text: root.sanitizePlainText(String(pPlay.text || cItem.text || ""))
+                  })
+                }
+              }
+            }
+          }
+          if (parsedShootoutKicks.length === 0 && Array.isArray(comp.details)) {
+            for (var di2 = 0; di2 < comp.details.length; di2++) {
+              var dIt = comp.details[di2]
+              if (!dIt) continue
+              var dtText = (dIt.type && dIt.type.text) ? String(dIt.type.text).toLowerCase() : ""
+              if (dIt.shootout || dtText.indexOf("shootout") !== -1) {
+                var isScored = !(!dIt.scoringPlay) || dtText.indexOf("scored") !== -1
+                var dTeamName = dIt.team ? String(dIt.team.displayName || "") : ""
+                var athList2 = Array.isArray(dIt.athletesInvolved) && dIt.athletesInvolved.length > 0 ? dIt.athletesInvolved : (Array.isArray(dIt.participants) ? dIt.participants : [])
+                var athName2 = athList2.length > 0 && athList2[0].athlete ? String(athList2[0].athlete.displayName || "") : ""
+                parsedShootoutKicks.push({
+                  scored: isScored,
+                  team: root.sanitizePlainText(dTeamName),
+                  athlete: root.sanitizePlainText(athName2),
+                  text: root.sanitizePlainText(String(dIt.text || ""))
+                })
+              }
+            }
+          }
+
           var venueObj = comp.venue || (data.gameInfo && data.gameInfo.venue) || {}
           var vName = String(venueObj.fullName || "")
           var vCity = (venueObj.address && venueObj.address.city) ? String(venueObj.address.city) : ""
@@ -5597,6 +5659,29 @@ onStreamFinished: root.warnStderr("", text)
             if (officialsList[oi] && officialsList[oi].displayName) offNames.push(officialsList[oi].displayName)
           }
           var officialsStr = offNames.join(", ")
+
+          var parsedBroadcasts = []
+          var rawBroadcasts = Array.isArray(data.broadcasts) ? data.broadcasts : (Array.isArray(comp.broadcasts) ? comp.broadcasts : [])
+          for (var bi = 0; bi < rawBroadcasts.length; bi++) {
+            var bItem = rawBroadcasts[bi]
+            var bName = ""
+            if (bItem && bItem.media && bItem.media.shortName) bName = String(bItem.media.shortName)
+            else if (bItem && bItem.media && bItem.media.name) bName = String(bItem.media.name)
+            else if (bItem && bItem.name) bName = String(bItem.name)
+            bName = bName.trim()
+            if (bName !== "" && parsedBroadcasts.indexOf(bName) === -1) {
+              parsedBroadcasts.push(root.sanitizePlainText(bName))
+            }
+          }
+
+          var parsedArticle = null
+          if (data.article && (data.article.headline || data.article.description)) {
+            parsedArticle = {
+              headline: root.sanitizePlainText(String(data.article.headline || "")),
+              description: root.sanitizePlainText(String(data.article.description || "")),
+              byline: root.sanitizePlainText(String(data.article.byline || ""))
+            }
+          }
 
           var parsedH2H = []
           if (Array.isArray(data.seasonseries) && data.seasonseries.length > 0) {
@@ -5678,6 +5763,23 @@ onStreamFinished: root.warnStderr("", text)
               var aML = (pc.awayTeamOdds && pc.awayTeamOdds.moneyLine !== undefined) ? String(pc.awayTeamOdds.moneyLine) : ""
               var dML = (pc.drawOdds && pc.drawOdds.moneyLine !== undefined) ? String(pc.drawOdds.moneyLine) : ""
 
+              var calcProb = function(mlStr) {
+                var v = parseFloat(mlStr)
+                if (isNaN(v) || v === 0) return 0
+                if (v < 0) return (-v) / (-v + 100)
+                return 100 / (v + 100)
+              }
+              var pH = calcProb(hML)
+              var pA = calcProb(aML)
+              var pD = calcProb(dML)
+              var pTotal = pH + pA + pD
+              var homeProb = 0, awayProb = 0, drawProb = 0
+              if (pTotal > 0) {
+                homeProb = Math.round((pH / pTotal) * 100)
+                awayProb = Math.round((pA / pTotal) * 100)
+                drawProb = Math.max(0, 100 - homeProb - awayProb)
+              }
+
               parsedOdds = {
                 provider: root.sanitizePlainText(provName),
                 details: root.sanitizePlainText(dLine),
@@ -5685,7 +5787,11 @@ onStreamFinished: root.warnStderr("", text)
                 spread: root.sanitizePlainText(sp),
                 homeML: root.sanitizePlainText(hML),
                 awayML: root.sanitizePlainText(aML),
-                drawML: root.sanitizePlainText(dML)
+                drawML: root.sanitizePlainText(dML),
+                homeProb: homeProb,
+                awayProb: awayProb,
+                drawProb: drawProb,
+                hasProb: (homeProb > 0 || awayProb > 0)
               }
             }
           }
@@ -6278,10 +6384,16 @@ onStreamFinished: root.warnStderr("", text)
             momentum: parsedMomentum,
             bracketAvailable: parsedBracketAvailable,
             knockoutBracket: parsedBracket,
+            broadcasts: parsedBroadcasts,
+            article: parsedArticle,
+            shootoutKicks: parsedShootoutKicks,
+            shootoutScore: shootoutScore,
             info: {
               venue: root.sanitizePlainText(venueStr),
               attendance: root.sanitizePlainText(attStr),
-              officials: root.sanitizePlainText(officialsStr)
+              officials: root.sanitizePlainText(officialsStr),
+              broadcasts: parsedBroadcasts,
+              article: parsedArticle
             }
           }
 

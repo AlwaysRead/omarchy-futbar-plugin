@@ -560,6 +560,14 @@ Column {
     }
 
     SettingToggleRow {
+      visible: root ? (root.enableNotifications && root.notifyGoals) : true
+      title: "Goal Audio Chime"
+      description: "Play desktop audio alert when a goal is scored"
+      checked: root ? root.notifyAudio : false
+      onToggled: if (root) root.setNotifyAudio(!root.notifyAudio)
+    }
+
+    SettingToggleRow {
       visible: root ? root.enableNotifications : true
       title: "Red Cards & Match Whistles"
       description: "Alerts on red cards, kickoff, HT, and FT"

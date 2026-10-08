@@ -1175,6 +1175,125 @@ Column {
               }
             }
           }
+
+          // Penalty Shootout Sequence Tracker
+          Column {
+            width: parent.width
+            spacing: Style.space(6)
+            visible: !!(root.matchDetail && root.matchDetail.shootoutKicks && root.matchDetail.shootoutKicks.length > 0)
+
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              Text {
+                textFormat: Text.PlainText
+                text: "PENALTY SHOOTOUT"
+                color: Qt.darker(root.contentForeground, 1.5)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.letterSpacing: 1
+                font.bold: true
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                text: "(" + (root.matchDetail ? (root.matchDetail.shootoutScore || root.matchDetail.shootoutNote) : "") + ")"
+                color: root.favoriteTeamAccent
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                visible: text !== "()"
+              }
+            }
+
+            Rectangle {
+              width: parent.width
+              implicitHeight: shootoutListCol.implicitHeight + Style.space(12)
+              radius: Style.space(6)
+              color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+              border.width: Style.spacing.hairline
+              border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+
+              Column {
+                id: shootoutListCol
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: Style.space(6)
+                spacing: Style.space(4)
+
+                Repeater {
+                  model: root.matchDetail ? root.matchDetail.shootoutKicks : []
+                  delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    width: parent ? parent.width : 0
+                    height: Style.space(26)
+                    radius: Style.space(4)
+                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.02)
+
+                    Row {
+                      anchors.fill: parent
+                      anchors.margins: Style.space(4)
+                      spacing: Style.space(6)
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Style.space(22)
+                        text: "#" + (index + 1)
+                        color: Qt.darker(root.contentForeground, 1.6)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 2
+                        horizontalAlignment: Text.AlignRight
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.scored ? "●" : "○"
+                        color: modelData.scored ? root.favoriteTeamAccent : Qt.rgba(0.9, 0.3, 0.3, 0.85)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption + 1
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.scored ? "GOAL" : "MISSED"
+                        color: modelData.scored ? root.favoriteTeamAccent : Qt.darker(root.contentForeground, 1.6)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 3
+                        font.bold: true
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.athlete || "Penalty"
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                      }
+
+                      Text {
+                        textFormat: Text.PlainText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.team ? ("· " + modelData.team) : ""
+                        color: Qt.darker(root.contentForeground, 1.6)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption - 1
+                        visible: text !== ""
+                        elide: Text.ElideRight
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
 
         // Commentary Tab
@@ -2483,6 +2602,51 @@ Column {
             }
           }
 
+          // Broadcasts
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+            visible: !!(root.matchDetail && root.matchDetail.broadcasts && root.matchDetail.broadcasts.length > 0)
+
+            Text {
+              textFormat: Text.PlainText
+              width: Style.space(70)
+              text: "Broadcast"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Flow {
+              width: parent.width - Style.space(78)
+              spacing: Style.space(6)
+
+              Repeater {
+                model: (root.matchDetail && root.matchDetail.broadcasts) ? root.matchDetail.broadcasts : []
+                delegate: Rectangle {
+                  height: Style.space(22)
+                  width: broadcastText.implicitWidth + Style.space(14)
+                  radius: Style.space(11)
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.05)
+                  border.width: Style.spacing.hairline
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+
+                  Text {
+                    id: broadcastText
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: modelData
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption - 1
+                    font.bold: true
+                  }
+                }
+              }
+            }
+          }
+
           // Match Betting Odds (upcoming/live only, hidden once match is finished)
           Column {
             width: parent.width
@@ -2597,6 +2761,150 @@ Column {
               }
             }
           }
+
+            // Win Probability breakdown bar
+            Column {
+              width: parent.width
+              spacing: Style.space(4)
+              visible: !!(root.matchDetail && root.matchDetail.odds && root.matchDetail.odds.hasProb)
+
+              Row {
+                width: parent.width
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: (root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : "Home") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) + "%"
+                  color: root.favoriteTeamAccent
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption - 2
+                  font.bold: true
+                }
+
+                Item {
+                  width: Math.max(Style.space(8), parent.width - (parent.children[0].implicitWidth + parent.children[2].implicitWidth + parent.children[4].implicitWidth + Style.space(16)))
+                  height: 1
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: "Draw " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) + "%"
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption - 2
+                }
+
+                Item { width: Style.space(8); height: 1 }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: (root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : "Away") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.awayProb : 0) + "%"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption - 2
+                  font.bold: true
+                }
+              }
+
+              Rectangle {
+                width: parent.width
+                height: Style.space(6)
+                radius: Style.space(3)
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+                clip: true
+
+                Row {
+                  anchors.fill: parent
+
+                  Rectangle {
+                    width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) / 100.0)
+                    height: parent.height
+                    color: root.favoriteTeamAccent
+                  }
+
+                  Rectangle {
+                    width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) / 100.0)
+                    height: parent.height
+                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.22)
+                  }
+
+                  Rectangle {
+                    width: Math.max(0, parent.width - (parent.children[0].width + parent.children[1].width))
+                    height: parent.height
+                    color: Qt.darker(root.contentForeground, 1.3)
+                  }
+                }
+              }
+            }
+          }
+
+          // Editorial Match Story / Preview
+          Column {
+            width: parent.width
+            spacing: Style.space(6)
+            visible: !!(root.matchDetail && root.matchDetail.article && (root.matchDetail.article.headline !== "" || root.matchDetail.article.description !== ""))
+
+            Text {
+              textFormat: Text.PlainText
+              text: (root.matchDetail && root.matchDetail.started) ? "MATCH RECAP" : "MATCH PREVIEW"
+              color: Qt.darker(root.contentForeground, 1.6)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1
+              font.bold: true
+            }
+
+            Rectangle {
+              width: parent.width
+              implicitHeight: articleCol.implicitHeight + Style.space(16)
+              radius: Style.space(6)
+              color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+              border.width: Style.spacing.hairline
+              border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+
+              Column {
+                id: articleCol
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: Style.space(8)
+                spacing: Style.space(6)
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: (root.matchDetail && root.matchDetail.article && root.matchDetail.article.headline) ? root.matchDetail.article.headline : ""
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption + 1
+                  font.bold: true
+                  wrapMode: Text.WordWrap
+                  visible: text !== ""
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: (root.matchDetail && root.matchDetail.article && root.matchDetail.article.byline) ? ("By " + root.matchDetail.article.byline) : ""
+                  color: Qt.darker(root.contentForeground, 1.7)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption - 2
+                  font.italic: true
+                  visible: text !== ""
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: (root.matchDetail && root.matchDetail.article && root.matchDetail.article.description) ? root.matchDetail.article.description : ""
+                  color: Qt.darker(root.contentForeground, 1.2)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  wrapMode: Text.WordWrap
+                  lineHeight: 1.2
+                  visible: text !== ""
+                }
+              }
+            }
         }
           }
 
