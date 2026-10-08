@@ -1873,6 +1873,9 @@ Panel {
       for (var e = 0; e < events.length; e++) {
         if (!root.eventMatchesTeam(events[e])) continue
         if (events[e].competitionSlug === undefined) events[e].competitionSlug = slug
+        if (events[e].competitionName === undefined && leagues.length > 0) {
+          events[e].competitionName = root.sanitizePlainText(String(leagues[0].shortName || leagues[0].name || leagues[0].abbreviation || slug))
+        }
         var existingIndex = -1
         for (var k = 0; k < merged.length; k++) {
           if (String(merged[k].id) === String(events[e].id)) {
@@ -1979,12 +1982,27 @@ Panel {
 
   function competitionNameFor(event) {
     var slug = event ? String(event.competitionSlug || "") : ""
+    if (event && event.competitionName && event.competitionName !== "" && event.competitionName !== "all") {
+      return root.sanitizePlainText(String(event.competitionName))
+    }
+    if (event && event.league && (event.league.shortName || event.league.name || event.league.abbreviation)) {
+      return root.sanitizePlainText(String(event.league.shortName || event.league.name || event.league.abbreviation))
+    }
+    if (event && Array.isArray(event.competitions) && event.competitions[0] && event.competitions[0].league) {
+      var cLg = event.competitions[0].league
+      if (cLg.shortName || cLg.name || cLg.abbreviation) {
+        return root.sanitizePlainText(String(cLg.shortName || cLg.name || cLg.abbreviation))
+      }
+    }
     var info = root.competitionInfo(slug)
     if (info && info.name) return root.sanitizePlainText(String(info.name))
+    if (slug !== "" && typeof FutData !== "undefined" && FutData.formatCompetitionName) {
+      var fmt = FutData.formatCompetitionName(slug)
+      if (fmt && fmt.full && fmt.full !== "Competition") return fmt.full
+    }
     for (var i = 0; i < root.leagues.length; i++) {
       if (root.leagues[i].value === slug) return String(root.leagues[i].label)
     }
-    if (event && event.competitionName && event.competitionName !== "all") return root.sanitizePlainText(String(event.competitionName))
     if (slug === "" || slug === root.league || slug === "all") return root.leagueLabel()
     return root.safeIdentifier(slug)
   }
@@ -5003,6 +5021,8 @@ Panel {
               if (!ev.status && comp.status) ev.status = comp.status
               var lgSlug = (ev.league && ev.league.slug) ? root.safeIdentifier(ev.league.slug) : root.safeIdentifier(root.league)
               if (ev.competitionSlug === undefined) ev.competitionSlug = lgSlug
+              var lgName = (ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) ? String(ev.league.shortName || ev.league.name || ev.league.abbreviation) : ""
+              if (ev.competitionName === undefined && lgName !== "") ev.competitionName = lgName
               if (lgSlug !== "" && slugs.indexOf(lgSlug) === -1) slugs.push(lgSlug)
               if (lgSlug !== "" && !map[lgSlug] && ev.league) {
                 map[lgSlug] = {
@@ -8075,7 +8095,19 @@ onStreamFinished: root.warnStderr("", text)
               var aLogo = (aTeam.logos && aTeam.logos[0] && aTeam.logos[0].href) ? String(aTeam.logos[0].href) : (aTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aTeam.id + ".png") : "")
               var hScore = h.score && h.score.displayValue !== undefined ? String(h.score.displayValue) : ""
               var aScore = a.score && a.score.displayValue !== undefined ? String(a.score.displayValue) : ""
-              var compLabel = String((ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) || "Soccer")
+              var compLabel = ""
+              if (ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) {
+                compLabel = String(ev.league.shortName || ev.league.name || ev.league.abbreviation)
+              } else if (comp && comp.league && (comp.league.shortName || comp.league.name || comp.league.abbreviation)) {
+                compLabel = String(comp.league.shortName || comp.league.name || comp.league.abbreviation)
+              } else {
+                var lSlug = (ev.league && ev.league.slug) ? String(ev.league.slug) : (root.selectedClubProfile.leagueSlug || "")
+                if (lSlug !== "" && typeof FutData !== "undefined" && FutData.formatCompetitionName) {
+                  var cFmt = FutData.formatCompetitionName(lSlug)
+                  if (cFmt && cFmt.full && cFmt.full !== "Competition") compLabel = cFmt.full
+                }
+                if (compLabel === "") compLabel = (ev.season && ev.season.displayName) ? String(ev.season.displayName) : (root.leagueLabel ? root.leagueLabel() : "Competition")
+              }
               var dateObj = ev.date ? new Date(ev.date) : null
               var dStr = dateObj ? Qt.formatDate(dateObj, "ddd, MMM d") : ""
 
@@ -8263,7 +8295,19 @@ onStreamFinished: root.warnStderr("", text)
                 }
               }
               var bStr = bList.join(", ")
-              var compLabel = String((ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) || "Soccer")
+              var compLabel = ""
+              if (ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) {
+                compLabel = String(ev.league.shortName || ev.league.name || ev.league.abbreviation)
+              } else if (comp && comp.league && (comp.league.shortName || comp.league.name || comp.league.abbreviation)) {
+                compLabel = String(comp.league.shortName || comp.league.name || comp.league.abbreviation)
+              } else {
+                var lSlug = (ev.league && ev.league.slug) ? String(ev.league.slug) : (root.selectedClubProfile.leagueSlug || "")
+                if (lSlug !== "" && typeof FutData !== "undefined" && FutData.formatCompetitionName) {
+                  var cFmt = FutData.formatCompetitionName(lSlug)
+                  if (cFmt && cFmt.full && cFmt.full !== "Competition") compLabel = cFmt.full
+                }
+                if (compLabel === "") compLabel = (ev.season && ev.season.displayName) ? String(ev.season.displayName) : (root.leagueLabel ? root.leagueLabel() : "Competition")
+              }
               var dateObj = ev.date ? new Date(ev.date) : null
               var dStr = dateObj ? Qt.formatDate(dateObj, "ddd, MMM d") : ""
               var tStr = dateObj ? Qt.formatTime(dateObj, "h:mm AP") : ""
@@ -10826,11 +10870,11 @@ root.warnStderr("team select failed", text)
               anchors.topMargin: matchRow.rowVPadding
               spacing: Style.space(2)
 
-              // Top Line: Follow button on left (if followable), Match date on top right
+              // Top Line: Follow button or Tournament name on left, Match date on top right
               Item {
                 width: parent.width
                 height: Style.space(12)
-                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable
+                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable || (matchRow.modelData && !!matchRow.modelData.competitionName)
 
                 Button {
                   z: 2
@@ -10850,6 +10894,23 @@ root.warnStderr("team select failed", text)
                   height: Style.space(13)
                   selected: matchRow.rowFollowed
                   onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
+                }
+
+                Text {
+                  id: matchCardTournament
+                  textFormat: Text.PlainText
+                  anchors.left: parent.left
+                  anchors.right: matchCardDate.left
+                  anchors.rightMargin: Style.space(8)
+                  anchors.verticalCenter: parent.verticalCenter
+                  visible: !matchRow.rowFollowable && matchRow.modelData && !!matchRow.modelData.competitionName && matchRow.modelData.competitionName !== ""
+                  text: matchRow.modelData && matchRow.modelData.competitionName ? matchRow.modelData.competitionName.toUpperCase() : ""
+                  color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.space(8.5)
+                  font.letterSpacing: 0.5
+                  font.bold: true
+                  elide: Text.ElideRight
                 }
 
                 // Match Date in the top right side of the individual match card
