@@ -1101,6 +1101,8 @@ Panel {
   property bool showTrending: false
   property bool returnToTrendingAfterDetail: false
   property int standingsSeasonOffset: 0
+  property int matchesSeasonOffset: 0
+  property bool returnToMatchesAfterDetail: false
   onStandingsSeasonOffsetChanged: {
     root.tournamentSeasonBracket = []
     if (root.showStandings && root.opened && standingsView && standingsView.viewMode === "bracket" && root.loadTournamentBracket) {
@@ -1290,9 +1292,14 @@ Panel {
   onMatchDetailLineupTeamChanged: root.resetPanelScroll()
   onShowMatchDetailChanged: {
     root.resetPanelScroll()
-    if (!root.showMatchDetail && root.returnToTrendingAfterDetail) {
-      root.returnToTrendingAfterDetail = false
-      root.showTrending = true
+    if (!root.showMatchDetail) {
+      if (root.returnToTrendingAfterDetail) {
+        root.returnToTrendingAfterDetail = false
+        root.showTrending = true
+      } else if (root.returnToMatchesAfterDetail) {
+        root.returnToMatchesAfterDetail = false
+        root.showMatches = true
+      }
     }
   }
   onShowTrendingChanged: root.resetPanelScroll()
@@ -1580,6 +1587,7 @@ Panel {
     if (root.matchClusters && root.matchClusters.length > 0) {
       root.matchClusterIndex = root.currentMatchWeekIndex(root.matchClusters)
     }
+    root.matchesSeasonOffset = 0
     root.standingsSeasonOffset = 0
     root.statsSeasonOffset = 0
     root.showStats = false
@@ -2577,6 +2585,7 @@ Panel {
       isStarted = true
     }
 
+    root.returnToMatchesAfterDetail = (!root.leagueMode && root.showMatches)
     root.showMatchDetail = true
     root.showSearch = false
     root.showStandings = false
@@ -3153,8 +3162,28 @@ Panel {
     }
   }
 
-  function getMatchWeekDates(weeks, offset) {
+  function matchWeekNumber() {
+    if (root.matchesSeasonOffset > 0) {
+      var slug = root.safeIdentifier(root.league)
+      var targetYear = root.seasonReferenceYear() - root.matchesSeasonOffset
+      var calKey = slug + "_" + String(targetYear)
+      var calW = root._leagueCalendar && root._leagueCalendar[calKey]
+      if (calW && calW.length > 0) {
+        var finalIdx = calW.length - 1
+        var currIdx = Math.max(0, Math.min(finalIdx, finalIdx + root.matchWindowOffset))
+        return (currIdx + 1) + "/" + calW.length
+      }
+    }
+    return ""
+  }
+
+  function getMatchWeekDates(weeks, offset, isPastSeason) {
     if (!weeks || weeks.length === 0) return null
+    if (isPastSeason) {
+      var finalIdx = Math.max(0, weeks.length - 1)
+      var targetIdx = Math.max(0, Math.min(weeks.length - 1, finalIdx + offset))
+      return weeks[targetIdx] ? weeks[targetIdx].slice() : null
+    }
     var today = Qt.formatDate(new Date(), "yyyyMMdd")
 
     var pastIdx = -1
@@ -3206,16 +3235,22 @@ Panel {
     var slug = root.safeIdentifier(root.league)
     if (slug === "") return
 
-    // Dynamically query ESPN calendar API if not yet cached for this league
-    if (!root._leagueCalendar[slug] && !leagueCalendarRequest.running) {
-      leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576",
-        "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/calendar/ondays"]
-      leagueCalendarRequest.running = true
+    var isPastSeason = root.matchesSeasonOffset > 0
+    var targetYear = isPastSeason ? (root.seasonReferenceYear() - root.matchesSeasonOffset) : root.seasonReferenceYear()
+    var calKey = isPastSeason ? (slug + "_" + String(targetYear)) : slug
+
+    // Dynamically query ESPN calendar API if not yet cached for this league/season
+    if (!root._leagueCalendar[calKey]) {
+      if (!isPastSeason && !leagueCalendarRequest.running) {
+        leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576",
+          "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/calendar/ondays"]
+        leagueCalendarRequest.running = true
+      }
     }
 
-    var key = slug + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
+    var key = calKey + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
     var now = Date.now()
-    var hasData = root.leagueBrowseAll
+    var hasData = (root.leagueBrowseAll || isPastSeason)
       ? (root.matchClusters.length > 0 || root.matchWeekRows.length > 0)
       : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0 || root.matchClusters.length > 0)
     if (!force && key === root._lastMatchListKey && hasData && (now - root.lastMatchListRefresh < 30 * 1000)) {
@@ -3227,13 +3262,26 @@ Panel {
     if (!isRetry) root._matchListRetry = 0
 
     var days = []
-    var calWeeks = root._leagueCalendar[slug]
+    var calWeeks = root._leagueCalendar[calKey]
 
-    if (root.leagueMode && !root.leagueBrowseAll) {
+    if (isPastSeason) {
+      if (calWeeks && calWeeks.length > 0) {
+        var mwPastDates = root.getMatchWeekDates(calWeeks, root.matchWindowOffset, true)
+        if (mwPastDates && mwPastDates.length > 0) {
+          days = mwPastDates
+        }
+      } else {
+        // Discovery query for past season calendar schedule
+        var sampleDate = root.isCrossYearCompetition(slug)
+          ? (String(targetYear + 1) + "0520")
+          : (String(targetYear) + "1025")
+        days = [sampleDate]
+      }
+    } else if (root.leagueMode && !root.leagueBrowseAll) {
       // Daily live board covers yesterday, today, and tomorrow
       days = [root.rangeDate(-1), root.rangeDate(0), root.rangeDate(1)]
     } else if (calWeeks && calWeeks.length > 0) {
-      var mwDates = root.getMatchWeekDates(calWeeks, root.matchWindowOffset)
+      var mwDates = root.getMatchWeekDates(calWeeks, root.matchWindowOffset, false)
       if (mwDates && mwDates.length > 0) {
         days = mwDates
       }
@@ -4037,6 +4085,7 @@ Panel {
   onResolvedTeamIdChanged: root.refresh()
   // Refresh data and reset identity when the league changes.
   onLeagueChanged: {
+    root.matchesSeasonOffset = 0
     root.tournamentName = root.leagueLabel()
     root.tournamentLogo = ""
     root.statsGoals = []
@@ -6722,11 +6771,32 @@ onStreamFinished: root.warnStderr("", text)
             var lgo = root.sanitizeImageUrl(String(lg.logos[0].href || ""))
             if (lgo !== "") root.tournamentLogo = lgo
           }
-          if (lg.calendar && Array.isArray(lg.calendar) && typeof lg.calendar[0] === "string" && !root._leagueCalendar[root.safeIdentifier(root.league)]) {
+          var isPastSeason = root.matchesSeasonOffset > 0
+          var targetYear = isPastSeason ? (root.seasonReferenceYear() - root.matchesSeasonOffset) : root.seasonReferenceYear()
+          var calKey = isPastSeason ? (root.safeIdentifier(root.league) + "_" + String(targetYear)) : root.safeIdentifier(root.league)
+          var calHadWeeks = !!(root._leagueCalendar[calKey] && root._leagueCalendar[calKey].length > 0)
+
+          if (lg.calendar && Array.isArray(lg.calendar) && !root._leagueCalendar[calKey]) {
             var parsedWks = root.groupCalendarDates(lg.calendar)
-            if (parsedWks && parsedWks.length > 0) root._leagueCalendar[root.safeIdentifier(root.league)] = parsedWks
+            if (parsedWks && parsedWks.length > 0) root._leagueCalendar[calKey] = parsedWks
           }
-          if (root.leagueMode && !root.leagueBrowseAll) {
+
+          if (isPastSeason && !calHadWeeks && root._leagueCalendar[calKey]) {
+            var allWeeks = root._leagueCalendar[calKey]
+            var finalWeek = allWeeks[allWeeks.length - 1]
+            var evList = data.events || []
+            var isAlreadyFinalWeek = false
+            if (evList.length > 0 && finalWeek && finalWeek.length > 0) {
+              var evDay = evList[0].date ? Qt.formatDate(new Date(evList[0].date), "yyyyMMdd") : ""
+              if (finalWeek.indexOf(evDay) !== -1) isAlreadyFinalWeek = true
+            }
+            if (!isAlreadyFinalWeek) {
+              root.loadMatchList(true)
+              return
+            }
+          }
+
+          if (root.leagueMode && !root.leagueBrowseAll && !isPastSeason) {
             var board = root.parseLeagueBoard(data)
             root.leagueLive = root.mergeRows(root.leagueLive, board.live)
             root.leagueRecent = root.mergeRows(root.leagueRecent, board.recent)
@@ -6762,6 +6832,16 @@ onStreamFinished: root.warnStderr("", text)
             root.matchClusterIndex = 0
             root.pendingEdge = ""
             root.navAnchorDay = ""
+            root.matchListLoading = false
+            return
+          }
+          if (isPastSeason) {
+            root.matchClusters = week.clusters
+            root.matchClusterIndex = 0
+            root.pendingEdge = ""
+            root.navAnchorDay = ""
+            root._lastMatchListKey = calKey + "|" + String(root.matchWindowOffset) + "|" + String(root.leagueBrowseAll)
+            root.lastMatchListRefresh = Date.now()
             root.matchListLoading = false
             return
           }
@@ -10178,7 +10258,7 @@ root.warnStderr("team select failed", text)
             iconSize: Style.space(13)
             horizontalPadding: 0
             verticalPadding: 0
-            selected: root.leagueMode ? (!root.showStandings && !root.showStats && root.leagueBrowseAll) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures)
+            selected: root.leagueMode ? (!root.showStandings && !root.showStats && (root.leagueBrowseAll || root.matchesSeasonOffset > 0)) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures)
             onClicked: {
               root.showMatchDetail = false
               root.showClubFixtures = false
@@ -10189,6 +10269,9 @@ root.warnStderr("team select failed", text)
                 if (root.showStandings || root.showStats) {
                   root.showStandings = false
                   root.showStats = false
+                  root.leagueBrowseAll = true
+                } else if (root.matchesSeasonOffset > 0) {
+                  root.matchesSeasonOffset = 0
                   root.leagueBrowseAll = true
                 } else {
                   root.leagueBrowseAll = !root.leagueBrowseAll
@@ -11263,22 +11346,21 @@ root.warnStderr("team select failed", text)
             opacity: (root.matchListLoading && root.matchWeekRows.length === 0 && (root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) === 0) ? 0.15 : (root.matchListLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
-            // Season/round controls on the right; title/live indicators on the left
+            // Title and live indicator row
             Item {
               width: parent.width
-              height: Math.max(matchTitleText.implicitHeight, matchWeekNav.implicitHeight, (liveBadge.visible ? liveBadge.implicitHeight : 0))
+              height: Math.max(matchTitleText.implicitHeight, (liveBadge.visible ? liveBadge.implicitHeight : 0))
 
               Text {
                 id: matchTitleText
                 textFormat: Text.PlainText
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - (matchWeekNav.visible ? matchWeekNav.width + Style.space(6) : 0)
-                  - (liveBadge.visible ? liveBadge.width + Style.space(6) : 0)
+                width: parent.width - (liveBadge.visible ? liveBadge.width + Style.space(6) : 0)
                 opacity: root.matchListLoading ? 0.4 + 0.6 * root._pulse : 1.0
                 text: root.matchListError !== "" ? "Could not load matches"
-                  : (root.leagueBrowseAll || !root.leagueMode
-                    ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures this week"))
+                  : (root.leagueBrowseAll || !root.leagueMode || root.matchesSeasonOffset > 0
+                    ? (root.matchWeekRows.length > 0 ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No fixtures for season"))
                     : ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0
                       ? root.leagueLabel() : (root.matchListLoading ? "Fetching matches…" : "No matches today")))
                 color: root.contentForeground
@@ -11292,101 +11374,215 @@ root.warnStderr("team select failed", text)
                 id: liveBadge
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.left: (matchTitleText.text === "" && !matchWeekNav.visible) ? parent.left : undefined
-                anchors.right: (matchTitleText.text !== "" || matchWeekNav.visible) ? (matchWeekNav.visible ? matchWeekNav.left : parent.right) : undefined
-                anchors.rightMargin: matchWeekNav.visible ? Style.space(6) : 0
+                anchors.right: parent.right
                 text: root.leagueMode ? (root.leagueLive.length + " live") : "Live"
                 color: "#4ade80"
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                visible: root.leagueMode ? (root.leagueLive.length > 0) : (root.liveMatch !== null)
+                visible: (root.matchesSeasonOffset === 0) && (root.leagueMode ? (root.leagueLive.length > 0) : (root.liveMatch !== null))
               }
+            }
 
-          Row {
-            id: matchWeekNav
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(6)
-            visible: !root.leagueMode || root.leagueBrowseAll
+            // Controls row: Season Selector on left, Matchweek Nav on right
+            Row {
+              id: matchWeekControlsRow
+              width: parent.width
+              spacing: Style.space(6)
+              visible: !root.leagueMode || root.leagueBrowseAll || root.matchesSeasonOffset > 0
 
-            Button {
-              id: prevWeekButton
-              width: Style.space(26)
-              height: Style.space(26)
-              iconText: ""
-              tooltipText: "Previous matchweek"
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              iconSize: Style.font.caption
-              horizontalPadding: 0
-              verticalPadding: 0
-              onClicked: {
-                // Local round steps always work; a window extension first
-                // drops any stalled in-flight fetch instead of swallowing
-                // the tap while a retry storm is running.
-                if (root.pendingEdge !== "") return
-                if (root.matchClusterIndex > 0) {
-                  root.matchClusterIndex--
-                  root.resetPanelScroll()
-                  return
+              Button {
+                id: prevMatchesSeasonBtn
+                width: Style.space(22)
+                height: Style.space(22)
+                iconText: ""
+                tooltipText: "Older season"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.contentForeground
+                iconSize: Style.font.caption
+                horizontalPadding: 0
+                verticalPadding: 0
+                onClicked: {
+                  root.matchesSeasonOffset += (root.seasonStep ? root.seasonStep() : 1)
+                  root.matchWindowOffset = 0
+                  root.matchClusters = []
+                  root.matchClusterIndex = 0
+                  root.loadMatchList(true)
                 }
-                if (matchListRequest.running) matchListRequest.running = false
-                // Empty view has no boundary row: let the landing logic use
-                // the far edge of whatever the shifted window returns.
-                root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[0].day : ""
-                var calW = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
-                root.matchWindowOffset -= (calW && calW.length > 0) ? 1 : 7
-                root.pendingEdge = "prev"
-                root.resetPanelScroll()
-                root.loadMatchList()
               }
-            }
 
-            Text {
-              id: matchWeekLabelText
-              textFormat: Text.PlainText
-              text: root.matchWeekLabel
-              height: Style.space(28)
-              verticalAlignment: Text.AlignVCenter
-              color: Qt.darker(root.contentForeground, 1.5)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              font.letterSpacing: 1
-            }
-
-            Button {
-              id: nextWeekButton
-              width: Style.space(26)
-              height: Style.space(26)
-              iconText: ""
-              tooltipText: "Next matchweek"
-              fontFamily: root.contentFontFamily
-              foreground: root.contentForeground
-              accent: root.contentForeground
-              iconSize: Style.font.caption
-              horizontalPadding: 0
-              verticalPadding: 0
-              onClicked: {
-                if (root.pendingEdge !== "") return
-                if (root.matchClusterIndex < root.matchClusters.length - 1) {
-                  root.matchClusterIndex++
-                  root.resetPanelScroll()
-                  return
+              Button {
+                id: matchesSeasonChip
+                anchors.verticalCenter: parent.verticalCenter
+                width: Style.space(52)
+                height: Style.space(22)
+                text: root.seasonChipLabel(root.matchesSeasonOffset)
+                tooltipText: "Match season (click to return to current season)"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.contentForeground
+                fontSize: Style.font.caption
+                selected: root.matchesSeasonOffset > 0
+                horizontalPadding: 0
+                verticalPadding: 0
+                onClicked: {
+                  if (root.matchesSeasonOffset > 0) {
+                    root.matchesSeasonOffset = 0
+                    root.matchWindowOffset = 0
+                    root.matchClusters = []
+                    root.matchClusterIndex = 0
+                    root.loadMatchList(true)
+                  }
                 }
-                if (matchListRequest.running) matchListRequest.running = false
-                root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
-                var calWNext = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
-                root.matchWindowOffset += (calWNext && calWNext.length > 0) ? 1 : 7
-                root.pendingEdge = "next"
-                root.resetPanelScroll()
-                root.loadMatchList()
+              }
+
+              Button {
+                id: nextMatchesSeasonBtn
+                width: Style.space(22)
+                height: Style.space(22)
+                iconText: ""
+                tooltipText: "Newer season"
+                fontFamily: root.contentFontFamily
+                foreground: root.contentForeground
+                accent: root.contentForeground
+                iconSize: Style.font.caption
+                horizontalPadding: 0
+                verticalPadding: 0
+                enabled: root.matchesSeasonOffset > 0
+                opacity: enabled ? 1.0 : 0.35
+                onClicked: {
+                  root.matchesSeasonOffset = Math.max(0, root.matchesSeasonOffset - (root.seasonStep ? root.seasonStep() : 1))
+                  root.matchWindowOffset = 0
+                  root.matchClusters = []
+                  root.matchClusterIndex = 0
+                  root.loadMatchList(true)
+                }
+              }
+
+              Item {
+                width: Math.max(0, parent.width - (prevMatchesSeasonBtn.width + matchesSeasonChip.width + nextMatchesSeasonBtn.width + matchWeekNav.width + parent.spacing * 4))
+                height: 1
+              }
+
+              Row {
+                id: matchWeekNav
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(6)
+
+                Button {
+                  id: prevWeekButton
+                  width: Style.space(26)
+                  height: Style.space(26)
+                  iconText: ""
+                  tooltipText: "Previous matchweek"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  iconSize: Style.font.caption
+                  horizontalPadding: 0
+                  verticalPadding: 0
+                  enabled: {
+                    if (root.matchesSeasonOffset > 0) {
+                      var slug = root.safeIdentifier(root.league)
+                      var targetYear = root.seasonReferenceYear() - root.matchesSeasonOffset
+                      var calKey = slug + "_" + String(targetYear)
+                      var calW = root._leagueCalendar && root._leagueCalendar[calKey]
+                      if (calW && calW.length > 0) {
+                        return (calW.length - 1 + root.matchWindowOffset) > 0
+                      }
+                      return true
+                    }
+                    return true
+                  }
+                  opacity: enabled ? 1.0 : 0.35
+                  onClicked: {
+                    if (root.pendingEdge !== "") return
+                    if (root.matchesSeasonOffset > 0) {
+                      if (matchListRequest.running) matchListRequest.running = false
+                      root.matchWindowOffset--
+                      root.resetPanelScroll()
+                      root.loadMatchList(true)
+                      return
+                    }
+                    if (root.matchClusterIndex > 0) {
+                      root.matchClusterIndex--
+                      root.resetPanelScroll()
+                      return
+                    }
+                    if (matchListRequest.running) matchListRequest.running = false
+                    root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[0].day : ""
+                    var calW = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
+                    root.matchWindowOffset -= (calW && calW.length > 0) ? 1 : 7
+                    root.pendingEdge = "prev"
+                    root.resetPanelScroll()
+                    root.loadMatchList()
+                  }
+                }
+
+                Text {
+                  id: matchWeekLabelText
+                  textFormat: Text.PlainText
+                  text: {
+                    var wn = root.matchWeekNumber()
+                    if (wn !== "") {
+                      return (root.matchWeekLabel !== "" ? (root.matchWeekLabel + " · " + wn) : ("MW " + wn))
+                    }
+                    return root.matchWeekLabel
+                  }
+                  height: Style.space(28)
+                  verticalAlignment: Text.AlignVCenter
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  font.letterSpacing: 1
+                }
+
+                Button {
+                  id: nextWeekButton
+                  width: Style.space(26)
+                  height: Style.space(26)
+                  iconText: ""
+                  tooltipText: "Next matchweek"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  iconSize: Style.font.caption
+                  horizontalPadding: 0
+                  verticalPadding: 0
+                  enabled: {
+                    if (root.matchesSeasonOffset > 0) {
+                      return root.matchWindowOffset < 0
+                    }
+                    return true
+                  }
+                  opacity: enabled ? 1.0 : 0.35
+                  onClicked: {
+                    if (root.pendingEdge !== "") return
+                    if (root.matchesSeasonOffset > 0) {
+                      if (matchListRequest.running) matchListRequest.running = false
+                      root.matchWindowOffset++
+                      root.resetPanelScroll()
+                      root.loadMatchList(true)
+                      return
+                    }
+                    if (root.matchClusterIndex < root.matchClusters.length - 1) {
+                      root.matchClusterIndex++
+                      root.resetPanelScroll()
+                      return
+                    }
+                    if (matchListRequest.running) matchListRequest.running = false
+                    root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
+                    var calWNext = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
+                    root.matchWindowOffset += (calWNext && calWNext.length > 0) ? 1 : 7
+                    root.pendingEdge = "next"
+                    root.resetPanelScroll()
+                    root.loadMatchList()
+                  }
+                }
               }
             }
-          }
-        }
 
         Text {
           textFormat: Text.PlainText
@@ -11405,7 +11601,7 @@ root.warnStderr("team select failed", text)
         Column {
           width: parent.width
           spacing: 0
-          visible: ((root.leagueMode && root.leagueBrowseAll) || (!root.leagueMode && root.showMatches)) && root.matchWeekRows.length > 0
+          visible: ((root.leagueMode && (root.leagueBrowseAll || root.matchesSeasonOffset > 0)) || (!root.leagueMode && root.showMatches)) && root.matchWeekRows.length > 0
 
           Repeater {
             model: root.matchWeekRows
@@ -11427,7 +11623,7 @@ root.warnStderr("team select failed", text)
             readonly property bool listIdle: root.matchListError === ""
             width: parent ? parent.width : 0
             spacing: Style.space(4)
-            visible: root.leagueMode && !root.leagueBrowseAll && listIdle && modelData.rows.length > 0
+            visible: root.leagueMode && !root.leagueBrowseAll && root.matchesSeasonOffset === 0 && listIdle && modelData.rows.length > 0
 
             Text {
               textFormat: Text.PlainText
