@@ -200,7 +200,7 @@ Column {
         Item {
           id: heroCard
           width: parent.width
-          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (shootoutBottomCol.visible ? shootoutBottomCol.implicitHeight + Style.space(8) : 0) + Style.space(24))
+          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (matchResultBottomArea.visible ? matchResultBottomArea.implicitHeight + Style.space(16) : 0) + Style.space(24))
 
           Rectangle {
             anchors.fill: parent
@@ -311,18 +311,7 @@ Column {
                 horizontalAlignment: Text.AlignHCenter
               }
 
-              Text {
-                id: seriesText
-                textFormat: Text.PlainText
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.matchDetail ? (root.matchDetail.shootoutNote === "" ? (root.matchDetail.seriesNote || "") : "") : ""
-                color: Qt.darker(root.contentForeground, 1.6)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption - 2
-                font.bold: true
-                horizontalAlignment: Text.AlignHCenter
-                visible: text !== ""
-              }
+
             }
           }
 
@@ -496,157 +485,235 @@ Column {
             }
           }
 
-          // Penalty Shootout Result (bottom middle)
+          // Match Result / Series Aggregate / Penalty Shootout Result (bottom center)
           Item {
-            id: shootoutBottomCol
+            id: matchResultBottomArea
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Style.space(8)
-            implicitWidth: shootoutInnerCol.implicitWidth + Style.space(16)
-            implicitHeight: shootoutInnerCol.implicitHeight + Style.space(6)
+            readonly property string seriesText: (root.matchDetail && (root.matchDetail.seriesResult || root.matchDetail.seriesNote)) ? (root.matchDetail.seriesResult || root.matchDetail.seriesNote) : ""
+            readonly property string shootScore: (root.matchDetail && (root.matchDetail.shootoutScore !== "" || root.matchDetail.shootoutNote !== "")) ? (root.matchDetail.shootoutScore !== "" ? root.matchDetail.shootoutScore : root.matchDetail.shootoutNote) : ""
+            readonly property string shootText: (root.matchDetail && root.matchDetail.shootoutText) ? root.matchDetail.shootoutText : ""
+            readonly property bool hasShootout: shootScore !== "" || shootText !== ""
+            readonly property bool hasSeries: seriesText !== ""
+            visible: !!(root.matchDetail && (hasShootout || hasSeries))
+            implicitWidth: matchResultRow.implicitWidth + Style.space(24)
+            implicitHeight: matchResultRow.implicitHeight + Style.space(10)
             width: implicitWidth
             height: implicitHeight
-            visible: !!(root.matchDetail && (root.matchDetail.shootoutNote !== "" || root.matchDetail.shootoutScore !== "" || (root.matchDetail.shootoutText && root.matchDetail.shootoutText !== "")))
 
             Rectangle {
               anchors.fill: parent
-              radius: Style.space(10)
+              radius: Style.space(12)
               color: root.contentForeground
               opacity: 0.08
+              border.width: Style.spacing.hairline
+              border.color: Util.alpha(root.contentForeground, 0.14)
             }
 
-            Column {
-              id: shootoutInnerCol
+            Row {
+              id: matchResultRow
               anchors.centerIn: parent
-              spacing: Style.space(1)
+              spacing: Style.space(6)
 
               Text {
                 textFormat: Text.PlainText
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.matchDetail ? (root.matchDetail.shootoutText || "After Penalties") : "After Penalties"
-                color: Qt.darker(root.contentForeground, 1.6)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption - 2
-                font.bold: true
-                horizontalAlignment: Text.AlignHCenter
+                anchors.verticalCenter: parent.verticalCenter
+                text: matchResultBottomArea.hasShootout ? "󰡬" : ""
+                color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+                font.pixelSize: Style.font.caption - 1
               }
 
               Text {
                 textFormat: Text.PlainText
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.matchDetail ? (root.matchDetail.shootoutScore !== "" ? root.matchDetail.shootoutScore : root.matchDetail.shootoutNote) : ""
+                anchors.verticalCenter: parent.verticalCenter
+                text: {
+                  if (matchResultBottomArea.hasShootout && matchResultBottomArea.hasSeries) {
+                    var serL = matchResultBottomArea.seriesText.toLowerCase()
+                    if (serL.indexOf("penalt") !== -1 || serL.indexOf("shootout") !== -1) {
+                      return matchResultBottomArea.seriesText
+                    }
+                    var sS = matchResultBottomArea.shootScore
+                    return sS !== "" ? (matchResultBottomArea.seriesText + " (" + sS + ")") : matchResultBottomArea.seriesText
+                  }
+                  if (matchResultBottomArea.hasSeries) return matchResultBottomArea.seriesText
+                  if (matchResultBottomArea.hasShootout) {
+                    var sLabel = matchResultBottomArea.shootText !== "" ? matchResultBottomArea.shootText : "Won on Penalties"
+                    var sc = matchResultBottomArea.shootScore
+                    return sc !== "" ? (sLabel + " (" + sc + ")") : sLabel
+                  }
+                  return ""
+                }
                 color: root.contentForeground
                 font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
+                font.pixelSize: Style.font.caption - 1
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
-                visible: text !== ""
               }
             }
           }
         }
 
-        // Section Tabs
-        Row {
+        // Section Tabs - Horizontally scrollable strip with mouse wheel support
+        Flickable {
+          id: matchDetailTabsFlickable
           width: parent.width
-          spacing: Style.space(8)
+          height: Style.space(26)
+          contentWidth: matchDetailTabsRow.implicitWidth
+          contentHeight: height
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          flickableDirection: Flickable.HorizontalFlick
+          interactive: true
           visible: !!root.matchDetail
 
-          Button {
-            height: Style.space(24)
-            text: "Stats"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            visible: !!(root.matchDetail && root.matchDetail.started)
-            selected: root.matchDetailTab === "stats"
-            onClicked: root.matchDetailTab = "stats"
+          WheelHandler {
+            target: matchDetailTabsFlickable
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(event) {
+              if (event.angleDelta.y !== 0) {
+                var delta = event.angleDelta.y
+                matchDetailTabsFlickable.contentX = Math.max(0, Math.min(matchDetailTabsFlickable.contentWidth - matchDetailTabsFlickable.width, matchDetailTabsFlickable.contentX - delta))
+              }
+            }
           }
 
-          Button {
-            height: Style.space(24)
-            text: "Timeline"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            visible: !!(root.matchDetail && root.matchDetail.started && !root.matchDetail.isLive)
-            selected: root.matchDetailTab === "events"
-            onClicked: root.matchDetailTab = "events"
+          Connections {
+            target: root
+            function onMatchDetailTabChanged() {
+              Qt.callLater(function() {
+                if (!matchDetailTabsFlickable || matchDetailTabsFlickable.contentWidth <= matchDetailTabsFlickable.width) return
+                var targetBtn = null
+                if (root.matchDetailTab === "stats") targetBtn = btnStats
+                else if (root.matchDetailTab === "events") targetBtn = btnTimeline
+                else if (root.matchDetailTab === "commentary") targetBtn = btnCommentary
+                else if (root.matchDetailTab === "lineups") targetBtn = btnLineups
+                else if (root.matchDetailTab === "h2h") targetBtn = btnH2H
+                else if (root.matchDetailTab === "bracket") targetBtn = btnBracket
+                else if (root.matchDetailTab === "info") targetBtn = btnInfo
+
+                if (targetBtn && targetBtn.visible) {
+                  if (targetBtn.x < matchDetailTabsFlickable.contentX) {
+                    matchDetailTabsFlickable.contentX = Math.max(0, targetBtn.x - Style.space(4))
+                  } else if (targetBtn.x + targetBtn.width > matchDetailTabsFlickable.contentX + matchDetailTabsFlickable.width) {
+                    matchDetailTabsFlickable.contentX = Math.min(
+                      matchDetailTabsFlickable.contentWidth - matchDetailTabsFlickable.width,
+                      targetBtn.x + targetBtn.width - matchDetailTabsFlickable.width + Style.space(4)
+                    )
+                  }
+                }
+              })
+            }
           }
 
-          Button {
-            height: Style.space(24)
-            text: "Commentary"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            visible: !!(root.matchDetail && root.matchDetail.isLive && root.matchDetail.commentary && root.matchDetail.commentary.length > 0)
-            selected: root.matchDetailTab === "commentary"
-            onClicked: root.matchDetailTab = "commentary"
-          }
+          Row {
+            id: matchDetailTabsRow
+            spacing: Style.space(5)
+            height: parent.height
 
-          Button {
-            height: Style.space(24)
-            text: "Lineups"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            visible: !!root.matchDetail
-            selected: root.matchDetailTab === "lineups"
-            onClicked: root.matchDetailTab = "lineups"
-          }
+            Button {
+              id: btnStats
+              height: Style.space(24)
+              text: "Stats"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              visible: !!(root.matchDetail && root.matchDetail.started)
+              selected: root.matchDetailTab === "stats"
+              onClicked: root.matchDetailTab = "stats"
+            }
 
-          Button {
-            height: Style.space(24)
-            text: "H2H & Form"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            visible: !!(root.matchDetail && ((root.matchDetail.h2h && root.matchDetail.h2h.length > 0) || (root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0) || (root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)))
-            selected: root.matchDetailTab === "h2h"
-            onClicked: root.matchDetailTab = "h2h"
-          }
+            Button {
+              id: btnTimeline
+              height: Style.space(24)
+              text: "Timeline"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              visible: !!(root.matchDetail && root.matchDetail.started && !root.matchDetail.isLive)
+              selected: root.matchDetailTab === "events"
+              onClicked: root.matchDetailTab = "events"
+            }
 
-          Button {
-            height: Style.space(24)
-            text: "Bracket"
-            fontFamily: root ? root.contentFontFamily : Style.font.family
-            foreground: root ? root.contentForeground : Color.foreground
-            accent: root ? root.contentForeground : Color.foreground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            visible: !!(root.matchDetail && root.matchDetail.bracketAvailable)
-            selected: root.matchDetailTab === "bracket"
-            onClicked: root.matchDetailTab = "bracket"
-          }
+            Button {
+              id: btnCommentary
+              height: Style.space(24)
+              text: "Commentary"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              visible: !!(root.matchDetail && root.matchDetail.isLive && root.matchDetail.commentary && root.matchDetail.commentary.length > 0)
+              selected: root.matchDetailTab === "commentary"
+              onClicked: root.matchDetailTab = "commentary"
+            }
 
-          Button {
-            height: Style.space(24)
-            text: "Info"
-            fontFamily: root.contentFontFamily
-            foreground: root.contentForeground
-            accent: root.contentForeground
-            fontSize: Style.font.caption
-            horizontalPadding: Style.space(10)
-            verticalPadding: 0
-            selected: root.matchDetailTab === "info"
-            onClicked: root.matchDetailTab = "info"
+            Button {
+              id: btnLineups
+              height: Style.space(24)
+              text: "Lineups"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              visible: !!root.matchDetail
+              selected: root.matchDetailTab === "lineups"
+              onClicked: root.matchDetailTab = "lineups"
+            }
+
+            Button {
+              id: btnH2H
+              height: Style.space(24)
+              text: "H2H & Form"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              visible: !!(root.matchDetail && ((root.matchDetail.h2h && root.matchDetail.h2h.length > 0) || (root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0) || (root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)))
+              selected: root.matchDetailTab === "h2h"
+              onClicked: root.matchDetailTab = "h2h"
+            }
+
+            Button {
+              id: btnBracket
+              height: Style.space(24)
+              text: "Bracket"
+              fontFamily: root ? root.contentFontFamily : Style.font.family
+              foreground: root ? root.contentForeground : Color.foreground
+              accent: root ? root.contentForeground : Color.foreground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              visible: !!(root.matchDetail && root.matchDetail.bracketAvailable)
+              selected: root.matchDetailTab === "bracket"
+              onClicked: root.matchDetailTab = "bracket"
+            }
+
+            Button {
+              id: btnInfo
+              height: Style.space(24)
+              text: "Info"
+              fontFamily: root.contentFontFamily
+              foreground: root.contentForeground
+              accent: root.contentForeground
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(8)
+              verticalPadding: 0
+              selected: root.matchDetailTab === "info"
+              onClicked: root.matchDetailTab = "info"
+            }
           }
         }
 

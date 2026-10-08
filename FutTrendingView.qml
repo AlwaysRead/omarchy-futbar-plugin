@@ -295,11 +295,12 @@ Column {
           }
         }
       }
-      var seriesNote = ""
-      if (comp.series && comp.series.summary) {
-        seriesNote = String(comp.series.summary)
-      } else if (comp.series && comp.series.title) {
-        seriesNote = String(comp.series.title)
+      var seriesNote = FutData.extractSeriesOutcome(comp, homeTeam, awayTeam)
+      if (seriesNote === "") {
+        if (comp.series && comp.series.summary) {
+          var sumText = String(comp.series.summary).trim()
+          if (/advance|aggregate|win|won/i.test(sumText)) seriesNote = sumText
+        }
       }
 
       var kTime = ""

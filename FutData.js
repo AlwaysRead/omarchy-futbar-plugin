@@ -721,6 +721,78 @@ var leagues = [
     return "";
   }
 
+  function extractSeriesOutcome(comp, homeTeam, awayTeam, seriesRes) {
+    if (!comp) return "";
+
+    // 1. Check comp.notes for explicit outcome text (e.g. "2nd Leg - Bayern Munich advance 3-2 on aggregate")
+    if (Array.isArray(comp.notes)) {
+      for (var ni = 0; ni < comp.notes.length; ni++) {
+        var nItem = comp.notes[ni];
+        var text = String((nItem && (nItem.headline || nItem.text)) || "").trim();
+        var lower = text.toLowerCase();
+        if (lower.indexOf("advance") !== -1 || lower.indexOf("aggregate") !== -1 ||
+            lower.indexOf("penalt") !== -1 || lower.indexOf("won") !== -1 || lower.indexOf("win") !== -1) {
+          var cleanOutcome = text.replace(/^(?:1st|2nd|first|second)\s+leg\s*[-–:]\s*/i, "").trim();
+          if (cleanOutcome.length > 0) return cleanOutcome;
+        }
+      }
+    }
+
+    // 2. Check comp.series summary if it contains outcome words (not stage names)
+    var sObj = Array.isArray(comp.series) ? (comp.series.length > 0 ? comp.series[0] : null) : comp.series;
+    if (sObj && sObj.summary) {
+      var sumText = String(sObj.summary).trim();
+      var sumLower = sumText.toLowerCase();
+      if (sumLower.indexOf("advance") !== -1 || sumLower.indexOf("aggregate") !== -1 ||
+          sumLower.indexOf("win") !== -1 || sumLower.indexOf("won") !== -1) {
+        return sumText;
+      }
+    }
+
+    // 3. From seriesRes if available (from resolveMatchSeries)
+    if (seriesRes && seriesRes.hasTwoLegs && seriesRes.isSeriesCompleted && seriesRes.curSeriesWinner) {
+      var wName = seriesRes.curSeriesWinner;
+      var hAgg = seriesRes.curAggHome;
+      var aAgg = seriesRes.curAggAway;
+      var hName = (homeTeam && (homeTeam.displayName || homeTeam.name)) || "";
+      var isHomeWinner = (hName !== "" && wName.indexOf(hName) !== -1);
+      var wAgg = isHomeWinner ? hAgg : aAgg;
+      var lAgg = isHomeWinner ? aAgg : hAgg;
+      if (wAgg !== "" && lAgg !== "") {
+        if (wAgg === lAgg) {
+          return wName + " advance on aggregate (agg " + wAgg + "–" + lAgg + ")";
+        }
+        return wName + " advance " + wAgg + "–" + lAgg + " on aggregate";
+      }
+    }
+
+    // 4. From sObj.competitors directly if completed
+    if (sObj && Array.isArray(sObj.competitors) && sObj.completed) {
+      var winName = "";
+      var winAgg = null;
+      var losAgg = null;
+      for (var ci = 0; ci < sObj.competitors.length; ci++) {
+        var compItem = sObj.competitors[ci];
+        var isHome = homeTeam && homeTeam.id && String(compItem.id) === String(homeTeam.id);
+        var tName = isHome ? (homeTeam.displayName || homeTeam.name) : (awayTeam ? (awayTeam.displayName || awayTeam.name) : "");
+        if (compItem.winner === true) {
+          winName = tName;
+          winAgg = compItem.aggregateScore;
+        } else {
+          losAgg = compItem.aggregateScore;
+        }
+      }
+      if (winName !== "" && winAgg !== null && losAgg !== null && winAgg !== undefined && losAgg !== undefined) {
+        if (winAgg === losAgg) {
+          return winName + " advance on aggregate (agg " + winAgg + "–" + losAgg + ")";
+        }
+        return winName + " advance " + winAgg + "–" + losAgg + " on aggregate";
+      }
+    }
+
+    return "";
+  }
+
   function collectTournamentBracketRounds(events, acc) {
     if (!acc || !Array.isArray(events)) return;
     for (var ei = 0; ei < events.length; ei++) {
@@ -1044,6 +1116,17 @@ var leagues = [
         curHomeLeg2 = "—";
         curAwayLeg2 = "—";
       }
+    }
+
+    if (isSeriesCompleted && (!curSeriesSummary || curSeriesSummary.toLowerCase().indexOf("advance") === -1)) {
+      var extOutcome = extractSeriesOutcome(comp, homeTeam, awayTeam, {
+        hasTwoLegs: hasTwoLegs,
+        isSeriesCompleted: isSeriesCompleted,
+        curSeriesWinner: curSeriesWinner,
+        curAggHome: curAggHome,
+        curAggAway: curAggAway
+      });
+      if (extOutcome !== "") curSeriesSummary = extOutcome;
     }
 
     return {
