@@ -1672,6 +1672,7 @@ Panel {
       matchClusters: root.matchClusters,
       matchClusterIndex: root.matchClusterIndex,
       matchWindowOffset: root.matchWindowOffset,
+      matchesSeasonOffset: root.matchesSeasonOffset,
       leagueLive: root.leagueLive,
       leagueRecent: root.leagueRecent,
       leagueUpcoming: root.leagueUpcoming,
@@ -1689,6 +1690,7 @@ Panel {
     root.matchClusters = snap.matchClusters || []
     root.matchClusterIndex = snap.matchClusterIndex || 0
     root.matchWindowOffset = snap.matchWindowOffset || 0
+    root.matchesSeasonOffset = snap.matchesSeasonOffset || 0
     root.leagueLive = snap.leagueLive || []
     root.leagueRecent = snap.leagueRecent || []
     root.leagueUpcoming = snap.leagueUpcoming || []
@@ -2265,6 +2267,15 @@ Panel {
     if (Array.isArray(comp.notes) && comp.notes.length > 0 && comp.notes[0] && comp.notes[0].headline) {
       var h = String(comp.notes[0].headline).trim()
       if (h !== "" && h.toLowerCase().indexOf("penalty") === -1) return root.sanitizePlainText(h)
+    }
+    if (event.season && typeof event.season.slug === "string" && event.season.slug !== "") {
+      var sl = event.season.slug.toLowerCase().trim()
+      if (sl === "final") return "Final"
+      if (sl === "semifinals") return "Semifinals"
+      if (sl === "quarterfinals") return "Quarterfinals"
+      if (sl === "round-of-16") return "Round of 16"
+      if (sl === "knockout-round-playoffs") return "Playoffs"
+      if (sl === "group-stage" || sl === "group") return "Group Stage"
     }
     return ""
   }
@@ -3124,9 +3135,24 @@ Panel {
     if (!dates || !Array.isArray(dates) || dates.length === 0) return []
     var cleanDates = []
     for (var i = 0; i < dates.length; i++) {
-      var ds = String(dates[i]).slice(0, 10).replace(/-/g, "")
-      if (ds.length === 8 && cleanDates.indexOf(ds) === -1) {
-        cleanDates.push(ds)
+      var item = dates[i]
+      if (typeof item === "string") {
+        var ds = item.slice(0, 10).replace(/-/g, "")
+        if (ds.length === 8 && cleanDates.indexOf(ds) === -1) cleanDates.push(ds)
+      } else if (item && typeof item === "object") {
+        if (item.startDate) {
+          var dsStart = String(item.startDate).slice(0, 10).replace(/-/g, "")
+          if (dsStart.length === 8 && cleanDates.indexOf(dsStart) === -1) cleanDates.push(dsStart)
+        }
+        if (Array.isArray(item.entries)) {
+          for (var e = 0; e < item.entries.length; e++) {
+            var ent = item.entries[e]
+            if (ent && ent.startDate) {
+              var dsEnt = String(ent.startDate).slice(0, 10).replace(/-/g, "")
+              if (dsEnt.length === 8 && cleanDates.indexOf(dsEnt) === -1) cleanDates.push(dsEnt)
+            }
+          }
+        }
       }
     }
     cleanDates.sort()
@@ -3241,9 +3267,12 @@ Panel {
 
     // Dynamically query ESPN calendar API if not yet cached for this league/season
     if (!root._leagueCalendar[calKey]) {
-      if (!isPastSeason && !leagueCalendarRequest.running) {
-        leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576",
-          "https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/calendar/ondays"]
+      if (!leagueCalendarRequest.running) {
+        root._leagueCalendarRequestKey = calKey
+        var calUrl = isPastSeason
+          ? ("https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/seasons/" + encodeURIComponent(String(targetYear)) + "/types/1/calendar/ondays?lang=en&region=us")
+          : ("https://sports.core.api.espn.com/v2/sports/soccer/leagues/" + encodeURIComponent(slug) + "/calendar/ondays?lang=en&region=us")
+        leagueCalendarRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "10", "--max-filesize", "1048576", calUrl]
         leagueCalendarRequest.running = true
       }
     }
@@ -3270,12 +3299,11 @@ Panel {
         if (mwPastDates && mwPastDates.length > 0) {
           days = mwPastDates
         }
-      } else {
-        // Discovery query for past season calendar schedule
-        var sampleDate = root.isCrossYearCompetition(slug)
-          ? (String(targetYear + 1) + "0520")
-          : (String(targetYear) + "1025")
-        days = [sampleDate]
+      }
+      if (days.length === 0) {
+        // Calendar is still loading: wait for leagueCalendarRequest to complete
+        root.matchListLoading = true
+        return
       }
     } else if (root.leagueMode && !root.leagueBrowseAll) {
       // Daily live board covers yesterday, today, and tomorrow
@@ -3288,7 +3316,7 @@ Panel {
     }
 
     if (days.length === 0) {
-      // Fallback: 8-day window centered on matchWindowOffset
+      // Fallback for current season only: 8-day window centered on matchWindowOffset
       var center = root.matchWindowOffset
       for (var d = -3; d <= 4; d++) {
         days.push(root.rangeDate(center + d))
@@ -6723,24 +6751,38 @@ onStreamFinished: root.warnStderr("", text)
     }
   }
 
+  property string _leagueCalendarRequestKey: ""
+
   Process {
     id: leagueCalendarRequest
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         var slug = root.safeIdentifier(root.league)
-        if (typeof text === "string" && text.length > 0 && text.length <= 1048576 && slug !== "") {
+        var cKey = root._leagueCalendarRequestKey !== "" ? root._leagueCalendarRequestKey : slug
+        root._leagueCalendarRequestKey = ""
+        if (typeof text === "string" && text.length > 0 && text.length <= 1048576 && cKey !== "") {
           var weeks = root.parseCalendarMatchWeeks(text)
           if (weeks && weeks.length > 0) {
-            root._leagueCalendar[slug] = weeks
-            root.loadMatchList()
+            root._leagueCalendar[cKey] = weeks
+            root.loadMatchList(true)
+            return
           }
+        }
+        if (root.matchListLoading && root.matchesSeasonOffset > 0) {
+          root.matchListLoading = false
         }
       }
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.warnStderr("calendar", text)
+      onStreamFinished: {
+        root._leagueCalendarRequestKey = ""
+        root.warnStderr("calendar", text)
+        if (root.matchListLoading && root.matchesSeasonOffset > 0) {
+          root.matchListLoading = false
+        }
+      }
     }
   }
 
@@ -6971,11 +7013,11 @@ onStreamFinished: root.warnStderr("", text)
     repeat: true
     onTriggered: {
       if (root.leagueMode) {
-        if (root.showMatches || root.leagueBrowseAll) {
+        if (root.matchesSeasonOffset === 0 && (root.showMatches || root.leagueBrowseAll)) {
           root.loadMatchList(true)
         }
       } else {
-        if (root.liveMatch || !root.fixtureFresh()) root.refresh()
+        if (root.matchesSeasonOffset === 0 && (root.liveMatch || !root.fixtureFresh())) root.refresh()
       }
       if (root.showMatchDetail && root.matchDetail && root.matchDetail.id && (root.matchDetail.isLive || !root.matchDetail.started)) {
         if (!matchDetailRequest.running) {
@@ -11013,7 +11055,7 @@ root.warnStderr("team select failed", text)
                   anchors.right: matchCardDate.left
                   anchors.rightMargin: Style.space(8)
                   anchors.verticalCenter: parent.verticalCenter
-                  visible: !matchRow.rowFollowable && matchRow.modelData && !!matchRow.modelData.competitionName && matchRow.modelData.competitionName !== ""
+                  visible: root.showClubFixtures && !matchRow.rowFollowable && matchRow.modelData && !!matchRow.modelData.competitionName && matchRow.modelData.competitionName !== ""
                   text: matchRow.modelData && matchRow.modelData.competitionName ? matchRow.modelData.competitionName.toUpperCase() : ""
                   color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
                   font.family: root.contentFontFamily
@@ -11491,7 +11533,7 @@ root.warnStderr("team select failed", text)
                       if (calW && calW.length > 0) {
                         return (calW.length - 1 + root.matchWindowOffset) > 0
                       }
-                      return true
+                      return false
                     }
                     return true
                   }
@@ -11553,7 +11595,11 @@ root.warnStderr("team select failed", text)
                   verticalPadding: 0
                   enabled: {
                     if (root.matchesSeasonOffset > 0) {
-                      return root.matchWindowOffset < 0
+                      var slug = root.safeIdentifier(root.league)
+                      var targetYear = root.seasonReferenceYear() - root.matchesSeasonOffset
+                      var calKey = slug + "_" + String(targetYear)
+                      var calW = root._leagueCalendar && root._leagueCalendar[calKey]
+                      return (calW && calW.length > 0) ? (root.matchWindowOffset < 0) : false
                     }
                     return true
                   }
