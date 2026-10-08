@@ -2180,6 +2180,101 @@ Column {
           spacing: Style.space(12)
           visible: root.matchDetail && root.matchDetailTab === "h2h"
 
+          // 0. WIN PROBABILITY CARD
+          Rectangle {
+            width: parent.width
+            implicitHeight: winProbCol.implicitHeight + Style.space(20)
+            radius: Style.space(8)
+            color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.03)
+            border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+            border.width: 1
+            visible: !!(root.matchDetail && root.matchDetail.odds && root.matchDetail.odds.hasProb)
+
+            Column {
+              id: winProbCol
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(8)
+
+              Text {
+                textFormat: Text.PlainText
+                text: "WIN PROBABILITY"
+                color: Qt.darker(root.contentForeground, 1.6)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption - 1
+                font.letterSpacing: 1
+                font.bold: true
+              }
+
+              Row {
+                width: parent.width
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: (root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : "Home") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) + "%"
+                  color: root.favoriteTeamAccent
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+
+                Item {
+                  width: Math.max(Style.space(8), parent.width - (parent.children[0].implicitWidth + parent.children[2].implicitWidth + parent.children[4].implicitWidth + Style.space(16)))
+                  height: 1
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: "Draw " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) + "%"
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                Item { width: Style.space(8); height: 1 }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: (root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : "Away") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.awayProb : 0) + "%"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
+
+              Rectangle {
+                width: parent.width
+                height: Style.space(6)
+                radius: Style.space(3)
+                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+                clip: true
+
+                Row {
+                  anchors.fill: parent
+
+                  Rectangle {
+                    width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) / 100.0)
+                    height: parent.height
+                    color: root.favoriteTeamAccent
+                  }
+
+                  Rectangle {
+                    width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) / 100.0)
+                    height: parent.height
+                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.22)
+                  }
+
+                  Rectangle {
+                    width: Math.max(0, parent.width - (parent.children[0].width + parent.children[1].width))
+                    height: parent.height
+                    color: Qt.darker(root.contentForeground, 1.3)
+                  }
+                }
+              }
+            }
+          }
+
           // 1. RECENT FORM CARD
           Rectangle {
             width: parent.width
@@ -2602,7 +2697,7 @@ Column {
             }
           }
 
-          // Broadcasts
+          // Broadcasts (normal clean text, no pills)
           Row {
             width: parent.width
             spacing: Style.space(8)
@@ -2618,32 +2713,14 @@ Column {
               font.bold: true
             }
 
-            Flow {
+            Text {
+              textFormat: Text.PlainText
               width: parent.width - Style.space(78)
-              spacing: Style.space(6)
-
-              Repeater {
-                model: (root.matchDetail && root.matchDetail.broadcasts) ? root.matchDetail.broadcasts : []
-                delegate: Rectangle {
-                  height: Style.space(22)
-                  width: broadcastText.implicitWidth + Style.space(14)
-                  radius: Style.space(11)
-                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.05)
-                  border.width: Style.spacing.hairline
-                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
-
-                  Text {
-                    id: broadcastText
-                    textFormat: Text.PlainText
-                    anchors.centerIn: parent
-                    text: modelData
-                    color: root.contentForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption - 1
-                    font.bold: true
-                  }
-                }
-              }
+              text: (root.matchDetail && root.matchDetail.broadcasts) ? root.matchDetail.broadcasts.join(", ") : ""
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
             }
           }
 
@@ -2762,82 +2839,7 @@ Column {
             }
           }
 
-            // Win Probability breakdown bar
-            Column {
-              width: parent.width
-              spacing: Style.space(4)
-              visible: !!(root.matchDetail && root.matchDetail.odds && root.matchDetail.odds.hasProb)
-
-              Row {
-                width: parent.width
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: (root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : "Home") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) + "%"
-                  color: root.favoriteTeamAccent
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption - 2
-                  font.bold: true
-                }
-
-                Item {
-                  width: Math.max(Style.space(8), parent.width - (parent.children[0].implicitWidth + parent.children[2].implicitWidth + parent.children[4].implicitWidth + Style.space(16)))
-                  height: 1
-                }
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: "Draw " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) + "%"
-                  color: Qt.darker(root.contentForeground, 1.5)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption - 2
-                }
-
-                Item { width: Style.space(8); height: 1 }
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: (root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : "Away") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.awayProb : 0) + "%"
-                  color: root.contentForeground
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption - 2
-                  font.bold: true
-                }
-              }
-
-              Rectangle {
-                width: parent.width
-                height: Style.space(6)
-                radius: Style.space(3)
-                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
-                clip: true
-
-                Row {
-                  anchors.fill: parent
-
-                  Rectangle {
-                    width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) / 100.0)
-                    height: parent.height
-                    color: root.favoriteTeamAccent
-                  }
-
-                  Rectangle {
-                    width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) / 100.0)
-                    height: parent.height
-                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.22)
-                  }
-
-                  Rectangle {
-                    width: Math.max(0, parent.width - (parent.children[0].width + parent.children[1].width))
-                    height: parent.height
-                    color: Qt.darker(root.contentForeground, 1.3)
-                  }
-                }
-              }
-            }
-          }
-
-          // Editorial Match Story / Preview
+          // Editorial Match Story / Preview (Strictly inside Info Tab)
           Column {
             width: parent.width
             spacing: Style.space(6)
@@ -2905,8 +2907,9 @@ Column {
                 }
               }
             }
-        }
           }
+        }
+      }
 
           LoadingOverlay {
             active: root.matchDetailLoading && !root.matchDetail
