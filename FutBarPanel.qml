@@ -11042,14 +11042,23 @@ root.warnStderr("team select failed", text)
               if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") d = matchRow.modelData.dateText
               else if (matchRow.modelData.kickoff) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM yyyy"))
               else if (matchRow.modelData.date) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM yyyy"))
-              var rnd = matchRow.modelData.roundName ? (matchRow.modelData.roundName + (d !== "" ? " · " : "")) : ""
               if (d !== "" && matchRow.modelData.state === "pre") {
                 var t = matchRow.modelData.timeText || (matchRow.modelData.kickoff ? root.kickoffTime({ date: matchRow.modelData.kickoff }) : "")
                 var rel = matchRow.modelData.kickoff ? root.relativeKickoffText(matchRow.modelData.kickoff) : ""
                 if (rel !== "") t = t !== "" ? (t + " (" + rel + ")") : rel
-                if (t && t !== "") return rnd + d + " · " + t
+                if (t && t !== "") return d + " · " + t
               }
-              return rnd + d
+              return d
+            }
+
+            readonly property string cardStageText: {
+              if (root.showClubFixtures && matchRow.modelData && matchRow.modelData.competitionName) {
+                return matchRow.modelData.competitionName.toUpperCase()
+              }
+              if (matchRow.modelData && matchRow.modelData.roundName) {
+                return matchRow.modelData.roundName
+              }
+              return ""
             }
 
             readonly property bool hasSubText: matchRow.modelData.state === "in" || matchRow.modelData.state === "post" || (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") || (matchRow.modelData.seriesNote && matchRow.modelData.seriesNote !== "")
@@ -11099,13 +11108,14 @@ root.warnStderr("team select failed", text)
               anchors.topMargin: matchRow.rowVPadding
               spacing: Style.space(2)
 
-              // Top Line: Follow button or Tournament name on left, Match date on top right
+              // Top Line: Follow button + Match date/time on top left, Competition/Round on top right
               Item {
                 width: parent.width
                 height: Style.space(12)
-                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable || (matchRow.modelData && !!matchRow.modelData.competitionName)
+                visible: matchRow.cardDateText !== "" || matchRow.rowFollowable || matchRow.cardStageText !== ""
 
                 Button {
+                  id: matchFollowBtn
                   z: 2
                   visible: matchRow.rowFollowable
                   anchors.left: parent.left
@@ -11125,35 +11135,41 @@ root.warnStderr("team select failed", text)
                   onClicked: root.toggleLeagueMatchFollow(matchRow.modelData.id)
                 }
 
-                Text {
-                  id: matchCardTournament
-                  textFormat: Text.PlainText
-                  anchors.left: parent.left
-                  anchors.right: matchCardDate.left
-                  anchors.rightMargin: Style.space(8)
-                  anchors.verticalCenter: parent.verticalCenter
-                  visible: root.showClubFixtures && !matchRow.rowFollowable && matchRow.modelData && !!matchRow.modelData.competitionName && matchRow.modelData.competitionName !== ""
-                  text: matchRow.modelData && matchRow.modelData.competitionName ? matchRow.modelData.competitionName.toUpperCase() : ""
-                  color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Color.accent
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.space(8.5)
-                  font.letterSpacing: 0.5
-                  font.bold: true
-                  elide: Text.ElideRight
-                }
-
-                // Match Date in the top right side of the individual match card
+                // Match Date & Time on top left
                 Text {
                   id: matchCardDate
                   textFormat: Text.PlainText
-                  anchors.right: parent.right
+                  anchors.left: matchFollowBtn.visible ? matchFollowBtn.right : parent.left
+                  anchors.leftMargin: matchFollowBtn.visible ? Style.space(6) : 0
+                  anchors.right: matchCardStage.visible ? matchCardStage.left : parent.right
+                  anchors.rightMargin: matchCardStage.visible ? Style.space(6) : 0
                   anchors.verticalCenter: parent.verticalCenter
                   text: matchRow.cardDateText
                   color: Qt.darker(root.contentForeground, 1.55)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.space(8.5)
                   font.bold: true
+                  elide: Text.ElideRight
                   visible: text !== ""
+                }
+
+                // Stage / Round or Competition Tag on top right
+                Text {
+                  id: matchCardStage
+                  textFormat: Text.PlainText
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  visible: text !== ""
+                  text: matchRow.cardStageText
+                  color: (root.showClubFixtures && root.favoriteTeamAccent && root.favoriteTeamAccent !== "")
+                    ? root.favoriteTeamAccent
+                    : (root.showClubFixtures ? Color.accent : Qt.darker(root.contentForeground, 1.7))
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.space(8.5)
+                  font.letterSpacing: 0.5
+                  font.bold: true
+                  horizontalAlignment: Text.AlignRight
+                  elide: Text.ElideRight
                 }
               }
 
