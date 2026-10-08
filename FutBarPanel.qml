@@ -11518,52 +11518,84 @@ root.warnStderr("team select failed", text)
             }
 
             // Controls row: Season Selector on left, Matchweek Nav on right
-            Row {
+            Item {
               id: matchWeekControlsRow
               width: parent.width
-              spacing: Style.space(6)
+              height: Math.max(seasonControlsRow.height, matchWeekNav.height)
               visible: !root.leagueMode || root.leagueBrowseAll || root.matchesSeasonOffset > 0
 
-              Button {
-                id: prevMatchesSeasonBtn
-                width: Style.space(22)
-                height: Style.space(22)
-                iconText: ""
-                tooltipText: "Older season"
-                fontFamily: root.contentFontFamily
-                foreground: root.contentForeground
-                accent: root.contentForeground
-                iconSize: Style.font.caption
-                horizontalPadding: 0
-                verticalPadding: 0
-                onClicked: {
-                  root.matchesSeasonOffset += (root.seasonStep ? root.seasonStep() : 1)
-                  root.matchWindowOffset = 0
-                  root.pendingEdge = ""
-                  root.navAnchorDay = ""
-                  root.matchClusters = []
-                  root.matchClusterIndex = 0
-                  root.loadMatchList(true)
-                }
-              }
-
-              Button {
-                id: matchesSeasonChip
+              Row {
+                id: seasonControlsRow
+                anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(52)
-                height: Style.space(22)
-                text: root.seasonChipLabel(root.matchesSeasonOffset)
-                tooltipText: "Match season (click to return to current season)"
-                fontFamily: root.contentFontFamily
-                foreground: root.contentForeground
-                accent: root.contentForeground
-                fontSize: Style.font.caption
-                selected: root.matchesSeasonOffset > 0
-                horizontalPadding: 0
-                verticalPadding: 0
-                onClicked: {
-                  if (root.matchesSeasonOffset > 0) {
-                    root.matchesSeasonOffset = 0
+                spacing: Style.space(4)
+
+                Button {
+                  id: prevMatchesSeasonBtn
+                  width: Style.space(22)
+                  height: Style.space(22)
+                  iconText: ""
+                  tooltipText: "Older season"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  iconSize: Style.font.caption
+                  horizontalPadding: 0
+                  verticalPadding: 0
+                  onClicked: {
+                    root.matchesSeasonOffset += (root.seasonStep ? root.seasonStep() : 1)
+                    root.matchWindowOffset = 0
+                    root.pendingEdge = ""
+                    root.navAnchorDay = ""
+                    root.matchClusters = []
+                    root.matchClusterIndex = 0
+                    root.loadMatchList(true)
+                  }
+                }
+
+                Button {
+                  id: matchesSeasonChip
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(52)
+                  height: Style.space(22)
+                  text: root.seasonChipLabel(root.matchesSeasonOffset)
+                  tooltipText: "Match season (click to return to current season)"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  fontSize: Style.font.caption
+                  selected: root.matchesSeasonOffset > 0
+                  horizontalPadding: 0
+                  verticalPadding: 0
+                  onClicked: {
+                    if (root.matchesSeasonOffset > 0) {
+                      root.matchesSeasonOffset = 0
+                      root.matchWindowOffset = 0
+                      root.pendingEdge = ""
+                      root.navAnchorDay = ""
+                      root.matchClusters = []
+                      root.matchClusterIndex = 0
+                      root.loadMatchList(true)
+                    }
+                  }
+                }
+
+                Button {
+                  id: nextMatchesSeasonBtn
+                  width: Style.space(22)
+                  height: Style.space(22)
+                  iconText: ""
+                  tooltipText: "Newer season"
+                  fontFamily: root.contentFontFamily
+                  foreground: root.contentForeground
+                  accent: root.contentForeground
+                  iconSize: Style.font.caption
+                  horizontalPadding: 0
+                  verticalPadding: 0
+                  enabled: root.matchesSeasonOffset > 0
+                  opacity: enabled ? 1.0 : 0.35
+                  onClicked: {
+                    root.matchesSeasonOffset = Math.max(0, root.matchesSeasonOffset - (root.seasonStep ? root.seasonStep() : 1))
                     root.matchWindowOffset = 0
                     root.pendingEdge = ""
                     root.navAnchorDay = ""
@@ -11574,45 +11606,16 @@ root.warnStderr("team select failed", text)
                 }
               }
 
-              Button {
-                id: nextMatchesSeasonBtn
-                width: Style.space(22)
-                height: Style.space(22)
-                iconText: ""
-                tooltipText: "Newer season"
-                fontFamily: root.contentFontFamily
-                foreground: root.contentForeground
-                accent: root.contentForeground
-                iconSize: Style.font.caption
-                horizontalPadding: 0
-                verticalPadding: 0
-                enabled: root.matchesSeasonOffset > 0
-                opacity: enabled ? 1.0 : 0.35
-                onClicked: {
-                  root.matchesSeasonOffset = Math.max(0, root.matchesSeasonOffset - (root.seasonStep ? root.seasonStep() : 1))
-                  root.matchWindowOffset = 0
-                  root.pendingEdge = ""
-                  root.navAnchorDay = ""
-                  root.matchClusters = []
-                  root.matchClusterIndex = 0
-                  root.loadMatchList(true)
-                }
-              }
-
-              Item {
-                width: Math.max(0, parent.width - (prevMatchesSeasonBtn.width + matchesSeasonChip.width + nextMatchesSeasonBtn.width + matchWeekNav.width + parent.spacing * 4))
-                height: 1
-              }
-
               Row {
                 id: matchWeekNav
+                anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(6)
+                spacing: Style.space(4)
 
                 Button {
                   id: prevWeekButton
-                  width: Style.space(26)
-                  height: Style.space(26)
+                  width: Style.space(24)
+                  height: Style.space(24)
                   iconText: ""
                   tooltipText: "Previous matchweek"
                   fontFamily: root.contentFontFamily
@@ -11670,19 +11673,21 @@ root.warnStderr("team select failed", text)
                     }
                     return root.matchWeekLabel
                   }
-                  height: Style.space(28)
+                  height: Style.space(24)
                   verticalAlignment: Text.AlignVCenter
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.caption
                   font.bold: true
-                  font.letterSpacing: 1
+                  font.letterSpacing: 0.5
+                  elide: Text.ElideRight
+                  width: Math.min(implicitWidth, Math.max(Style.space(60), matchWeekControlsRow.width - seasonControlsRow.width - prevWeekButton.width - nextWeekButton.width - Style.space(24)))
                 }
 
                 Button {
                   id: nextWeekButton
-                  width: Style.space(26)
-                  height: Style.space(26)
+                  width: Style.space(24)
+                  height: Style.space(24)
                   iconText: ""
                   tooltipText: "Next matchweek"
                   fontFamily: root.contentFontFamily
@@ -11732,7 +11737,7 @@ root.warnStderr("team select failed", text)
               }
             }
 
-        Text {
+                    Text {
           textFormat: Text.PlainText
           width: parent.width
           text: ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0)
