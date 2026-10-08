@@ -11042,12 +11042,6 @@ root.warnStderr("team select failed", text)
               if (matchRow.modelData.dateText && matchRow.modelData.dateText !== "") d = matchRow.modelData.dateText
               else if (matchRow.modelData.kickoff) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.kickoff), "ddd d MMM yyyy"))
               else if (matchRow.modelData.date) d = root.sanitizePlainText(Qt.formatDate(new Date(matchRow.modelData.date), "ddd d MMM yyyy"))
-              if (d !== "" && matchRow.modelData.state === "pre") {
-                var t = matchRow.modelData.timeText || (matchRow.modelData.kickoff ? root.kickoffTime({ date: matchRow.modelData.kickoff }) : "")
-                var rel = matchRow.modelData.kickoff ? root.relativeKickoffText(matchRow.modelData.kickoff) : ""
-                if (rel !== "") t = t !== "" ? (t + " (" + rel + ")") : rel
-                if (t && t !== "") return d + " · " + t
-              }
               return d
             }
 
