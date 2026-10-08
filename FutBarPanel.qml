@@ -3232,7 +3232,9 @@ Panel {
       var pDate = new Date(parseInt(prevD.slice(0, 4), 10), parseInt(prevD.slice(4, 6), 10) - 1, parseInt(prevD.slice(6, 8), 10))
       var cDate = new Date(parseInt(currD.slice(0, 4), 10), parseInt(currD.slice(4, 6), 10) - 1, parseInt(currD.slice(6, 8), 10))
       var diffDays = Math.round((cDate.getTime() - pDate.getTime()) / (86400 * 1000))
-      if (diffDays <= 3) {
+      var sDate = new Date(parseInt(curr[0].slice(0, 4), 10), parseInt(curr[0].slice(4, 6), 10) - 1, parseInt(curr[0].slice(6, 8), 10))
+      var daysFromStart = Math.round((cDate.getTime() - sDate.getTime()) / (86400 * 1000))
+      if (diffDays <= 3 && daysFromStart <= 4) {
         curr.push(currD)
       } else {
         weeks.push(curr)
@@ -3254,34 +3256,23 @@ Panel {
     }
   }
 
-  function matchWeekNumber() {
-    if (root.matchesSeasonOffset > 0) {
-      var slug = root.safeIdentifier(root.league)
-      var targetYear = root.seasonReferenceYear() - root.matchesSeasonOffset
-      var calKey = slug + "_" + String(targetYear)
-      var calW = root._leagueCalendar && root._leagueCalendar[calKey]
-      if (calW && calW.length > 0) {
-        var finalIdx = calW.length - 1
-        var currIdx = Math.max(0, Math.min(finalIdx, finalIdx + root.matchWindowOffset))
-        return (currIdx + 1) + "/" + calW.length
-      }
-    }
-    return ""
+  function leagueCalendarKey() {
+    var slug = root.safeIdentifier(root.league)
+    var isPast = root.matchesSeasonOffset > 0
+    var targetYear = isPast ? (root.seasonReferenceYear() - root.matchesSeasonOffset) : root.seasonReferenceYear()
+    return isPast ? (slug + "_" + String(targetYear)) : slug
   }
 
-  function getMatchWeekDates(weeks, offset, isPastSeason) {
-    if (!weeks || weeks.length === 0) return null
-    if (isPastSeason) {
-      var finalIdx = Math.max(0, weeks.length - 1)
-      var targetIdx = Math.max(0, Math.min(weeks.length - 1, finalIdx + offset))
-      return weeks[targetIdx] ? weeks[targetIdx].slice() : null
-    }
-    var today = Qt.formatDate(new Date(), "yyyyMMdd")
+  function currentLeagueCalendarWeeks() {
+    var k = root.leagueCalendarKey()
+    return (root._leagueCalendar && root._leagueCalendar[k]) ? root._leagueCalendar[k] : null
+  }
 
-    var pastIdx = -1
+  function matchWeekBaseIndex(weeks) {
+    if (!weeks || weeks.length === 0) return 0
+    var today = Qt.formatDate(new Date(), "yyyyMMdd")
     var currIdx = -1
     var nextIdx = -1
-
     for (var i = 0; i < weeks.length; i++) {
       var w = weeks[i]
       var startD = w[0]
@@ -3289,37 +3280,30 @@ Panel {
       if (startD <= today && today <= endD) {
         currIdx = i
         break
-      } else if (endD < today) {
-        pastIdx = i
       } else if (startD > today && nextIdx === -1) {
         nextIdx = i
       }
     }
+    return currIdx !== -1 ? currIdx : (nextIdx !== -1 ? nextIdx : Math.max(0, weeks.length - 1))
+  }
 
-    var baseIdx = currIdx !== -1 ? currIdx : (nextIdx !== -1 ? nextIdx : Math.max(0, weeks.length - 1))
-
-    if (offset === 0) {
-      if (currIdx !== -1) {
-        return weeks[currIdx].slice()
-      } else {
-        // Off-week or gap (like UCL between rounds): automatically fetch BOTH previous matchweek AND next matchweek
-        var out = []
-        if (pastIdx !== -1) {
-          for (var p = 0; p < weeks[pastIdx].length; p++) {
-            if (out.indexOf(weeks[pastIdx][p]) === -1) out.push(weeks[pastIdx][p])
-          }
-        }
-        if (nextIdx !== -1) {
-          for (var nx = 0; nx < weeks[nextIdx].length; nx++) {
-            if (out.indexOf(weeks[nextIdx][nx]) === -1) out.push(weeks[nextIdx][nx])
-          }
-        }
-        return out.length > 0 ? out : (weeks[baseIdx] || null)
-      }
-    } else {
-      var targetIdx = Math.max(0, Math.min(weeks.length - 1, baseIdx + offset))
-      return weeks[targetIdx] || null
+  function matchWeekNumber() {
+    var calW = root.currentLeagueCalendarWeeks()
+    if (calW && calW.length > 0) {
+      var isPastSeason = root.matchesSeasonOffset > 0
+      var baseIdx = isPastSeason ? (calW.length - 1) : root.matchWeekBaseIndex(calW)
+      var activeIdx = Math.max(0, Math.min(calW.length - 1, baseIdx + root.matchWindowOffset))
+      var isTournament = root.isTournamentCompetition ? root.isTournamentCompetition(root.league) : false
+      return (isTournament ? "Round " : "MW ") + (activeIdx + 1) + "/" + calW.length
     }
+    return ""
+  }
+
+  function getMatchWeekDates(weeks, offset, isPastSeason) {
+    if (!weeks || weeks.length === 0) return null
+    var baseIdx = isPastSeason ? (weeks.length - 1) : root.matchWeekBaseIndex(weeks)
+    var targetIdx = Math.max(0, Math.min(weeks.length - 1, baseIdx + offset))
+    return weeks[targetIdx] ? weeks[targetIdx].slice() : null
   }
 
   function loadMatchList(force, isRetry) {
@@ -3518,6 +3502,7 @@ Panel {
       if (Qt.formatDate(from, "yyyyMMdd") !== Qt.formatDate(to, "yyyyMMdd")) {
         label += " – " + Qt.formatDate(to, "d MMM")
       }
+      label += " " + from.getFullYear()
       return { rows: c, label: root.sanitizePlainText(label) }
     })
     var idx = root.currentMatchWeekIndex(labeled)
@@ -6028,8 +6013,6 @@ onStreamFinished: root.warnStderr("", text)
             }
           }
 
-          var statusDesc = (comp.status && comp.status.type && comp.status.type.description) ? String(comp.status.type.description) : "Full Time"
-
           function formatGroupedScorers(items) {
             var grouped = {}
             var order = []
@@ -6126,7 +6109,7 @@ onStreamFinished: root.warnStderr("", text)
           var matchDateStr = ""
           if (comp.date) {
             var dObj = new Date(comp.date)
-            var dDay = Qt.formatDate(dObj, "ddd d MMM")
+            var dDay = Qt.formatDate(dObj, "ddd d MMM yyyy")
             var dTime = Qt.formatTime(dObj, "HH:mm")
             matchDateStr = dDay + (dTime !== "" ? (" · " + dTime) : "")
           } else if (root.matchDetail && root.matchDetail.dateFormatted) {
@@ -6627,12 +6610,6 @@ onStreamFinished: root.warnStderr("", text)
       waitForEnd: true
       onStreamFinished: {
         root.warnStderr("matchDetail", text)
-        if (root.matchDetailLoading) {
-          root.matchDetailLoading = false
-          if (root.matchDetailError === "") {
-            root.matchDetailError = "Could not load match details"
-          }
-        }
       }
     }
   }
@@ -6858,7 +6835,9 @@ onStreamFinished: root.warnStderr("", text)
         if (typeof text === "string" && text.length > 0 && text.length <= 1048576 && cKey !== "") {
           var weeks = root.parseCalendarMatchWeeks(text)
           if (weeks && weeks.length > 0) {
-            root._leagueCalendar[cKey] = weeks
+            var nextCal = Object.assign({}, root._leagueCalendar)
+            nextCal[cKey] = weeks
+            root._leagueCalendar = nextCal
             root.loadMatchList(true)
             return
           }
@@ -6914,7 +6893,11 @@ onStreamFinished: root.warnStderr("", text)
 
           if (lg.calendar && Array.isArray(lg.calendar) && !root._leagueCalendar[calKey]) {
             var parsedWks = root.groupCalendarDates(lg.calendar)
-            if (parsedWks && parsedWks.length > 0) root._leagueCalendar[calKey] = parsedWks
+            if (parsedWks && parsedWks.length > 0) {
+              var nextCal2 = Object.assign({}, root._leagueCalendar)
+              nextCal2[calKey] = parsedWks
+              root._leagueCalendar = nextCal2
+            }
           }
 
           if (isPastSeason && !calHadWeeks && root._leagueCalendar[calKey]) {
@@ -11258,28 +11241,15 @@ root.warnStderr("team select failed", text)
                       visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
                       text: {
                         if (matchRow.modelData.state === "in") {
-                          var liveS = matchRow.modelData.status || "Live"
-                          if (matchRow.modelData.seriesNote) liveS += " (" + matchRow.modelData.seriesNote + ")"
-                          return liveS
+                          return matchRow.modelData.status || "Live"
                         }
                         if (matchRow.modelData.state === "post") {
                           var s = matchRow.modelData.status || "FT"
-                          var shoot = matchRow.modelData.shootoutNote || ""
-                          var ser = matchRow.modelData.seriesNote || ""
                           var sLower = s.toLowerCase()
-                          var hasShoot = sLower.indexOf("pen") !== -1 || sLower.indexOf("shootout") !== -1
-                          var hasWon = sLower.indexOf("won") !== -1 || sLower.indexOf("advance") !== -1 || sLower.indexOf("win") !== -1
-                          if (!hasShoot && !hasWon) {
-                            if (shoot !== "") s += " (" + shoot + ")"
-                            else if (ser !== "") s += " (" + ser + ")"
+                          if (sLower.indexOf("won") !== -1 || sLower.indexOf("advance") !== -1 || sLower.indexOf("pen") !== -1 || sLower.indexOf("win") !== -1) {
+                            return "FT"
                           }
                           return s
-                        }
-                        if (matchRow.modelData.shootoutNote && matchRow.modelData.shootoutNote !== "") {
-                          return matchRow.modelData.shootoutNote
-                        }
-                        if (matchRow.modelData.seriesNote && matchRow.modelData.seriesNote !== "") {
-                          return matchRow.modelData.seriesNote
                         }
                         return ""
                       }
@@ -11338,6 +11308,29 @@ root.warnStderr("team select failed", text)
                     visible: String(source) !== ""
                   }
                 }
+              }
+
+              // Bottom outcome / penalty / series note across full card width
+              Text {
+                id: matchCardBottomNote
+                textFormat: Text.PlainText
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width - Style.space(16)
+                visible: text !== "" && !(root.antiSpoiler && !matchScoreText.revealed)
+                text: {
+                  var shoot = matchRow.modelData.shootoutNote || ""
+                  var ser = matchRow.modelData.seriesNote || ""
+                  if (ser !== "") return ser
+                  if (shoot !== "") return shoot
+                  return ""
+                }
+                color: Qt.darker(root.contentForeground, 1.45)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.space(8.5)
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
               }
             }
           }
@@ -11546,6 +11539,8 @@ root.warnStderr("team select failed", text)
                 onClicked: {
                   root.matchesSeasonOffset += (root.seasonStep ? root.seasonStep() : 1)
                   root.matchWindowOffset = 0
+                  root.pendingEdge = ""
+                  root.navAnchorDay = ""
                   root.matchClusters = []
                   root.matchClusterIndex = 0
                   root.loadMatchList(true)
@@ -11570,6 +11565,8 @@ root.warnStderr("team select failed", text)
                   if (root.matchesSeasonOffset > 0) {
                     root.matchesSeasonOffset = 0
                     root.matchWindowOffset = 0
+                    root.pendingEdge = ""
+                    root.navAnchorDay = ""
                     root.matchClusters = []
                     root.matchClusterIndex = 0
                     root.loadMatchList(true)
@@ -11594,6 +11591,8 @@ root.warnStderr("team select failed", text)
                 onClicked: {
                   root.matchesSeasonOffset = Math.max(0, root.matchesSeasonOffset - (root.seasonStep ? root.seasonStep() : 1))
                   root.matchWindowOffset = 0
+                  root.pendingEdge = ""
+                  root.navAnchorDay = ""
                   root.matchClusters = []
                   root.matchClusterIndex = 0
                   root.loadMatchList(true)
@@ -11623,40 +11622,41 @@ root.warnStderr("team select failed", text)
                   horizontalPadding: 0
                   verticalPadding: 0
                   enabled: {
-                    if (root.matchesSeasonOffset > 0) {
-                      var slug = root.safeIdentifier(root.league)
-                      var targetYear = root.seasonReferenceYear() - root.matchesSeasonOffset
-                      var calKey = slug + "_" + String(targetYear)
-                      var calW = root._leagueCalendar && root._leagueCalendar[calKey]
-                      if (calW && calW.length > 0) {
-                        return (calW.length - 1 + root.matchWindowOffset) > 0
-                      }
-                      return false
+                    if (root.matchListLoading) return false
+                    var calW = root.currentLeagueCalendarWeeks()
+                    if (calW && calW.length > 0) {
+                      var isPastSeason = root.matchesSeasonOffset > 0
+                      var baseIdx = isPastSeason ? (calW.length - 1) : root.matchWeekBaseIndex(calW)
+                      var activeIdx = baseIdx + root.matchWindowOffset
+                      return activeIdx > 0
+                    }
+                    if (root.matchClusters.length > 1) {
+                      return root.matchClusterIndex > 0
                     }
                     return true
                   }
                   opacity: enabled ? 1.0 : 0.35
                   onClicked: {
                     if (root.pendingEdge !== "") return
-                    if (root.matchesSeasonOffset > 0) {
+                    var calW = root.currentLeagueCalendarWeeks()
+                    if (calW && calW.length > 0) {
                       if (matchListRequest.running) matchListRequest.running = false
                       root.matchWindowOffset--
+                      root.pendingEdge = "prev"
                       root.resetPanelScroll()
                       root.loadMatchList(true)
                       return
                     }
-                    if (root.matchClusterIndex > 0) {
+                    if (root.matchClusters.length > 1 && root.matchClusterIndex > 0) {
                       root.matchClusterIndex--
                       root.resetPanelScroll()
                       return
                     }
                     if (matchListRequest.running) matchListRequest.running = false
-                    root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[0].day : ""
-                    var calW = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
-                    root.matchWindowOffset -= (calW && calW.length > 0) ? 1 : 7
+                    root.matchWindowOffset--
                     root.pendingEdge = "prev"
                     root.resetPanelScroll()
-                    root.loadMatchList()
+                    root.loadMatchList(true)
                   }
                 }
 
@@ -11692,37 +11692,41 @@ root.warnStderr("team select failed", text)
                   horizontalPadding: 0
                   verticalPadding: 0
                   enabled: {
-                    if (root.matchesSeasonOffset > 0) {
-                      var slug = root.safeIdentifier(root.league)
-                      var targetYear = root.seasonReferenceYear() - root.matchesSeasonOffset
-                      var calKey = slug + "_" + String(targetYear)
-                      var calW = root._leagueCalendar && root._leagueCalendar[calKey]
-                      return (calW && calW.length > 0) ? (root.matchWindowOffset < 0) : false
+                    if (root.matchListLoading) return false
+                    var calW = root.currentLeagueCalendarWeeks()
+                    if (calW && calW.length > 0) {
+                      var isPastSeason = root.matchesSeasonOffset > 0
+                      var baseIdx = isPastSeason ? (calW.length - 1) : root.matchWeekBaseIndex(calW)
+                      var activeIdx = baseIdx + root.matchWindowOffset
+                      return activeIdx < calW.length - 1
+                    }
+                    if (root.matchClusters.length > 1) {
+                      return root.matchClusterIndex < root.matchClusters.length - 1
                     }
                     return true
                   }
                   opacity: enabled ? 1.0 : 0.35
                   onClicked: {
                     if (root.pendingEdge !== "") return
-                    if (root.matchesSeasonOffset > 0) {
+                    var calW = root.currentLeagueCalendarWeeks()
+                    if (calW && calW.length > 0) {
                       if (matchListRequest.running) matchListRequest.running = false
                       root.matchWindowOffset++
+                      root.pendingEdge = "next"
                       root.resetPanelScroll()
                       root.loadMatchList(true)
                       return
                     }
-                    if (root.matchClusterIndex < root.matchClusters.length - 1) {
+                    if (root.matchClusters.length > 1 && root.matchClusterIndex < root.matchClusters.length - 1) {
                       root.matchClusterIndex++
                       root.resetPanelScroll()
                       return
                     }
                     if (matchListRequest.running) matchListRequest.running = false
-                    root.navAnchorDay = root.matchWeekRows.length ? root.matchWeekRows[root.matchWeekRows.length - 1].day : ""
-                    var calWNext = root._leagueCalendar && root._leagueCalendar[root.safeIdentifier(root.league)]
-                    root.matchWindowOffset += (calWNext && calWNext.length > 0) ? 1 : 7
+                    root.matchWindowOffset++
                     root.pendingEdge = "next"
                     root.resetPanelScroll()
-                    root.loadMatchList()
+                    root.loadMatchList(true)
                   }
                 }
               }

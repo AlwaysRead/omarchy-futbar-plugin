@@ -12,7 +12,7 @@ Column {
   property var root: null
   width: parent ? parent.width : 0
   spacing: Style.space(8)
-  visible: root ? (root.opened && root.showTrending && !root.showMatchDetail) : false
+  visible: root ? (root.showTrending && !root.showMatchDetail) : false
 
   // Public state exposed to panel header
   readonly property bool hasLiveMatches: liveMatchesCount > 0
@@ -295,7 +295,7 @@ Column {
           }
         }
       }
-      var seriesNote = FutData.extractSeriesOutcome(comp, homeTeam, awayTeam)
+      var seriesNote = FutData.extractSeriesOutcome(comp, hTeam, aTeam)
       if (seriesNote === "") {
         if (comp.series && comp.series.summary) {
           var sumText = String(comp.series.summary).trim()

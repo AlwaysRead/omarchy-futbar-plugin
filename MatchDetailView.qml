@@ -200,7 +200,8 @@ Column {
         Item {
           id: heroCard
           width: parent.width
-          height: Math.max(Style.space(114), dateTextHeader.implicitHeight + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight)) + (matchResultBottomArea.visible ? matchResultBottomArea.implicitHeight + Style.space(16) : 0) + Style.space(24))
+          readonly property real matchContentBottom: (dateTextHeader.visible && dateTextHeader.text !== "" ? dateTextHeader.implicitHeight + Style.space(6) : Style.space(10)) + Math.max(scoreCenterCol.implicitHeight, Math.max(homeSideCol.implicitHeight, awaySideCol.implicitHeight))
+          height: Math.max(Style.space(114), heroCard.matchContentBottom + (matchResultBottomArea.visible ? matchResultBottomArea.implicitHeight + Style.space(24) : Style.space(14)))
 
           Rectangle {
             anchors.fill: parent
@@ -489,8 +490,8 @@ Column {
           Item {
             id: matchResultBottomArea
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: Style.space(8)
+            anchors.top: parent.top
+            anchors.topMargin: heroCard.matchContentBottom + Style.space(12)
             readonly property string seriesText: (root.matchDetail && (root.matchDetail.seriesResult || root.matchDetail.seriesNote)) ? (root.matchDetail.seriesResult || root.matchDetail.seriesNote) : ""
             readonly property string shootScore: (root.matchDetail && (root.matchDetail.shootoutScore !== "" || root.matchDetail.shootoutNote !== "")) ? (root.matchDetail.shootoutScore !== "" ? root.matchDetail.shootoutScore : root.matchDetail.shootoutNote) : ""
             readonly property string shootText: (root.matchDetail && root.matchDetail.shootoutText) ? root.matchDetail.shootoutText : ""

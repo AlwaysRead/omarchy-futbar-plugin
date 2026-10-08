@@ -8,14 +8,11 @@ import qs.Ui
 Column {
   id: settingsView
   property var root: null
-  property string activeCategory: "clubs" // "clubs", "display", "matches", "alerts", "system", "all"
-
   visible: root ? (!root.needsTeam && !root.editingTeam && root.showSettings) : false
   width: parent ? parent.width : 0
-  spacing: Style.space(12)
+  spacing: Style.space(14)
 
-  // Modern setting toggle row with full-row click area
-  component SettingToggleRow: Rectangle {
+  component SettingToggleRow: Item {
     id: sRow
     property string title: ""
     property string description: ""
@@ -23,18 +20,13 @@ Column {
     signal toggled()
 
     width: parent ? parent.width : Style.space(300)
-    implicitHeight: Math.max(Style.space(42), col.implicitHeight + Style.space(12))
-    radius: Style.cornerRadius
-    color: rowMouse.containsMouse ? Util.alpha(root ? root.contentForeground : Color.foreground, 0.05) : "transparent"
-
-    Behavior on color { ColorAnimation { duration: 120 } }
+    implicitHeight: Math.max(Style.space(38), col.implicitHeight + Style.space(6))
 
     Column {
       id: col
       anchors.left: parent.left
-      anchors.leftMargin: Style.space(4)
       anchors.right: sw.left
-      anchors.rightMargin: Style.space(12)
+      anchors.rightMargin: Style.space(16)
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(2)
 
@@ -54,9 +46,9 @@ Column {
         textFormat: Text.PlainText
         visible: sRow.description !== ""
         text: sRow.description
-        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.45)
+        color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.4)
         font.family: root ? root.contentFontFamily : Style.font.family
-        font.pixelSize: Style.space(8.5)
+        font.pixelSize: Style.space(9)
         wrapMode: Text.WordWrap
       }
     }
@@ -64,7 +56,7 @@ Column {
     ToggleSwitch {
       id: sw
       anchors.right: parent.right
-      anchors.rightMargin: Style.space(4)
+      anchors.rightMargin: Style.space(2)
       anchors.verticalCenter: parent.verticalCenter
       checked: sRow.checked
       foreground: root ? root.contentForeground : Color.foreground
@@ -73,94 +65,118 @@ Column {
     }
 
     MouseArea {
-      id: rowMouse
       anchors.fill: parent
-      hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onClicked: sRow.toggled()
     }
   }
 
-  // Modern card container
   component SettingsCard: Rectangle {
     id: scCard
     property string icon: ""
     property string title: ""
-    property string subtitle: ""
+    property bool expanded: true
     default property alias contentData: cardContent.data
 
     width: parent ? parent.width : 0
-    implicitHeight: cardCol.implicitHeight + Style.space(20)
+    implicitHeight: cardCol.implicitHeight
     radius: Style.cornerRadius
-    color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.03)
+    color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.04)
     border.width: Style.spacing.hairline
-    border.color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.08)
+    border.color: Util.alpha(root ? root.contentForeground : Color.foreground, 0.12)
 
     Column {
       id: cardCol
-      anchors.fill: parent
-      anchors.margins: Style.space(10)
-      spacing: Style.space(10)
+      width: parent.width
+      spacing: 0
 
-      Row {
+      Rectangle {
         width: parent.width
-        spacing: Style.space(8)
+        height: Style.space(38)
+        radius: Style.cornerRadius
+        color: headerMouse.containsMouse ? Util.alpha(root ? root.contentForeground : Color.foreground, 0.07) : "transparent"
 
-        Text {
-          textFormat: Text.PlainText
-          anchors.verticalCenter: parent.verticalCenter
-          text: scCard.icon
-          font.pixelSize: Style.font.body
-          font.family: "Symbols Nerd Font, " + (root ? root.contentFontFamily : Style.font.family)
-          color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+        Item {
+          anchors.fill: parent
+          anchors.leftMargin: Style.space(12)
+          anchors.rightMargin: Style.space(12)
+
+          Row {
+            anchors.left: parent.left
+            anchors.right: headerArrow.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(8)
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              text: scCard.icon
+              font.pixelSize: Style.font.body
+              color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : (root ? root.contentForeground : Color.foreground)
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              width: parent.width - Style.space(28)
+              textFormat: Text.PlainText
+              text: scCard.title
+              color: root ? root.contentForeground : Color.foreground
+              font.family: root ? root.contentFontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              elide: Text.ElideRight
+            }
+          }
+
+          Text {
+            id: headerArrow
+            textFormat: Text.PlainText
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: scCard.expanded ? "󰅃" : "󰅂"
+            font.pixelSize: Style.font.caption
+            color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+          }
         }
 
-        Column {
-          anchors.verticalCenter: parent.verticalCenter
-          width: parent.width - Style.space(28)
-          spacing: 1
-
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            text: scCard.title
-            color: root ? root.contentForeground : Color.foreground
-            font.family: root ? root.contentFontFamily : Style.font.family
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            elide: Text.ElideRight
-          }
-
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            visible: scCard.subtitle !== ""
-            text: scCard.subtitle
-            color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
-            font.family: root ? root.contentFontFamily : Style.font.family
-            font.pixelSize: Style.space(8.5)
-            elide: Text.ElideRight
-          }
+        MouseArea {
+          id: headerMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: scCard.expanded = !scCard.expanded
         }
       }
 
-      Column {
-        id: cardContent
+      Item {
         width: parent.width
-        spacing: Style.space(10)
+        implicitHeight: cardContent.implicitHeight + Style.space(16)
+        visible: scCard.expanded
+
+        Column {
+          id: cardContent
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.leftMargin: Style.space(12)
+          anchors.rightMargin: Style.space(12)
+          anchors.top: parent.top
+          anchors.topMargin: Style.space(4)
+          spacing: Style.space(12)
+        }
       }
     }
   }
 
-  // Header: Return Button, Title & Autosave Live Status Badge
+  // Settings Header with Back Navigation and Status Badge
   Row {
     width: parent.width
-    spacing: Style.space(8)
+    spacing: Style.space(10)
 
     Button {
-      iconText: "󰁍"
+      iconText: "󰅁"
       text: "Back"
-      tooltipText: "Return to matches"
+      tooltipText: "Return to match center"
       fontFamily: root ? root.contentFontFamily : Style.font.family
       foreground: root ? root.contentForeground : Color.foreground
       accent: root ? root.contentForeground : Color.foreground
@@ -181,171 +197,27 @@ Column {
     }
 
     Item {
-      width: Math.max(Style.space(4), parent.width - Style.space(68) - Style.space(170) - (saveStatusBadge.visible ? saveStatusBadge.implicitWidth : 0))
+      width: Math.max(0, parent.width - Style.space(80) - Style.space(190) - Style.space(120))
       height: 1
     }
 
-    // Live auto-save / reset toast badge
-    Rectangle {
-      id: saveStatusBadge
+    Text {
       anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
       visible: root ? (root.settingsJustSaved || root.settingsJustReset) : false
-      height: Style.space(20)
-      width: statusRow.implicitWidth + Style.space(12)
-      radius: Style.space(10)
-      color: (root && root.settingsJustSaved) ? Qt.rgba(0.29, 0.87, 0.5, 0.15) : Qt.rgba(0.96, 0.62, 0.07, 0.15)
-      border.width: Style.spacing.hairline
-      border.color: (root && root.settingsJustSaved) ? "#4ade80" : "#f59e0b"
-
-      Row {
-        id: statusRow
-        anchors.centerIn: parent
-        spacing: Style.space(4)
-
-        Text {
-          anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: (root && root.settingsJustSaved) ? "󰄬" : "󰦛"
-          color: (root && root.settingsJustSaved) ? "#4ade80" : "#f59e0b"
-          font.family: "Symbols Nerd Font, " + (root ? root.contentFontFamily : Style.font.family)
-          font.pixelSize: Style.space(9)
-          font.bold: true
-        }
-
-        Text {
-          anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: (root && root.settingsJustSaved) ? "Saved" : "Reset"
-          color: (root && root.settingsJustSaved) ? "#4ade80" : "#f59e0b"
-          font.family: root ? root.contentFontFamily : Style.font.family
-          font.pixelSize: Style.space(9)
-          font.bold: true
-        }
-      }
+      text: (root && root.settingsJustSaved) ? "Preferences Saved" : "Settings Reset"
+      color: (root && root.settingsJustSaved) ? "#4ade80" : "#f59e0b"
+      font.family: root ? root.contentFontFamily : Style.font.family
+      font.pixelSize: Style.font.caption
+      font.bold: true
     }
   }
 
-  // Category Filter Pill Navigation
-  Flickable {
-    id: categoryFlickable
-    width: parent.width
-    height: Style.space(26)
-    contentWidth: categoryRow.implicitWidth
-    contentHeight: height
-    clip: true
-    boundsBehavior: Flickable.StopAtBounds
-    flickableDirection: Flickable.HorizontalFlick
-    interactive: true
-
-    WheelHandler {
-      target: categoryFlickable
-      acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-      onWheel: function(event) {
-        if (event.angleDelta.y !== 0) {
-          categoryFlickable.contentX = Math.max(0, Math.min(categoryFlickable.contentWidth - categoryFlickable.width, categoryFlickable.contentX - event.angleDelta.y))
-        }
-      }
-    }
-
-    Row {
-      id: categoryRow
-      spacing: Style.space(5)
-      height: parent.height
-
-      Button {
-        height: Style.space(24)
-        iconText: "󰑊"
-        text: "Clubs"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: 0
-        selected: settingsView.activeCategory === "clubs"
-        onClicked: settingsView.activeCategory = "clubs"
-      }
-
-      Button {
-        height: Style.space(24)
-        iconText: "󰍹"
-        text: "Display"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: 0
-        selected: settingsView.activeCategory === "display"
-        onClicked: settingsView.activeCategory = "display"
-      }
-
-      Button {
-        height: Style.space(24)
-        iconText: "󰊴"
-        text: "Matches"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: 0
-        selected: settingsView.activeCategory === "matches"
-        onClicked: settingsView.activeCategory = "matches"
-      }
-
-      Button {
-        height: Style.space(24)
-        iconText: "󰂚"
-        text: "Alerts"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: 0
-        selected: settingsView.activeCategory === "alerts"
-        onClicked: settingsView.activeCategory = "alerts"
-      }
-
-      Button {
-        height: Style.space(24)
-        iconText: "󰒓"
-        text: "System"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: 0
-        selected: settingsView.activeCategory === "system"
-        onClicked: settingsView.activeCategory = "system"
-      }
-
-      Button {
-        height: Style.space(24)
-        iconText: "󰒋"
-        text: "All"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: 0
-        selected: settingsView.activeCategory === "all"
-        onClicked: settingsView.activeCategory = "all"
-      }
-    }
-  }
-
-  // ==========================================
-  // SECTION 1: CLUBS & TOURNAMENTS MANAGEMENT
-  // ==========================================
+  // CARD 1: Followed Clubs & Leagues Management
   SettingsCard {
-    visible: settingsView.activeCategory === "clubs" || settingsView.activeCategory === "all"
-    icon: "󰑊"
+    icon: "󰐕"
     title: "Followed Clubs & Leagues"
-    subtitle: "Manage your primary bar club and fast-switching tabs"
+    expanded: true
 
     Column {
       width: parent.width
@@ -358,125 +230,69 @@ Column {
           required property var modelData
           required property int index
           width: parent.width
-          height: Style.space(42)
+          height: Style.space(38)
           radius: Style.cornerRadius
-          color: (index === 0)
-            ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12)
-            : Util.alpha(root ? root.contentForeground : Color.foreground, 0.04)
-          border.width: (index === 0) ? 1.2 : Style.spacing.hairline
-          border.color: (index === 0)
-            ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent)
-            : Util.alpha(root ? root.contentForeground : Color.foreground, 0.08)
+          color: (index === 0) ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent, 0.12) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.05)
+          border.width: Style.spacing.hairline
+          border.color: (index === 0) ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent) : Util.alpha(root ? root.contentForeground : Color.foreground, 0.1)
 
           Row {
             anchors.fill: parent
             anchors.leftMargin: Style.space(10)
-            anchors.rightMargin: Style.space(8)
+            anchors.rightMargin: Style.space(10)
             spacing: Style.space(8)
 
-            // Primary star or index number
             Text {
               anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
-              text: index === 0 ? "󰛐" : String(index + 1)
-              color: index === 0 ? "#f59e0b" : Qt.darker(root ? root.contentForeground : Color.foreground, 1.6)
-              font.family: "Symbols Nerd Font, " + (root ? root.contentFontFamily : Style.font.family)
+              text: index === 0 ? "" : String(index + 1)
+              color: index === 0 ? "#f59e0b" : Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
+              font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
               width: Style.space(16)
-              horizontalAlignment: Text.AlignHCenter
             }
 
-            Column {
+            Text {
               anchors.verticalCenter: parent.verticalCenter
-              width: parent.width - Style.space(24) - (index > 0 ? Style.space(78) : (allTabsCount > 1 ? Style.space(38) : 0)) - parent.spacing * 3
-              spacing: 1
-              readonly property int allTabsCount: root ? root.allFollowedTabs().length : 1
-
-              Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: followedTabRow.modelData.followLeague
-                    ? (root ? root.leagueLabel(followedTabRow.modelData.league) : followedTabRow.modelData.league)
-                    : followedTabRow.modelData.teamName
-                  color: root ? root.contentForeground : Color.foreground
-                  font.family: root ? root.contentFontFamily : Style.font.family
-                  font.pixelSize: Style.font.caption
-                  font.bold: followedTabRow.index === 0
-                  elide: Text.ElideRight
-                  maximumLineCount: 1
-                }
-
-                Rectangle {
-                  anchors.verticalCenter: parent.verticalCenter
-                  visible: followedTabRow.index === 0
-                  height: Style.space(14)
-                  width: primLabel.implicitWidth + Style.space(8)
-                  radius: Style.space(3)
-                  color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
-
-                  Text {
-                    id: primLabel
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: "PRIMARY"
-                    color: "#ffffff"
-                    font.family: root ? root.contentFontFamily : Style.font.family
-                    font.pixelSize: Style.space(7.5)
-                    font.bold: true
-                  }
-                }
-              }
-
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: followedTabRow.modelData.followLeague
-                  ? "Full Competition Tracker"
-                  : (root ? root.leagueLabel(followedTabRow.modelData.league) : followedTabRow.modelData.league)
-                color: Qt.darker(root ? root.contentForeground : Color.foreground, 1.5)
-                font.family: root ? root.contentFontFamily : Style.font.family
-                font.pixelSize: Style.space(8.5)
-                elide: Text.ElideRight
-              }
+              textFormat: Text.PlainText
+              text: modelData.followLeague
+                ? ((root ? root.leagueLabel(modelData.league) : modelData.league) + " (League)")
+                : (modelData.teamName + " (" + (root ? root.leagueLabel(modelData.league) : modelData.league) + ")")
+              color: root ? root.contentForeground : Color.foreground
+              font.family: root ? root.contentFontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.bold: index === 0
+              elide: Text.ElideRight
+              width: parent.width - Style.space(16) - (index > 0 ? Style.space(72) : Style.space(36)) - parent.spacing * 3
             }
 
-            // Move to Primary Action
             Button {
               anchors.verticalCenter: parent.verticalCenter
-              visible: followedTabRow.index > 0
-              iconText: "󰑊"
-              text: "Primary"
-              tooltipText: "Set as Desktop Bar Club"
+              visible: index > 0
+              iconText: "󰐊"
+              tooltipText: "Set as Primary Bar Club"
               fontFamily: root ? root.contentFontFamily : Style.font.family
               foreground: root ? root.contentForeground : Color.foreground
               accent: root ? root.contentForeground : Color.foreground
-              fontSize: Style.space(8.5)
-              iconSize: Style.space(9)
+              fontSize: Style.font.caption
               horizontalPadding: Style.space(6)
               verticalPadding: Style.space(2)
-              height: Style.space(24)
-              onClicked: if (root) root.promoteToPrimary(followedTabRow.modelData.teamName, followedTabRow.modelData.league, followedTabRow.modelData.teamId, followedTabRow.modelData.followLeague)
+              onClicked: if (root) root.promoteToPrimary(modelData.teamName, modelData.league, modelData.teamId, modelData.followLeague)
             }
 
-            // Remove Action
             Button {
               anchors.verticalCenter: parent.verticalCenter
-              visible: followedTabRow.index > 0 || (root && root.allFollowedTabs().length > 1)
-              iconText: "󰆴"
-              tooltipText: "Unfollow item"
+              visible: index > 0 || (root && root.allFollowedTabs().length > 1)
+              iconText: "󰅖"
+              tooltipText: "Remove from followed tabs"
               fontFamily: root ? root.contentFontFamily : Style.font.family
               foreground: "#ef4444"
               accent: "#ef4444"
               fontSize: Style.font.caption
-              iconSize: Style.space(10)
               horizontalPadding: Style.space(6)
               verticalPadding: Style.space(2)
-              height: Style.space(24)
-              onClicked: if (root) root.removeFollowedItem(followedTabRow.modelData.teamName, followedTabRow.modelData.league, followedTabRow.modelData.followLeague)
+              onClicked: if (root) root.removeFollowedItem(modelData.teamName, modelData.league, modelData.followLeague)
             }
           }
         }
@@ -501,77 +317,11 @@ Column {
       }
     }
   }
-
-  // ==========================================
-  // SECTION 2: DISPLAY & FORMATS
-  // ==========================================
+  // CARD 2: Display & Top Bar Formats
   SettingsCard {
-    visible: settingsView.activeCategory === "display" || settingsView.activeCategory === "all"
-    icon: "󰍹"
-    title: "Display & Top Bar Formats"
-    subtitle: "Customize widget visibility, time display, and tab codes"
-
-    // Desktop Bar Widget Mode
-    Column {
-      width: parent.width
-      spacing: Style.space(6)
-
-      Text {
-        textFormat: Text.PlainText
-        text: "Desktop Top Bar Widget"
-        color: root ? root.contentForeground : Color.foreground
-        font.family: root ? root.contentFontFamily : Style.font.family
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
-
-      Row {
-        width: parent.width
-        spacing: Style.space(6)
-
-        Button {
-          width: (parent.width - Style.space(12)) / 3
-          text: "Icon Only"
-          tooltipText: "Minimal ball icon on desktop bar (󰎆)"
-          fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
-          fontSize: Style.font.caption
-          selected: root ? root.barWidgetMode === "icon" : true
-          horizontalPadding: 0
-          verticalPadding: Style.space(4)
-          onClicked: if (root) root.setBarWidgetMode("icon")
-        }
-
-        Button {
-          width: (parent.width - Style.space(12)) / 3
-          text: "Live Score"
-          tooltipText: "Show active live match score on desktop bar"
-          fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
-          fontSize: Style.font.caption
-          selected: root ? root.barWidgetMode === "score" : false
-          horizontalPadding: 0
-          verticalPadding: Style.space(4)
-          onClicked: if (root) root.setBarWidgetMode("score")
-        }
-
-        Button {
-          width: (parent.width - Style.space(12)) / 3
-          text: "Next Match"
-          tooltipText: "Show upcoming fixture and kickoff time on desktop bar"
-          fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : Color.foreground
-          accent: root ? root.contentForeground : Color.foreground
-          fontSize: Style.font.caption
-          selected: root ? root.barWidgetMode === "next" : false
-          horizontalPadding: 0
-          verticalPadding: Style.space(4)
-          onClicked: if (root) root.setBarWidgetMode("next")
-        }
-      }
-    }
+    icon: "󰒓"
+    title: "Display & Formats"
+    expanded: true
 
     // Tab Labels Format
     Column {
@@ -631,6 +381,68 @@ Column {
           horizontalPadding: 0
           verticalPadding: Style.space(4)
           onClicked: if (root) root.setTabLabelStyle("full")
+        }
+      }
+    }
+
+    // Top Bar Widget Mode
+    Column {
+      width: parent.width
+      spacing: Style.space(6)
+
+      Text {
+        textFormat: Text.PlainText
+        text: "Top Bar Widget"
+        color: root ? root.contentForeground : Color.foreground
+        font.family: root ? root.contentFontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
+        font.bold: true
+      }
+
+      Row {
+        width: parent.width
+        spacing: Style.space(6)
+
+        Button {
+          width: (parent.width - Style.space(12)) / 3
+          text: "Icon Only"
+          tooltipText: "Minimal ball icon on desktop bar (󰒸)"
+          fontFamily: root ? root.contentFontFamily : Style.font.family
+          foreground: root ? root.contentForeground : Color.foreground
+          accent: root ? root.contentForeground : Color.foreground
+          fontSize: Style.font.caption
+          selected: root ? root.barWidgetMode === "icon" : true
+          horizontalPadding: 0
+          verticalPadding: Style.space(4)
+          onClicked: if (root) root.setBarWidgetMode("icon")
+        }
+
+        Button {
+          width: (parent.width - Style.space(12)) / 3
+          text: "Live Score"
+          tooltipText: "Show active live match score on desktop bar"
+          fontFamily: root ? root.contentFontFamily : Style.font.family
+          foreground: root ? root.contentForeground : Color.foreground
+          accent: root ? root.contentForeground : Color.foreground
+          fontSize: Style.font.caption
+          selected: root ? root.barWidgetMode === "score" : false
+          horizontalPadding: 0
+          verticalPadding: Style.space(4)
+          onClicked: if (root) root.setBarWidgetMode("score")
+        }
+
+        Button {
+          width: (parent.width - Style.space(12)) / 3
+          text: "Next Match"
+          tooltipText: "Show upcoming fixture and kickoff time on desktop bar"
+          fontFamily: root ? root.contentFontFamily : Style.font.family
+          foreground: root ? root.contentForeground : Color.foreground
+          accent: root ? root.contentForeground : Color.foreground
+          fontSize: Style.font.caption
+          selected: root ? root.barWidgetMode === "next" : false
+          horizontalPadding: 0
+          verticalPadding: Style.space(4)
+          onClicked: if (root) root.setBarWidgetMode("next")
         }
       }
     }
@@ -696,75 +508,69 @@ Column {
         }
       }
     }
+
   }
 
-  // ==========================================
-  // SECTION 3: MATCH EXPERIENCE
-  // ==========================================
+  // CARD 3: Match Experience
   SettingsCard {
-    visible: settingsView.activeCategory === "matches" || settingsView.activeCategory === "all"
-    icon: "󰊴"
+    icon: "󰈈"
     title: "Match Experience"
-    subtitle: "Fine-tune score privacy, odds display, and trending games"
+    expanded: true
 
     SettingToggleRow {
       title: "Trending & Live Matches"
-      description: "Show trending matches page and global marquee match hub"
+      description: "Show trending matches page and header button for global games"
       checked: root ? root.enableTrending : true
       onToggled: if (root) root.setEnableTrending(!root.enableTrending)
     }
 
     SettingToggleRow {
       title: "Anti-Spoiler Mode"
-      description: "Hide live and final scores until clicked to avoid spoilers"
+      description: "Hide match scores until revealed or clicked"
       checked: root ? root.antiSpoiler : false
       onToggled: if (root) root.setAntiSpoiler(!root.antiSpoiler)
     }
 
     SettingToggleRow {
-      title: "Pre-Match Betting Odds"
-      description: "Show betting spreads, moneylines, and over/under lines in match details"
+      title: "Show Pre-Match Odds"
+      description: "Display betting odds in fixture details"
       checked: root ? root.showOdds : true
       onToggled: if (root) root.setShowOdds(!root.showOdds)
     }
   }
-
-  // ==========================================
-  // SECTION 4: NOTIFICATIONS & ALERTS
-  // ==========================================
+  // CARD 4: Notifications & Alerts
   SettingsCard {
-    visible: settingsView.activeCategory === "alerts" || settingsView.activeCategory === "all"
     icon: "󰂚"
     title: "Notifications & Alerts"
-    subtitle: "Manage desktop goal popups, audio chimes, and whistle alerts"
+    expanded: true
 
     SettingToggleRow {
       title: "Enable Desktop Alerts"
-      description: "Send live match notifications via notify-send"
+      description: "Send match notifications via notify-send"
       checked: root ? root.enableNotifications : true
       onToggled: if (root) root.setEnableNotifications(!root.enableNotifications)
     }
 
     SettingToggleRow {
       visible: root ? root.enableNotifications : true
-      title: "Goal Notifications"
-      description: "Instant goal alerts featuring scorer and match minute"
+      title: "Goal Alerts"
+      description: "Notifications on goals with scorer and minute"
       checked: root ? root.notifyGoals : true
       onToggled: if (root) root.setNotifyGoals(!root.notifyGoals)
     }
 
     SettingToggleRow {
       visible: root ? (root.enableNotifications && root.notifyGoals) : true
-      title: "Audio Goal Chime"
-      description: "Play system notification sound chime when a goal is scored"
+      title: "Goal Audio Chime"
+      description: "Play desktop audio alert when a goal is scored"
       checked: root ? root.notifyAudio : false
       onToggled: if (root) root.setNotifyAudio(!root.notifyAudio)
     }
 
     SettingToggleRow {
       visible: root ? root.enableNotifications : true
-      title: "Red Cards & Whistles"
-      description: "Alerts on red cards, kickoff, half-time, and full-time"
+      title: "Red Cards & Match Whistles"
+      description: "Alerts on red cards, kickoff, HT, and FT"
       checked: root ? root.notifyEvents : true
       onToggled: if (root) root.setNotifyEvents(!root.notifyEvents)
     }
@@ -803,7 +609,7 @@ Column {
 
         Button {
           width: (parent.width - Style.space(6)) / 2
-          text: "All Tracked Items"
+          text: "All Followed Tabs"
           tooltipText: "Alerts for all followed clubs and tournaments"
           fontFamily: root ? root.contentFontFamily : Style.font.family
           foreground: root ? root.contentForeground : Color.foreground
@@ -818,14 +624,12 @@ Column {
     }
   }
 
-  // ==========================================
-  // SECTION 5: SYSTEM & PERFORMANCE
-  // ==========================================
+
+  // CARD 5: Performance & Cache
   SettingsCard {
-    visible: settingsView.activeCategory === "system" || settingsView.activeCategory === "all"
-    icon: "󰒓"
-    title: "System & Cache"
-    subtitle: "Refresh rate, local data cache, and factory preferences"
+    icon: "󰒲"
+    title: "Performance & Cache"
+    expanded: true
 
     Column {
       width: parent.width
@@ -833,7 +637,7 @@ Column {
 
       Text {
         textFormat: Text.PlainText
-        text: "Live Match Refresh Cadence"
+        text: "Live Match Refresh Rate"
         color: root ? root.contentForeground : Color.foreground
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
@@ -888,28 +692,36 @@ Column {
       }
     }
 
-    Row {
+    Button {
       width: parent.width
+      iconText: "󰑐"
+      text: "Clear Cache & Reload"
+      tooltipText: "Flush cached standings, rosters, and statistics and fetch fresh data"
+      fontFamily: root ? root.contentFontFamily : Style.font.family
+      foreground: root ? root.contentForeground : Color.foreground
+      accent: root ? root.contentForeground : Color.foreground
+      fontSize: Style.font.caption
+      horizontalPadding: Style.space(10)
+      verticalPadding: Style.space(6)
+      onClicked: if (root) root.clearCacheAndReload()
+    }
+
+  }
+
+  // Standalone Settings Action Footer (Reset Defaults / Confirm & Apply)
+  Item {
+    width: parent.width
+    height: Style.space(34)
+
+    Row {
+      anchors.fill: parent
       spacing: Style.space(8)
 
       Button {
         width: (parent.width - parent.spacing) / 2
-        iconText: "󰑐"
-        text: "Flush Cache"
-        tooltipText: "Flush cached standings, rosters, and statistics and fetch fresh data"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Color.foreground
-        accent: root ? root.contentForeground : Color.foreground
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(8)
-        verticalPadding: Style.space(6)
-        onClicked: if (root) root.clearCacheAndReload()
-      }
-
-      Button {
-        width: (parent.width - parent.spacing) / 2
+        height: parent.height
         iconText: "󰦛"
-        text: "Reset Defaults"
+        text: (root && root.settingsJustReset) ? "Reset Done" : "Reset"
         tooltipText: "Reset all preferences back to default values"
         fontFamily: root ? root.contentFontFamily : Style.font.family
         foreground: root ? root.contentForeground : Color.foreground
@@ -919,6 +731,23 @@ Column {
         verticalPadding: Style.space(6)
         onClicked: if (root) root.resetAllSettings()
       }
+
+      Button {
+        width: (parent.width - parent.spacing) / 2
+        height: parent.height
+        iconText: "󰄬"
+        text: (root && root.settingsJustSaved) ? "Confirmed" : "Confirm"
+        tooltipText: "Confirm and apply all preferences to the desktop bar"
+        fontFamily: root ? root.contentFontFamily : Style.font.family
+        foreground: root ? root.contentForeground : Color.foreground
+        accent: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Color.accent
+        selected: true
+        fontSize: Style.font.caption
+        horizontalPadding: Style.space(8)
+        verticalPadding: Style.space(6)
+        onClicked: if (root) root.confirmAllSettings()
+      }
     }
   }
+
 }
