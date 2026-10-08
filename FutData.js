@@ -1234,3 +1234,814 @@ var leagues = [
 
   var careerAggPyScript = "import sys, json, urllib.request, concurrent.futures\nurls = json.loads(sys.argv[1])\nsums = {}\ndef fetch(u):\n    try:\n        req = urllib.request.Request(u, headers={'User-Agent': 'curl/7.88.1', 'Accept': '*/*'})\n        with urllib.request.urlopen(req, timeout=8) as r:\n            return json.loads(r.read())\n    except Exception:\n        return None\nwith concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:\n    for data in ex.map(fetch, urls):\n        if data:\n            for c in data.get('splits', {}).get('categories', []):\n                for s in c.get('stats', []):\n                    nm = s.get('name')\n                    if nm in ['goalAssists', 'appearances', 'totalGoals']:\n                        val = s.get('displayValue') if s.get('displayValue') is not None else s.get('value')\n                        try: raw = float(str(val).replace(',', ''))\n                        except: continue\n                        sums[nm] = sums.get(nm, 0) + raw\nprint(json.dumps(sums))\n";
 
+
+  var leagueShortMap = {
+    "uefa.champions": "UCL",
+    "uefa.europa": "UEL",
+    "uefa.europa.conference": "UECL",
+    "uefa.super": "Super Cup",
+    "uefa.nations": "Nations League",
+    "fifa.world": "World Cup",
+    "fifa.cwc": "Club World Cup",
+    "conmebol.libertadores": "Libertadores",
+    "conmebol.sudamericana": "Sudamericana",
+    "concacaf.champions": "Champions Cup",
+    "eng.1": "Premier League",
+    "esp.1": "LaLiga",
+    "ita.1": "Serie A",
+    "ger.1": "Bundesliga",
+    "fra.1": "Ligue 1",
+    "ned.1": "Eredivisie",
+    "por.1": "Primeira Liga",
+    "ksa.1": "Saudi Pro",
+    "usa.1": "MLS",
+    "mex.1": "Liga MX",
+    "bra.1": "Brasileirão",
+    "arg.1": "Liga Profesional",
+    "sco.1": "Scottish Prem",
+    "bel.1": "Belgian Pro",
+    "tur.1": "Süper Lig",
+    "eng.2": "Championship",
+    "eng.fa": "FA Cup",
+    "eng.league_cup": "Carabao Cup",
+    "esp.copa_del_rey": "Copa del Rey",
+    "ger.dfb_pokal": "DFB-Pokal",
+    "ita.coppa_italia": "Coppa Italia",
+    "fra.coupe_de_france": "Coupe de France"
+  };
+
+  var leagueAbbrevMap = {
+    "uefa.champions": "UCL",
+    "uefa.europa": "UEL",
+    "uefa.europa.conference": "UECL",
+    "uefa.super": "USC",
+    "uefa.nations": "UNL",
+    "fifa.world": "FWC",
+    "fifa.cwc": "CWC",
+    "conmebol.libertadores": "LIB",
+    "conmebol.sudamericana": "SUD",
+    "concacaf.champions": "CCC",
+    "eng.1": "EPL",
+    "esp.1": "LAL",
+    "ita.1": "SEA",
+    "ger.1": "BUN",
+    "fra.1": "L1",
+    "ned.1": "ERE",
+    "por.1": "PRM",
+    "ksa.1": "SPL",
+    "usa.1": "MLS",
+    "mex.1": "LMX",
+    "bra.1": "BRA",
+    "arg.1": "ARG",
+    "sco.1": "SCO",
+    "bel.1": "BEL",
+    "tur.1": "TUR",
+    "eng.2": "CHA",
+    "eng.fa": "FAC",
+    "eng.league_cup": "EFL",
+    "esp.copa_del_rey": "CDR",
+    "ger.dfb_pokal": "DFB",
+    "ita.coppa_italia": "COP",
+    "fra.coupe_de_france": "CDF"
+  };
+
+  function getLeagueTabLabel(league, style, fullLabel, shortLabel) {
+    var lg = String(league || "").toLowerCase().trim();
+    var s = style || "abbrev";
+    if (s === "full") return fullLabel || lg;
+    if (s === "short") {
+      if (leagueShortMap[lg]) return leagueShortMap[lg];
+      return shortLabel || lg;
+    }
+    if (leagueAbbrevMap[lg]) return leagueAbbrevMap[lg];
+    var shortLbl = shortLabel || lg;
+    if (shortLbl.length <= 4) return shortLbl.toUpperCase();
+    var words = shortLbl.split(/[\s\-_]+/);
+    if (words.length >= 3) {
+      return (words[0][0] + words[1][0] + words[2][0]).toUpperCase();
+    }
+    return shortLbl.substring(0, 3).toUpperCase();
+  }
+
+  function getTacticalCoordinates(player) {
+    if (!player) return { x: 0.50, y: 0.50 };
+    var abbr = String(player.positionAbbr || "").toUpperCase().trim();
+    var posName = String(player.position || "").toLowerCase().trim();
+    var fp = typeof player.formationPlace === "number" ? player.formationPlace : parseInt(player.formationPlace, 10);
+    if (isNaN(fp)) fp = 99;
+
+    if (abbr === "G") return { x: 0.50, y: 0.88 };
+    if (abbr === "LB") return { x: 0.13, y: 0.74 };
+    if (abbr === "LWB") return { x: 0.13, y: 0.67 };
+    if (abbr === "CD-L") return { x: 0.38, y: 0.74 };
+    if (abbr === "CD") return { x: 0.50, y: 0.74 };
+    if (abbr === "CD-R") return { x: 0.62, y: 0.74 };
+    if (abbr === "RB") return { x: 0.87, y: 0.74 };
+    if (abbr === "RWB") return { x: 0.87, y: 0.67 };
+
+    if (abbr === "DM") return { x: 0.50, y: 0.58 };
+    if (abbr === "DM-L") return { x: 0.36, y: 0.58 };
+    if (abbr === "DM-R") return { x: 0.64, y: 0.58 };
+    if (abbr === "CM-L") return { x: 0.34, y: 0.44 };
+    if (abbr === "CM") return { x: 0.50, y: 0.44 };
+    if (abbr === "CM-R") return { x: 0.66, y: 0.44 };
+    if (abbr === "LM") return { x: 0.13, y: 0.44 };
+    if (abbr === "RM") return { x: 0.87, y: 0.44 };
+
+    if (abbr === "AM-L" || abbr === "LW" || abbr === "LF") return { x: 0.16, y: 0.28 };
+    if (abbr === "AM") return { x: 0.50, y: 0.30 };
+    if (abbr === "AM-R" || abbr === "RW" || abbr === "RF") return { x: 0.84, y: 0.28 };
+
+    if (abbr === "CF-L") return { x: 0.35, y: 0.13 };
+    if (abbr === "CF-R") return { x: 0.65, y: 0.13 };
+    if (abbr === "CF" || abbr === "F" || abbr === "ST") return { x: 0.50, y: 0.13 };
+
+    if (posName.indexOf("goal") !== -1 || fp === 1) return { x: 0.50, y: 0.88 };
+    if (posName.indexOf("left back") !== -1 || (posName.indexOf("def") !== -1 && fp === 3)) return { x: 0.13, y: 0.74 };
+    if (posName.indexOf("right back") !== -1 || (posName.indexOf("def") !== -1 && fp === 2)) return { x: 0.87, y: 0.74 };
+    if (posName.indexOf("center left def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 4 || fp === 6))) return { x: 0.38, y: 0.74 };
+    if (posName.indexOf("center right def") !== -1 || (posName.indexOf("def") !== -1 && (fp === 5 || fp === 7))) return { x: 0.62, y: 0.74 };
+    if (posName.indexOf("center def") !== -1 || (posName.indexOf("def") !== -1 && fp === 5)) return { x: 0.50, y: 0.74 };
+
+    if (posName.indexOf("defensive mid") !== -1) return { x: 0.50, y: 0.58 };
+    if (posName.indexOf("left mid") !== -1) return { x: 0.13, y: 0.44 };
+    if (posName.indexOf("right mid") !== -1) return { x: 0.87, y: 0.44 };
+    if (posName.indexOf("center left mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 8)) return { x: 0.34, y: 0.44 };
+    if (posName.indexOf("center right mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 7)) return { x: 0.66, y: 0.44 };
+    if (posName.indexOf("center mid") !== -1 || (posName.indexOf("mid") !== -1 && fp === 4)) return { x: 0.50, y: 0.44 };
+
+    if (posName.indexOf("left forw") !== -1 || posName.indexOf("left wing") !== -1 || (posName.indexOf("att") !== -1 && fp === 11)) return { x: 0.16, y: 0.28 };
+    if (posName.indexOf("right forw") !== -1 || posName.indexOf("right wing") !== -1 || (posName.indexOf("att") !== -1 && (fp === 7 || fp === 10))) return { x: 0.84, y: 0.28 };
+    if (posName.indexOf("center left forw") !== -1) return { x: 0.35, y: 0.13 };
+    if (posName.indexOf("center right forw") !== -1) return { x: 0.65, y: 0.13 };
+    if (posName.indexOf("forw") !== -1 || posName.indexOf("striker") !== -1 || fp === 9) return { x: 0.50, y: 0.13 };
+    if (posName.indexOf("att") !== -1 || fp === 10) return { x: 0.50, y: 0.30 };
+
+    if (fp === 1) return { x: 0.50, y: 0.88 };
+    if (fp === 3) return { x: 0.13, y: 0.74 };
+    if (fp === 4) return { x: 0.38, y: 0.74 };
+    if (fp === 5) return { x: 0.50, y: 0.74 };
+    if (fp === 6) return { x: 0.62, y: 0.74 };
+    if (fp === 2) return { x: 0.87, y: 0.74 };
+    if (fp === 8) return { x: 0.34, y: 0.44 };
+    if (fp === 7) return { x: 0.66, y: 0.44 };
+    if (fp === 11) return { x: 0.16, y: 0.28 };
+    if (fp === 10) return { x: 0.84, y: 0.28 };
+    if (fp === 9) return { x: 0.50, y: 0.13 };
+
+    return { x: 0.50, y: 0.50 };
+  }
+
+  function layoutPitchPlayers(starters) {
+    if (!starters || starters.length === 0) return [];
+    var result = [];
+    for (var i = 0; i < starters.length; i++) {
+      var pObj = starters[i];
+      var coords = getTacticalCoordinates(pObj);
+      var sName = pObj.shortName || "";
+      if (sName === "" && pObj.name) {
+        var parts = pObj.name.trim().split(" ");
+        sName = parts[parts.length - 1];
+      }
+      result.push({
+        name: pObj.name || "",
+        shortName: sName,
+        jersey: pObj.jersey || "",
+        position: pObj.position || "",
+        positionAbbr: pObj.positionAbbr || "",
+        formationPlace: pObj.formationPlace,
+        goals: pObj.goals || 0,
+        assists: pObj.assists || 0,
+        yellowCards: pObj.yellowCards || 0,
+        redCards: pObj.redCards || 0,
+        subbedOut: !!pObj.subbedOut,
+        subbedIn: !!pObj.subbedIn,
+        rating: pObj.rating !== undefined ? pObj.rating : null,
+        jerseyImage: pObj.jerseyImage || pObj.headshot || "",
+        headshot: pObj.headshot || "",
+        x: coords.x,
+        y: coords.y
+      });
+    }
+
+    for (var pass = 0; pass < 6; pass++) {
+      for (var a = 0; a < result.length; a++) {
+        for (var b = a + 1; b < result.length; b++) {
+          var dx = Math.abs(result[a].x - result[b].x);
+          var dy = Math.abs(result[a].y - result[b].y);
+          if (dy < 0.10 && dx < 0.18) {
+            var neededX = (0.18 - dx) / 2;
+            if (result[a].x <= result[b].x) {
+              result[a].x = Math.max(0.12, result[a].x - neededX);
+              result[b].x = Math.min(0.88, result[b].x + neededX);
+            } else {
+              result[a].x = Math.min(0.88, result[a].x + neededX);
+              result[b].x = Math.max(0.12, result[b].x - neededX);
+            }
+            if (dy < 0.06) {
+              var neededY = (0.06 - dy) / 2;
+              if (result[a].y <= result[b].y) {
+                result[a].y = Math.max(0.12, result[a].y - neededY);
+                result[b].y = Math.min(0.86, result[b].y + neededY);
+              } else {
+                result[a].y = Math.min(0.86, result[a].y + neededY);
+                result[b].y = Math.max(0.12, result[b].y - neededY);
+              }
+            }
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  function applySingleStatMap(prof, statMap, label) {
+    if (!prof || !statMap) return prof;
+    var p = Object.assign({}, prof);
+
+    p.seasonAppearances = (statMap["appearances"] || statMap["starts"]) ? String(statMap["appearances"] || statMap["starts"]) : "0";
+    p.seasonGoals = statMap["totalGoals"] !== undefined ? String(statMap["totalGoals"]) : "0";
+    p.seasonAssists = statMap["goalAssists"] !== undefined ? String(statMap["goalAssists"]) : "0";
+    p.seasonKeyPasses = statMap["shotAssists"] !== undefined ? String(statMap["shotAssists"]) : "0";
+    p.seasonPassPct = statMap["passPct"] ? (Math.round(parseFloat(statMap["passPct"]) * 100) + "%") : "";
+    p.seasonTackles = (statMap["effectiveTackles"] || statMap["totalTackles"]) ? String(statMap["effectiveTackles"] || statMap["totalTackles"]) : "";
+    p.seasonInterceptions = statMap["interceptions"] ? String(statMap["interceptions"]) : "";
+    p.seasonShots = statMap["totalShots"] !== undefined ? String(statMap["totalShots"]) : "0";
+    p.seasonShotsOnTarget = statMap["shotsOnTarget"] !== undefined ? String(statMap["shotsOnTarget"]) : "0";
+    p.seasonSaves = statMap["saves"] ? String(statMap["saves"]) : "";
+    p.seasonCleanSheets = statMap["cleanSheet"] ? String(statMap["cleanSheet"]) : "";
+    p.seasonChances = statMap["bigChanceCreated"] ? String(statMap["bigChanceCreated"]) : "";
+
+    p.seasonYellowCards = statMap["yellowCards"] !== undefined ? String(statMap["yellowCards"]) : "0";
+    p.seasonRedCards = statMap["redCards"] !== undefined ? String(statMap["redCards"]) : "0";
+
+    var fc = statMap["foulsCommitted"] !== undefined ? statMap["foulsCommitted"] : "0";
+    var fs = statMap["foulsSuffered"] !== undefined ? statMap["foulsSuffered"] : "0";
+    p.seasonFouls = fc + " / " + fs;
+    p.seasonFoulsCommitted = String(fc);
+    p.seasonFoulsSuffered = String(fs);
+
+    if (statMap["minutes"] !== undefined && parseInt(statMap["minutes"]) > 0) {
+      p.seasonMinutes = String(statMap["minutes"]);
+      var aInt = parseInt(p.seasonAppearances || "0");
+      var mInt = parseInt(statMap["minutes"]);
+      if (mInt > 0 && aInt > 0) {
+        p.seasonMinPerApp = Math.round(mInt / aInt) + "'";
+      } else {
+        p.seasonMinPerApp = "—";
+      }
+    } else {
+      p.seasonMinutes = "0";
+      p.seasonMinPerApp = "—";
+    }
+
+    var subIn = statMap["subIns"] || "0";
+    var subOut = statMap["subOuts"] || "0";
+    p.seasonSubIns = String(subIn);
+    p.seasonSubOuts = String(subOut);
+    p.seasonSubs = String((parseInt(subIn) || 0) + (parseInt(subOut) || 0));
+
+    var curGoals = parseFloat(p.seasonGoals || "0");
+    var curShots = parseFloat(p.seasonShots || "0");
+    var curSog = parseFloat(p.seasonShotsOnTarget || "0");
+    if (curShots > 0 && curGoals >= 0) {
+      p.goalConversionRate = ((curGoals / curShots) * 100).toFixed(1) + "%";
+    } else {
+      p.goalConversionRate = "—";
+    }
+    if (curShots > 0 && curSog >= 0) {
+      p.shotAccuracy = Math.round((curSog / curShots) * 100) + "%";
+    } else if (statMap["shotPct"]) {
+      p.shotAccuracy = Math.round(parseFloat(statMap["shotPct"])) + "%";
+    } else {
+      p.shotAccuracy = "—";
+    }
+
+    var lb = statMap["accurateLongBalls"] || statMap["totalLongBalls"];
+    var kp = statMap["shotAssists"];
+    p.longBalls = (lb !== undefined && lb !== "") ? String(lb) : "0";
+    p.keyPasses = (kp !== undefined && kp !== "") ? String(kp) : "0";
+    if (p.longBalls && p.keyPasses && (p.longBalls !== "0" || p.keyPasses !== "0")) {
+      p.passDistribution = p.longBalls + " LB · " + p.keyPasses + " KP";
+    } else {
+      p.passDistribution = "—";
+    }
+
+    if (statMap["passPct"]) statMap["passPct"] = p.seasonPassPct;
+    p.seasonStatMap = statMap;
+    if (label) p.selectedSeasonYear = label;
+
+    return p;
+  }
+
+  function formatGroupedScorers(items, sanitizePlainText) {
+    var cleanText = sanitizePlainText || function(s) { return s ? String(s) : ""; };
+    var grouped = {};
+    var order = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (!it || !it.name) continue;
+      var nameKey = it.name;
+      var clkPart = String(it.clock || "").trim();
+      while (clkPart.endsWith("''")) clkPart = clkPart.substring(0, clkPart.length - 1);
+      if (clkPart !== "" && !clkPart.endsWith("'") && !isNaN(Number(clkPart))) clkPart += "'";
+      if (it.ownGoal) clkPart += (clkPart !== "" ? " " : "") + "(OG)";
+      else if (it.penaltyKick) clkPart += (clkPart !== "" ? " " : "") + "(P)";
+      if (!grouped[nameKey]) {
+        grouped[nameKey] = [];
+        order.push(nameKey);
+      }
+      if (clkPart !== "") grouped[nameKey].push(clkPart);
+    }
+    var res = [];
+    for (var j = 0; j < order.length; j++) {
+      var n = order[j];
+      var clkList = grouped[n].join(", ");
+      var line = (n + " " + clkList).trim();
+      if (line !== "") res.push(cleanText(line));
+    }
+    return res;
+  }
+
+  var matchStatDefs = [
+    { name: "expectedGoals", label: "Expected Goals (xG)", suffix: "" },
+    { name: "expectedGoalsConceded", label: "xG Conceded (xGC)", suffix: "" },
+    { name: "possessionPct", label: "Possession", suffix: "%" },
+    { name: "totalShots", altName: "shots", label: "Total Shots", suffix: "" },
+    { name: "shotsOnTarget", label: "Shots on Target", suffix: "" },
+    { name: "accuratePasses", label: "Accurate Passes", suffix: "" },
+    { name: "totalPasses", label: "Total Passes", suffix: "" },
+    { name: "passPct", label: "Pass Accuracy", suffix: "%" },
+    { name: "wonCorners", altName: "cornerKicks", label: "Corner Kicks", suffix: "" },
+    { name: "crossPct", label: "Cross Accuracy", suffix: "%" },
+    { name: "longballPct", label: "Long Ball Accuracy", suffix: "%" },
+    { name: "blockedShots", label: "Blocked Shots", suffix: "" },
+    { name: "effectiveTackles", altName: "totalTackles", label: "Tackles Won", suffix: "" },
+    { name: "tacklePct", label: "Tackles Won %", suffix: "%" },
+    { name: "interceptions", label: "Interceptions", suffix: "" },
+    { name: "effectiveClearance", altName: "totalClearance", label: "Clearances", suffix: "" },
+    { name: "foulsCommitted", label: "Fouls", suffix: "" },
+    { name: "yellowCards", label: "Yellow Cards", suffix: "" },
+    { name: "redCards", label: "Red Cards", suffix: "" },
+    { name: "offsides", label: "Offsides", suffix: "" },
+    { name: "saves", label: "Goalkeeper Saves", suffix: "" }
+  ];
+
+  function parseBoxscoreStats(data, homeTeam, sanitizePlainText) {
+    var cleanText = sanitizePlainText || function(s) { return s ? String(s) : ""; };
+    var parsedStats = [];
+    var boxTeams = (data.boxscore && Array.isArray(data.boxscore.teams)) ? data.boxscore.teams : [];
+    if (boxTeams.length < 2) return parsedStats;
+
+    var hBox = boxTeams[0];
+    var aBox = boxTeams[1];
+    if (homeTeam && homeTeam.id && hBox.team && String(hBox.team.id) !== String(homeTeam.id)) {
+      hBox = boxTeams[1];
+      aBox = boxTeams[0];
+    }
+
+    var hStatsList = Array.isArray(hBox.statistics) ? hBox.statistics : [];
+    var aStatsList = Array.isArray(aBox.statistics) ? aBox.statistics : [];
+    var hMap = {};
+    var aMap = {};
+    for (var si = 0; si < hStatsList.length; si++) {
+      if (hStatsList[si] && hStatsList[si].name) hMap[hStatsList[si].name] = hStatsList[si].displayValue;
+    }
+    for (var sj = 0; sj < aStatsList.length; sj++) {
+      if (aStatsList[sj] && aStatsList[sj].name) aMap[aStatsList[sj].name] = aStatsList[sj].displayValue;
+    }
+    if (Array.isArray(data.leaders)) {
+      for (var ldi = 0; ldi < data.leaders.length; ldi++) {
+        var ldt = data.leaders[ldi];
+        if (!ldt) continue;
+        var isHld = (homeTeam && homeTeam.id && ldt.team && String(ldt.team.id) === String(homeTeam.id)) || (ldi === 0);
+        var clist = Array.isArray(ldt.leaders) ? ldt.leaders : [];
+        for (var ci = 0; ci < clist.length; ci++) {
+          var alist = Array.isArray(clist[ci].leaders) ? clist[ci].leaders : [];
+          for (var ai = 0; ai < alist.length; ai++) {
+            var slist = Array.isArray(alist[ai].statistics) ? alist[ai].statistics : [];
+            for (var sli = 0; sli < slist.length; sli++) {
+              var so = slist[sli];
+              if (so && (so.name === "expectedGoals" || so.name === "expectedGoalsConceded")) {
+                (isHld ? hMap : aMap)[so.name] = so.displayValue;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    for (var sd = 0; sd < matchStatDefs.length; sd++) {
+      var def = matchStatDefs[sd];
+      var hV = hMap[def.name] !== undefined ? hMap[def.name] : (def.altName ? hMap[def.altName] : undefined);
+      var aV = aMap[def.name] !== undefined ? aMap[def.name] : (def.altName ? aMap[def.altName] : undefined);
+      if (hV !== undefined || aV !== undefined) {
+        var hNum = parseFloat(hV) || 0;
+        var aNum = parseFloat(aV) || 0;
+        var total = hNum + aNum;
+        var hRatio = total > 0 ? (hNum / total) : 0.5;
+        parsedStats.push({
+          name: def.name,
+          label: def.label,
+          homeValue: cleanText(String(hV !== undefined ? hV : "0") + def.suffix),
+          awayValue: cleanText(String(aV !== undefined ? aV : "0") + def.suffix),
+          homeRatio: hRatio
+        });
+      }
+    }
+    return parsedStats;
+  }
+
+  function buildKnockoutBracket(comp, hdr, data, homeTeam, awayTeam, isActuallyStarted, statusDesc, roundName, seriesNote, helpers) {
+    var sanitizePlainText = (helpers && helpers.sanitizePlainText) || function(s) { return s ? String(s) : ""; };
+    var sanitizeImageUrl = (helpers && helpers.sanitizeImageUrl) || function(s) { return s ? String(s) : ""; };
+    var safeIdentifier = (helpers && helpers.safeIdentifier) || function(s) { return s ? String(s) : ""; };
+
+    var slugLower = String((helpers && helpers.competitionSlug) || (hdr.league && hdr.league.slug) || "").toLowerCase();
+    var stageTextParts = [
+      String(comp.altGameNote || ""),
+      String(hdr.season && (hdr.season.name || hdr.season.displayName) || ""),
+      String(data.season && data.season.name || ""),
+      roundName, seriesNote,
+      String(comp.series && (comp.series.title || (Array.isArray(comp.series) && comp.series[0] ? comp.series[0].title : "")) || "")
+    ];
+    if (Array.isArray(comp.notes)) {
+      for (var cni = 0; cni < comp.notes.length; cni++) {
+        var cnItem = comp.notes[cni];
+        if (cnItem && (cnItem.headline || cnItem.text)) stageTextParts.push(String(cnItem.headline || cnItem.text));
+      }
+    }
+    var stageCombined = stageTextParts.join(" ").toLowerCase();
+
+    var isDomesticLeague = /^[a-z]{3}\.[1-4]$/.test(slugLower) || slugLower.indexOf(".1") !== -1 ||
+      slugLower === "eng.1" || slugLower === "esp.1" || slugLower === "ita.1" || slugLower === "ger.1" || slugLower === "fra.1" || slugLower === "usa.1";
+
+    var isNonKnockoutStage = stageCombined.indexOf("league phase") !== -1 || stageCombined.indexOf("group stage") !== -1 ||
+      stageCombined.indexOf("group phase") !== -1 || stageCombined.indexOf("regular season") !== -1 ||
+      stageCombined.indexOf("matchweek") !== -1 || stageCombined.indexOf("gameweek") !== -1 ||
+      stageCombined.indexOf("round robin") !== -1 || /group\s+([a-l]|[1-9])/i.test(stageCombined);
+
+    var hasConfirmedKnockoutText = /(round of (16|32|64|8)|rd of 16|r16|quarter|semi|final|third place|3rd place|knockout)/i.test(stageCombined);
+    var isDomesticCup = /(fa|league_cup|copa_del_rey|coppa_italia|dfb_pokal|coupe_de_france|open_cup)/i.test(slugLower);
+    var hasCupRoundText = isDomesticCup && /(round|proper|qualifying)/i.test(stageCombined);
+    var hasExplicitSeries = !!(comp.series && (comp.series.title || (Array.isArray(comp.series) && comp.series.length > 0 && comp.series[0].title)));
+
+    var isConfirmedKnockout = !isNonKnockoutStage && (!isDomesticLeague || hasExplicitSeries) &&
+      (hasConfirmedKnockoutText || hasCupRoundText || hasExplicitSeries);
+
+    var parsedBracket = [];
+    if (!isConfirmedKnockout) {
+      return { available: false, bracket: [], seriesNote: seriesNote };
+    }
+
+    var activeRoundTitle = "Quarterfinals";
+    if (stageCombined.indexOf("round of 16") !== -1 || stageCombined.indexOf("rd of 16") !== -1 || stageCombined.indexOf("r16") !== -1) {
+      activeRoundTitle = "Round of 16";
+    } else if (stageCombined.indexOf("quarter") !== -1) {
+      activeRoundTitle = "Quarterfinals";
+    } else if (stageCombined.indexOf("semi") !== -1) {
+      activeRoundTitle = "Semifinals";
+    } else if (stageCombined.indexOf("final") !== -1) activeRoundTitle = "Final";
+    else if (comp.series && comp.series.title) activeRoundTitle = String(comp.series.title);
+    else if (roundName !== "") activeRoundTitle = roundName;
+
+    var isUclSwiss = (slugLower.indexOf("champions") !== -1 || slugLower.indexOf("europa") !== -1) && (stageCombined.indexOf("playoff") !== -1 || (data.season && data.season.year >= 2024));
+    var roundOrder = (isUclSwiss || stageCombined.indexOf("playoff") !== -1) ? ["Playoffs", "Round of 16", "Quarterfinals", "Semifinals", "Final"] : (stageCombined.indexOf("round of 32") !== -1 ? ["Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final"] : ["Round of 16", "Quarterfinals", "Semifinals", "Final"]);
+    var activeRoundIdx = 1;
+    for (var roi = 0; roi < roundOrder.length; roi++) {
+      if (activeRoundTitle.toLowerCase().indexOf(roundOrder[roi].toLowerCase().replace("round of 16", "16").replace("quarterfinals", "quarter").replace("semifinals", "semi")) !== -1) {
+        activeRoundIdx = roi;
+        break;
+      }
+    }
+
+    var curHomeScore = isActuallyStarted ? String(helpers && helpers.homeComp && helpers.homeComp.score !== undefined ? helpers.homeComp.score : "0") : "";
+    var curAwayScore = isActuallyStarted ? String(helpers && helpers.awayComp && helpers.awayComp.score !== undefined ? helpers.awayComp.score : "0") : "";
+    var seriesRes = resolveMatchSeries(comp, homeTeam, awayTeam, curHomeScore, curAwayScore, statusDesc, stageCombined, seriesNote);
+    var hasTwoLegs = seriesRes.hasTwoLegs;
+    var isSeriesCompleted = seriesRes.isSeriesCompleted;
+    var curSeriesWinner = String(seriesRes.curSeriesWinner || "");
+    var curAggHome = String(seriesRes.curAggHome || "");
+    var curAggAway = String(seriesRes.curAggAway || "");
+    var curHomeLeg1 = String(seriesRes.curHomeLeg1 || "");
+    var curHomeLeg2 = String(seriesRes.curHomeLeg2 || "");
+    var curAwayLeg1 = String(seriesRes.curAwayLeg1 || "");
+    var curAwayLeg2 = String(seriesRes.curAwayLeg2 || "");
+    var curSeriesSummary = String(seriesRes.curSeriesSummary || "");
+    if (seriesNote === "" && curSeriesSummary !== "") {
+      seriesNote = sanitizePlainText(curSeriesSummary);
+    }
+
+    var currentMatchup = {
+      homeName: sanitizePlainText(String(homeTeam.displayName || homeTeam.name || "Home")),
+      homeLogo: sanitizeImageUrl(String((homeTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + safeIdentifier(String(homeTeam.id)) + ".png") : "") || homeTeam.logo || (homeTeam.logos && homeTeam.logos[0] ? homeTeam.logos[0].href : ""))),
+      homeScore: sanitizePlainText(curHomeScore),
+      homeLeg1: sanitizePlainText(curHomeLeg1),
+      homeLeg2: sanitizePlainText(curHomeLeg2),
+      homeAgg: sanitizePlainText(curAggHome),
+      awayName: sanitizePlainText(String(awayTeam.displayName || awayTeam.name || "Away")),
+      awayLogo: sanitizeImageUrl(String((awayTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + safeIdentifier(String(awayTeam.id)) + ".png") : "") || awayTeam.logo || (awayTeam.logos && awayTeam.logos[0] ? awayTeam.logos[0].href : ""))),
+      awayScore: sanitizePlainText(curAwayScore),
+      awayLeg1: sanitizePlainText(curAwayLeg1),
+      awayLeg2: sanitizePlainText(curAwayLeg2),
+      awayAgg: sanitizePlainText(curAggAway),
+      hasTwoLegs: hasTwoLegs,
+      isCurrent: true,
+      statusText: curSeriesSummary !== "" ? curSeriesSummary : (isActuallyStarted ? (statusDesc || "In Progress") : "Upcoming"),
+      completed: isSeriesCompleted,
+      winner: curSeriesWinner
+    };
+
+    for (var ri = 0; ri < roundOrder.length; ri++) {
+      var rName = roundOrder[ri];
+      var isCurrentRound = (ri === activeRoundIdx);
+      var matchupsCount = rName === "Round of 16" ? 8 : (rName === "Quarterfinals" ? 4 : (rName === "Semifinals" ? 2 : 1));
+      var matchups = [];
+
+      for (var mi = 0; mi < matchupsCount; mi++) {
+        if (isCurrentRound && mi === 0) {
+          matchups.push(currentMatchup);
+        } else if (ri > activeRoundIdx && mi === 0) {
+          var advTeamName = curSeriesWinner !== "" ? curSeriesWinner : ("Winner of " + currentMatchup.homeName + " vs " + currentMatchup.awayName);
+          var advTeamLogo = curSeriesWinner !== "" ? ((curSeriesWinner === currentMatchup.homeName || (currentMatchup.homeName && currentMatchup.homeName.indexOf(curSeriesWinner) !== -1) || curSeriesWinner.indexOf(currentMatchup.homeName) !== -1) ? currentMatchup.homeLogo : currentMatchup.awayLogo) : "";
+          var advStatus = curSeriesWinner !== "" ? "Advanced" : "Next Round";
+          matchups.push({
+            homeName: sanitizePlainText(advTeamName),
+            homeLogo: sanitizeImageUrl(advTeamLogo),
+            homeScore: "",
+            homeAgg: "",
+            awayName: "TBD",
+            awayLogo: "",
+            awayScore: "",
+            awayAgg: "",
+            isCurrent: false,
+            statusText: advStatus,
+            completed: false,
+            winner: ""
+          });
+        }
+      }
+
+      parsedBracket.push({
+        roundName: rName,
+        roundIndex: ri,
+        isCurrentRound: isCurrentRound,
+        matchups: matchups
+      });
+    }
+
+    return { available: true, bracket: parsedBracket, seriesNote: seriesNote };
+  }
+
+  function resolveTeamNameFromRef(ref, teamTabLabelFn, caches, selectedPlayerProfile, teamNameForIdFn) {
+    if (!ref || typeof ref !== "string") return { name: "", shortName: "", abbrev: "", logo: "", id: "" };
+    var labelFn = teamTabLabelFn || function(n, l, s) { return n; };
+    var nameCache = (caches && caches.nameCache) || {};
+    var shortCache = (caches && caches.shortCache) || {};
+    var abbrevCache = (caches && caches.abbrevCache) || {};
+
+    if (ref.indexOf("/faux") !== -1 || ref.indexOf("faux?") !== -1) {
+      var dMatch = ref.match(/[?&]displayName=([^&]+)/);
+      if (dMatch) {
+        try {
+          var dn = decodeURIComponent(dMatch[1].replace(/\+/g, " "));
+          var dShort = labelFn(dn, "", "short");
+          var dAbbr = labelFn(dn, "", "abbrev");
+          return { name: dn, shortName: dShort || dn, abbrev: dAbbr || dn, logo: "", id: "" };
+        } catch (e) {
+          var dn2 = dMatch[1].replace(/\+/g, " ");
+          var dShort2 = labelFn(dn2, "", "short");
+          var dAbbr2 = labelFn(dn2, "", "abbrev");
+          return { name: dn2, shortName: dShort2 || dn2, abbrev: dAbbr2 || dn2, logo: "", id: "" };
+        }
+      }
+      var nMatch = ref.match(/[?&]name=([^&]+)/);
+      if (nMatch) {
+        try {
+          var nn = decodeURIComponent(nMatch[1].replace(/\+/g, " "));
+          return { name: nn, shortName: labelFn(nn, "", "short") || nn, abbrev: labelFn(nn, "", "abbrev") || nn, logo: "", id: "" };
+        } catch (e) {
+          var nn2 = nMatch[1].replace(/\+/g, " ");
+          return { name: nn2, shortName: labelFn(nn2, "", "short") || nn2, abbrev: labelFn(nn2, "", "abbrev") || nn2, logo: "", id: "" };
+        }
+      }
+      var lMatch = ref.match(/[?&]location=([^&]+)/);
+      if (lMatch) {
+        try {
+          var ln = decodeURIComponent(lMatch[1].replace(/\+/g, " "));
+          return { name: ln, shortName: labelFn(ln, "", "short") || ln, abbrev: labelFn(ln, "", "abbrev") || ln, logo: "", id: "" };
+        } catch (e) {
+          var ln2 = lMatch[1].replace(/\+/g, " ");
+          return { name: ln2, shortName: labelFn(ln2, "", "short") || ln2, abbrev: labelFn(ln2, "", "abbrev") || ln2, logo: "", id: "" };
+        }
+      }
+      var slugM = ref.match(/[?&]slug=([^&]+)/);
+      if (slugM) {
+        try {
+          var s = decodeURIComponent(slugM[1].replace(/[-_]/g, " "));
+          var sName = s.charAt(0).toUpperCase() + s.slice(1);
+          return { name: sName, shortName: labelFn(sName, "", "short") || sName, abbrev: labelFn(sName, "", "abbrev") || sName, logo: "", id: "" };
+        } catch (e) {
+          return { name: slugM[1], shortName: slugM[1], abbrev: "FA", logo: "", id: "" };
+        }
+      }
+      return { name: "Unattached", shortName: "Free Agent", abbrev: "FA", logo: "", id: "" };
+    }
+    var tMatch = ref.match(/\/teams\/(\d+)/);
+    if (tMatch) {
+      var tid = tMatch[1];
+      var knownName = "";
+      var knownShort = "";
+      var knownAbbr = "";
+      if (nameCache[tid]) {
+        knownName = nameCache[tid];
+      } else if (teamNameForIdFn) {
+        knownName = teamNameForIdFn(tid);
+      }
+      if (shortCache[tid]) {
+        knownShort = shortCache[tid];
+      }
+      if (abbrevCache[tid]) {
+        knownAbbr = abbrevCache[tid];
+      }
+      if (selectedPlayerProfile) {
+        var p = selectedPlayerProfile;
+        if (p.clubOptions && Array.isArray(p.clubOptions)) {
+          for (var ci = 0; ci < p.clubOptions.length; ci++) {
+            if (String(p.clubOptions[ci].teamId) === String(tid)) {
+              if (!knownName && p.clubOptions[ci].name) knownName = p.clubOptions[ci].name;
+              if (!knownShort && p.clubOptions[ci].shortName) knownShort = p.clubOptions[ci].shortName;
+              if (!knownAbbr && p.clubOptions[ci].abbreviation) knownAbbr = p.clubOptions[ci].abbreviation;
+              break;
+            }
+          }
+        }
+        if (p.careerHistory && Array.isArray(p.careerHistory)) {
+          for (var chi = 0; chi < p.careerHistory.length; chi++) {
+            if (String(p.careerHistory[chi].teamId) === String(tid)) {
+              if (!knownName && p.careerHistory[chi].name) knownName = p.careerHistory[chi].name;
+              if (!knownShort && p.careerHistory[chi].shortName) knownShort = p.careerHistory[chi].shortName;
+              if (!knownAbbr && p.careerHistory[chi].abbreviation) knownAbbr = p.careerHistory[chi].abbreviation;
+              break;
+            }
+          }
+        }
+      }
+      var finalName = knownName !== "" ? knownName : ("Team " + tid);
+      if (!knownShort && finalName) {
+        knownShort = labelFn(finalName, "", "short", tid);
+      }
+      if (!knownAbbr && finalName) {
+        knownAbbr = labelFn(finalName, "", "abbrev", tid);
+      }
+      return {
+        id: tid,
+        name: finalName,
+        shortName: knownShort || finalName,
+        abbrev: knownAbbr || finalName,
+        logo: "https://a.espncdn.com/i/teamlogos/soccer/500/" + tid + ".png"
+      };
+    }
+    return { name: "", shortName: "", abbrev: "", logo: "", id: "" };
+  }
+
+  function parseStats(data, helpers) {
+    var sanitizePlainText = (helpers && helpers.sanitizePlainText) || function(s) { return s ? String(s) : ""; };
+    var sanitizeImageUrl = (helpers && helpers.sanitizeImageUrl) || function(s) { return s ? String(s) : ""; };
+    var safeIdentifier = (helpers && helpers.safeIdentifier) || function(s) { return s ? String(s) : ""; };
+    var sortLeaders = (helpers && helpers.sortLeaders) || function(l) { return l; };
+
+    var goals = [];
+    var assists = [];
+    var statsList = data && Array.isArray(data.stats) ? data.stats : [];
+    for (var i = 0; i < statsList.length; i++) {
+      var cat = statsList[i];
+      if (!cat) continue;
+      var catName = String(cat.name || "");
+      var leaders = Array.isArray(cat.leaders) ? cat.leaders : [];
+      var out = [];
+      for (var j = 0; j < leaders.length; j++) {
+        var l = leaders[j];
+        if (!l) continue;
+        var ath = l.athlete || {};
+        var team = ath.team || l.team || {};
+        var disp = String(l.displayValue || "");
+        var matchRegex = disp.match(/Matches:\s*(\d+)/i);
+        var apps = matchRegex ? matchRegex[1] : "";
+        if (apps === "") {
+          var athStats = Array.isArray(ath.statistics) ? ath.statistics : [];
+          for (var s = 0; s < athStats.length; s++) {
+            if (athStats[s] && athStats[s].name === "appearances") {
+              apps = String(athStats[s].displayValue !== undefined ? athStats[s].displayValue : (athStats[s].value !== undefined ? Math.round(Number(athStats[s].value)) : ""));
+              break;
+            }
+          }
+        }
+        var statVal = "";
+        if (l.value !== undefined && l.value !== null && l.value !== "") {
+          statVal = String(Math.round(Number(l.value)));
+        } else {
+          var statRegex = disp.match(/(?:Goals|Assists):\s*(\d+)/i);
+          statVal = statRegex ? statRegex[1] : disp;
+        }
+        var teamLogo = "";
+        if (team.logos && team.logos[0]) {
+          teamLogo = sanitizeImageUrl(String(team.logos[0].href || ""));
+        } else if (team.logo) {
+          teamLogo = sanitizeImageUrl(String(team.logo));
+        } else if (team.id) {
+          var safeTid = safeIdentifier(String(team.id));
+          if (safeTid !== "") teamLogo = "https://a.espncdn.com/i/teamlogos/soccer/500/" + safeTid + ".png";
+        }
+        var entry = {
+          rank: j + 1,
+          name: sanitizePlainText(String(ath.displayName || ath.shortName || "Unknown")),
+          jersey: sanitizePlainText(String(ath.jersey || "")),
+          teamName: sanitizePlainText(String(team.displayName || team.name || "")),
+          teamLogo: teamLogo,
+          appearances: sanitizePlainText(apps),
+          value: sanitizePlainText(statVal)
+        };
+        if (entry.name !== "") out.push(entry);
+      }
+      if (catName.indexOf("goals") !== -1) goals = sortLeaders(out);
+      else if (catName.indexOf("assists") !== -1) assists = sortLeaders(out);
+    }
+    return { goals: goals, assists: assists };
+  }
+
+  function mergeRows(existing, incoming) {
+    if (!existing || existing.length === 0 || !incoming || incoming.length === 0) return incoming;
+    if (existing.length !== incoming.length) return incoming;
+    var changed = false;
+    var merged = [];
+    for (var i = 0; i < incoming.length; i++) {
+      var inR = incoming[i];
+      var exR = existing[i];
+      if (inR.id !== exR.id || inR.state !== exR.state || inR.homeScore !== exR.homeScore || inR.awayScore !== exR.awayScore || inR.status !== exR.status || inR.timeText !== exR.timeText || inR.dateText !== exR.dateText) {
+        changed = true;
+        merged.push(inR);
+      } else {
+        merged.push(exR);
+      }
+    }
+    return changed ? merged : existing;
+  }
+
+  function mergeMatchClusters(existing, incoming) {
+    if (!existing || existing.length === 0 || !incoming || incoming.length === 0) return incoming;
+    if (existing.length !== incoming.length) return incoming;
+    var changed = false;
+    var merged = [];
+    for (var c = 0; c < incoming.length; c++) {
+      var inCluster = incoming[c];
+      var exCluster = existing[c];
+      if (inCluster.label !== exCluster.label || inCluster.rows.length !== exCluster.rows.length) {
+        return incoming;
+      }
+      var rows = mergeRows(exCluster.rows, inCluster.rows);
+      if (rows !== exCluster.rows) {
+        changed = true;
+        merged.push({ label: inCluster.label, rows: rows });
+      } else {
+        merged.push(exCluster);
+      }
+    }
+    return changed ? merged : existing;
+  }
+
+  function formatTransferValue(rawAmt, amtType, currencyObj) {
+    var currSign = "€";
+    if (currencyObj) {
+      if (currencyObj.sign) {
+        currSign = currencyObj.sign;
+      } else if (currencyObj.code === "GBP") {
+        currSign = "£";
+      } else if (currencyObj.code === "USD") {
+        currSign = "$";
+      } else if (currencyObj.code === "EUR") {
+        currSign = "€";
+      }
+    }
+    var numVal = Number(rawAmt);
+    if (!isNaN(numVal) && numVal > 0) {
+      if (numVal >= 1000000) {
+        var mVal = Math.round((numVal / 1000000) * 10) / 10;
+        return currSign + (mVal === Math.floor(mVal) ? Math.floor(mVal) : mVal) + "M";
+      } else if (numVal >= 1000) {
+        var kVal = Math.round((numVal / 1000) * 10) / 10;
+        return currSign + (kVal === Math.floor(kVal) ? Math.floor(kVal) : kVal) + "K";
+      } else {
+        return currSign + Math.round(numVal);
+      }
+    }
+    var strAmt = String(rawAmt || "").toLowerCase().trim();
+    var strType = String(amtType || "").toLowerCase().trim();
+    if (strAmt === "free" || strType === "free") return "Free Transfer";
+    if (strAmt === "loan" || strType === "loan") return "Loan";
+    if (strAmt === "undisclosed" || strType === "undisclosed") return "Undisclosed";
+    if (strType === "fee" && (rawAmt === "" || numVal === 0)) return "Undisclosed Fee";
+    if (rawAmt !== "" && isNaN(numVal)) return String(rawAmt);
+    if (amtType !== "") return String(amtType);
+    return "Undisclosed";
+  }
