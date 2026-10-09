@@ -1709,7 +1709,6 @@ Column {
                           visible: transferMouseArea.containsMouse
                           delay: 350
                           timeout: 4000
-                          textFormat: Text.PlainText
                           text: (modelData.fromName || "Unknown") + " → " + (modelData.toName || "Unknown") + " : " + (modelData.fee || "") + (modelData.date ? (" (" + modelData.date + ")") : "")
                           contentItem: Text {
                             textFormat: Text.PlainText
