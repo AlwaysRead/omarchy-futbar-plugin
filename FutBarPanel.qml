@@ -9911,7 +9911,7 @@ root.warnStderr("team select failed", text)
               width: parent.width
               spacing: Style.space(12)
 
-              SearchableDropdown {
+              FutSearchableDropdown {
                 id: leagueDropdown
                 width: parent.width
                 label: "Tournament / League"
@@ -9942,7 +9942,7 @@ root.warnStderr("team select failed", text)
                 onClicked: root.pickerLeagueOnly = !root.pickerLeagueOnly
               }
 
-              SearchableDropdown {
+              FutSearchableDropdown {
                 id: teamDropdown
                 width: parent.width
                 visible: !root.pickerLeagueOnly
