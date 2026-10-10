@@ -134,7 +134,7 @@ Column {
       url += "&dates=" + dStr
     }
     trendingRequest.running = false
-    trendingRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", url]
+    trendingRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", "--", url]
     trendingRequest.running = true
   }
 
@@ -160,7 +160,7 @@ Column {
 
   Process {
     id: trendingRequest
-    command: ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880",
+    command: ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", "--",
       "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?limit=300"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -470,6 +470,7 @@ Column {
         height: parent.height
         verticalPadding: 0
         horizontalPadding: 0
+        maximumLength: 100
         placeholderText: "Filter matches by team, league, or round…"
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.bodySmall
@@ -477,15 +478,42 @@ Column {
         background: null
         text: trendingView.trendingFilterText
         onTextChanged: trendingView.trendingFilterText = text
-        Keys.onEscapePressed: function(event) {
-          if (trendingView.trendingFilterText !== "") {
-            trendingView.trendingFilterText = ""
-            trendingSearchInput.text = ""
-            event.accepted = true
-          } else {
-            trendingSearchInput.focus = false
-            event.accepted = false
+
+        Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Escape) {
+            if (trendingView.trendingFilterText !== "") {
+              trendingView.trendingFilterText = ""
+              trendingSearchInput.text = ""
+              event.accepted = true
+            } else {
+              trendingSearchInput.focus = false
+              event.accepted = false
+            }
+            return
           }
+          if (event.matches(StandardKey.Paste)
+              || event.key === Qt.Key_Paste
+              || ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_V || event.key === Qt.Key_Insert))
+              || ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert)
+              || ((event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) && event.key === Qt.Key_V)) {
+            event.accepted = true
+            return
+          }
+        }
+
+        DropArea {
+          anchors.fill: parent
+          onEntered: function(drag) { drag.accept(Qt.IgnoreAction) }
+          onDropped: function(drop) { drop.accept(Qt.IgnoreAction) }
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.MiddleButton
+          cursorShape: Qt.IBeamCursor
+          onPressed: function(mouse) { mouse.accepted = true }
+          onReleased: function(mouse) { mouse.accepted = true }
+          onClicked: function(mouse) { mouse.accepted = true }
         }
       }
 

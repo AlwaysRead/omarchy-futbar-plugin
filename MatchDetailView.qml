@@ -79,7 +79,7 @@ Column {
       summary += "\n" + hName + ": " + (hs || "None") + " | " + aName + ": " + (as || "None")
     }
 
-    copyProcess.command = ["wl-copy", summary]
+    copyProcess.command = ["wl-copy", "--", summary]
     copyProcess.running = false
     copyProcess.running = true
     matchDetailView.copySuccess = true
