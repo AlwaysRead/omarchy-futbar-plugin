@@ -5843,10 +5843,10 @@ onStreamFinished: root.warnStderr("", text)
                   }
                 }
 
-                var goalsCount = Math.round(pStats.totalGoals || 0)
-                var assistsCount = Math.round(pStats.goalAssists || 0)
-                var yellowCardsCount = Math.round(pStats.yellowCards || 0)
-                var redCardsCount = Math.round(pStats.redCards || 0)
+                var goalsCount = Math.max(0, Math.min(20, Math.floor(Number(pStats.totalGoals) || 0)))
+                var assistsCount = Math.max(0, Math.min(20, Math.floor(Number(pStats.goalAssists) || 0)))
+                var yellowCardsCount = Math.max(0, Math.min(5, Math.floor(Number(pStats.yellowCards) || 0)))
+                var redCardsCount = Math.max(0, Math.min(5, Math.floor(Number(pStats.redCards) || 0)))
                 var isSubbedOut = false
                 if (pObj.subbedOut === true || (pObj.subbedOut && pObj.subbedOut.didSub === true)) {
                   isSubbedOut = true
@@ -5904,16 +5904,13 @@ onStreamFinished: root.warnStderr("", text)
                   }
                 }
                 if (eventDetails.length === 0) {
-                  if (goalsCount > 0) {
-                    for (var g = 0; g < goalsCount; g++) eventDetails.push("")
-                  }
-                  if (assistsCount > 0) {
-                    for (var a = 0; a < assistsCount; a++) eventDetails.push("󱗇")
-                  }
-                  if (redCardsCount > 0) eventDetails.push("󰡬")
-                  else if (yellowCardsCount > 0) eventDetails.push("󰀪")
-                  if (isSubbedOut) eventDetails.push("▼")
-                  else if (isSubbedIn) eventDetails.push("▲")
+                  var maxEvents = 10
+                  for (var g = 0; g < goalsCount && eventDetails.length < maxEvents; g++) eventDetails.push("")
+                  for (var a = 0; a < assistsCount && eventDetails.length < maxEvents; a++) eventDetails.push("󱗇")
+                  if (redCardsCount > 0 && eventDetails.length < maxEvents) eventDetails.push("󰡬")
+                  else if (yellowCardsCount > 0 && eventDetails.length < maxEvents) eventDetails.push("󰀪")
+                  if (isSubbedOut && eventDetails.length < maxEvents) eventDetails.push("▼")
+                  else if (isSubbedIn && eventDetails.length < maxEvents) eventDetails.push("▲")
                 }
                 var athIdStr = String(ath.id || "")
                 var subInfo = (athIdStr !== "" ? subMap[athIdStr] : null) || subMap[pName.toLowerCase()] || subMap[pShort.toLowerCase()] || null
