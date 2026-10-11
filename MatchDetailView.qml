@@ -2402,47 +2402,11 @@ Column {
                 font.bold: true
               }
 
-              Row {
-                width: parent.width
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: (root.matchDetail && root.matchDetail.home ? root.matchDetail.home.name : "Home") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) + "%"
-                  color: root.favoriteTeamAccent
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                }
-
-                Item {
-                  width: Math.max(Style.space(8), parent.width - (parent.children[0].implicitWidth + parent.children[2].implicitWidth + parent.children[4].implicitWidth + Style.space(16)))
-                  height: 1
-                }
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: "Draw " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) + "%"
-                  color: Qt.darker(root.contentForeground, 1.5)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                }
-
-                Item { width: Style.space(8); height: 1 }
-
-                Text {
-                  textFormat: Text.PlainText
-                  text: (root.matchDetail && root.matchDetail.away ? root.matchDetail.away.name : "Away") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.awayProb : 0) + "%"
-                  color: root.contentForeground
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                }
-              }
-
+              // Win probability bar
               Rectangle {
                 width: parent.width
-                height: Style.space(6)
-                radius: Style.space(3)
+                height: Style.space(8)
+                radius: Style.space(4)
                 color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
                 clip: true
 
@@ -2458,13 +2422,120 @@ Column {
                   Rectangle {
                     width: parent.width * ((root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) / 100.0)
                     height: parent.height
-                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.22)
+                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.28)
                   }
 
                   Rectangle {
                     width: Math.max(0, parent.width - (parent.children[0].width + parent.children[1].width))
                     height: parent.height
                     color: Qt.darker(root.contentForeground, 1.3)
+                  }
+                }
+              }
+
+              // Stat pills / badges with matching color indicators
+              Row {
+                width: parent.width
+                spacing: Style.space(6)
+
+                // Home pill
+                Rectangle {
+                  height: Style.space(22)
+                  width: (parent.width - Style.space(12)) / 3
+                  radius: Style.space(4)
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.04)
+                  border.width: Style.spacing.hairline
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+
+                  Row {
+                    anchors.centerIn: parent
+                    spacing: Style.space(5)
+
+                    Rectangle {
+                      width: Style.space(6)
+                      height: Style.space(6)
+                      radius: Style.space(3)
+                      color: root.favoriteTeamAccent
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: (root.matchDetail && root.matchDetail.home ? (root.matchDetail.home.shortName || root.matchDetail.home.name || "Home") : "Home") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.homeProb : 0) + "%"
+                      color: root.favoriteTeamAccent
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption - 1
+                      font.bold: true
+                      elide: Text.ElideRight
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                  }
+                }
+
+                // Draw pill
+                Rectangle {
+                  height: Style.space(22)
+                  width: (parent.width - Style.space(12)) / 3
+                  radius: Style.space(4)
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.04)
+                  border.width: Style.spacing.hairline
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+
+                  Row {
+                    anchors.centerIn: parent
+                    spacing: Style.space(5)
+
+                    Rectangle {
+                      width: Style.space(6)
+                      height: Style.space(6)
+                      radius: Style.space(3)
+                      color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.35)
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: "Draw " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.drawProb : 0) + "%"
+                      color: Qt.darker(root.contentForeground, 1.4)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption - 1
+                      font.bold: true
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                  }
+                }
+
+                // Away pill
+                Rectangle {
+                  height: Style.space(22)
+                  width: (parent.width - Style.space(12)) / 3
+                  radius: Style.space(4)
+                  color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.04)
+                  border.width: Style.spacing.hairline
+                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.08)
+
+                  Row {
+                    anchors.centerIn: parent
+                    spacing: Style.space(5)
+
+                    Rectangle {
+                      width: Style.space(6)
+                      height: Style.space(6)
+                      radius: Style.space(3)
+                      color: Qt.darker(root.contentForeground, 1.3)
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: (root.matchDetail && root.matchDetail.away ? (root.matchDetail.away.shortName || root.matchDetail.away.name || "Away") : "Away") + " " + (root.matchDetail && root.matchDetail.odds ? root.matchDetail.odds.awayProb : 0) + "%"
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption - 1
+                      font.bold: true
+                      elide: Text.ElideRight
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
                   }
                 }
               }
