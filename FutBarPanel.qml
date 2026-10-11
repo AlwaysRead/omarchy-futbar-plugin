@@ -10086,20 +10086,69 @@ root.warnStderr("team select failed", text)
               verticalPadding: 0
               horizontalPadding: 0
               maximumLength: 100
+              readOnly: true
+              cursorVisible: activeFocus
               placeholderText: "Search players (e.g. Messi, Yamal) or clubs..."
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
               foreground: root.contentForeground
               background: null
               text: root.searchQuery
+
+              function edit(start, end, insert) {
+                var next = FutData.spliceInputText(text, start, end, insert, 100)
+                text = next.text
+                cursorPosition = next.cursor
+              }
+
               onTextChanged: root.triggerSearch(text)
 
               Keys.onPressed: function(event) {
+                var from = selectionStart
+                var to = selectionEnd
+
+                if (event.key === Qt.Key_Escape) {
+                  if (root.searchQuery !== "") {
+                    root.searchQuery = ""
+                    searchBarInput.text = ""
+                    event.accepted = true
+                  } else {
+                    searchBarInput.focus = false
+                    event.accepted = false
+                  }
+                  return
+                }
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Backspace) {
+                  edit(from === to ? from - 1 : from, to, "")
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Delete) {
+                  edit(from, from === to ? to + 1 : to, "")
+                  event.accepted = true
+                  return
+                }
+                if (event.matches(StandardKey.Cut)) {
+                  copy()
+                  edit(from, to, "")
+                  event.accepted = true
+                  return
+                }
                 if (event.matches(StandardKey.Paste)
                     || event.key === Qt.Key_Paste
                     || ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_V || event.key === Qt.Key_Insert))
                     || ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert)
                     || ((event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) && event.key === Qt.Key_V)) {
+                  event.accepted = true
+                  return
+                }
+                if (event.text !== "" && !/[\u0000-\u001f\u007f]/.test(event.text)
+                    && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+                  edit(from, to, event.text)
                   event.accepted = true
                   return
                 }

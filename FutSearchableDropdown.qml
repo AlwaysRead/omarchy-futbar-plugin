@@ -1,3 +1,4 @@
+import "FutData.js" as FutData
 import QtQuick
 import QtQuick.Controls as QQC
 import qs.Commons
@@ -191,11 +192,19 @@ Item {
               anchors.fill: parent
               anchors.margins: Style.spacing.md
               maximumLength: 100
+              readOnly: true
+              cursorVisible: activeFocus
               placeholderText: root.placeholderText
               foreground: root.foreground
               accent: root.accent
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
+
+              function edit(start, end, insert) {
+                var next = FutData.spliceInputText(text, start, end, insert, 100)
+                text = next.text
+                cursorPosition = next.cursor
+              }
 
               onTextChanged: {
                 root.recomputeFiltered()
@@ -203,6 +212,9 @@ Item {
               }
 
               Keys.onPressed: function(event) {
+                var from = selectionStart
+                var to = selectionEnd
+
                 if (event.key === Qt.Key_Escape) {
                   popup.close(); event.accepted = true
                 } else if (event.key === Qt.Key_Down) {
@@ -217,11 +229,25 @@ Item {
                     resultList.selectCurrent()
                   }
                   event.accepted = true
+                } else if (event.key === Qt.Key_Backspace) {
+                  edit(from === to ? from - 1 : from, to, "")
+                  event.accepted = true
+                } else if (event.key === Qt.Key_Delete) {
+                  edit(from, from === to ? to + 1 : to, "")
+                  event.accepted = true
+                } else if (event.matches(StandardKey.Cut)) {
+                  copy()
+                  edit(from, to, "")
+                  event.accepted = true
                 } else if (event.matches(StandardKey.Paste)
                     || event.key === Qt.Key_Paste
                     || ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_V || event.key === Qt.Key_Insert))
                     || ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert)
                     || ((event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) && event.key === Qt.Key_V)) {
+                  event.accepted = true
+                } else if (event.text !== "" && !/[\u0000-\u001f\u007f]/.test(event.text)
+                           && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+                  edit(from, to, event.text)
                   event.accepted = true
                 }
               }

@@ -471,15 +471,27 @@ Column {
         verticalPadding: 0
         horizontalPadding: 0
         maximumLength: 100
+        readOnly: true
+        cursorVisible: activeFocus
         placeholderText: "Filter matches by team, league, or round…"
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.bodySmall
         foreground: root ? root.contentForeground : ShellColor.foreground
         background: null
         text: trendingView.trendingFilterText
+
+        function edit(start, end, insert) {
+          var next = FutData.spliceInputText(text, start, end, insert, 100)
+          text = next.text
+          cursorPosition = next.cursor
+        }
+
         onTextChanged: trendingView.trendingFilterText = text
 
         Keys.onPressed: function(event) {
+          var from = selectionStart
+          var to = selectionEnd
+
           if (event.key === Qt.Key_Escape) {
             if (trendingView.trendingFilterText !== "") {
               trendingView.trendingFilterText = ""
@@ -491,11 +503,37 @@ Column {
             }
             return
           }
+          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            event.accepted = true
+            return
+          }
+          if (event.key === Qt.Key_Backspace) {
+            edit(from === to ? from - 1 : from, to, "")
+            event.accepted = true
+            return
+          }
+          if (event.key === Qt.Key_Delete) {
+            edit(from, from === to ? to + 1 : to, "")
+            event.accepted = true
+            return
+          }
+          if (event.matches(StandardKey.Cut)) {
+            copy()
+            edit(from, to, "")
+            event.accepted = true
+            return
+          }
           if (event.matches(StandardKey.Paste)
               || event.key === Qt.Key_Paste
               || ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_V || event.key === Qt.Key_Insert))
               || ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert)
               || ((event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) && event.key === Qt.Key_V)) {
+            event.accepted = true
+            return
+          }
+          if (event.text !== "" && !/[\u0000-\u001f\u007f]/.test(event.text)
+              && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+            edit(from, to, event.text)
             event.accepted = true
             return
           }

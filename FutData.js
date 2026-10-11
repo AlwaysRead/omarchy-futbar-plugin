@@ -2057,3 +2057,18 @@ var leagues = [
     if (amtType !== "") return sanitize(String(amtType));
     return "Undisclosed";
   }
+
+
+  function cleanInputText(raw, room) {
+    var text = String((raw === undefined || raw === null) ? "" : raw)
+      .replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ");
+    return text.slice(0, Math.max(0, Number(room) || 0));
+  }
+
+  function spliceInputText(text, start, end, insert, limit) {
+    var value = String((text === undefined || text === null) ? "" : text);
+    var from = Math.max(0, Math.min(value.length, Math.min(start, end)));
+    var to = Math.max(from, Math.min(value.length, Math.max(start, end)));
+    var added = cleanInputText(insert, limit - (value.length - (to - from)));
+    return { text: value.slice(0, from) + added + value.slice(to), cursor: from + added.length };
+  }
