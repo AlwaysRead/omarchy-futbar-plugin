@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "FutData.js" as FutData
 
@@ -156,7 +157,7 @@ Column {
               width: parent.width
               height: playerProfileInnerCol.implicitHeight + Style.space(24)
               radius: Style.cornerRadius
-              color: Qt.rgba(ShellColor.popups.background.r, ShellColor.popups.background.g, ShellColor.popups.background.b, 0.65)
+              color: Qt.rgba(Commons.Color.popups.background.r, Commons.Color.popups.background.g, Commons.Color.popups.background.b, 0.65)
               clip: true
               readonly property color playerBrandColor: root.safeClubAccent("", root.favoriteTeamAccent)
               readonly property real brandLuminance: {
@@ -1851,7 +1852,7 @@ Column {
             width: parent.width
             height: clubProfileInnerCol.implicitHeight + Style.space(24)
             radius: Style.cornerRadius
-            color: Qt.rgba(ShellColor.popups.background.r, ShellColor.popups.background.g, ShellColor.popups.background.b, 0.65)
+            color: Qt.rgba(Commons.Color.popups.background.r, Commons.Color.popups.background.g, Commons.Color.popups.background.b, 0.65)
             clip: true
             readonly property color clubBrandColor: root.safeClubAccent(root.selectedClubProfile ? root.selectedClubProfile.color : "", root.favoriteTeamAccent)
             readonly property real brandLuminance: {

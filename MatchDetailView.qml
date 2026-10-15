@@ -4,6 +4,7 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Column {
@@ -174,7 +175,7 @@ Column {
             iconText: matchDetailView.copySuccess ? "\uf00c" : "\uf0c5"
             tooltipText: matchDetailView.copySuccess ? "Copied match summary!" : "Copy match summary to clipboard"
             fontFamily: root.contentFontFamily
-            foreground: matchDetailView.copySuccess ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent) : root.contentForeground
+            foreground: matchDetailView.copySuccess ? ((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent) : root.contentForeground
             accent: root.contentForeground
             iconSize: Style.font.caption
             horizontalPadding: 0
@@ -246,9 +247,9 @@ Column {
                 width: Style.space(76)
                 height: Style.space(26)
                 radius: Style.cornerRadius
-                color: heroScoreMouse.containsMouse ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent, 0.25) : Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent, 0.12)
+                color: heroScoreMouse.containsMouse ? Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent, 0.25) : Util.alpha((root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent, 0.12)
                 border.width: Style.spacing.hairline
-                border.color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
+                border.color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent
 
                 Row {
                   anchors.centerIn: parent
@@ -258,7 +259,7 @@ Column {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "󰈈"
                     font.pixelSize: Style.font.caption
-                    color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
+                    color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent
                   }
                   Text {
                     textFormat: Text.PlainText
@@ -267,7 +268,7 @@ Column {
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.font.caption - 1
                     font.bold: true
-                    color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
+                    color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent
                   }
                 }
 
@@ -521,7 +522,7 @@ Column {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 text: matchResultBottomArea.hasShootout ? "󰡬" : ""
-                color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
+                color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent
                 font.pixelSize: Style.font.caption - 1
               }
 
@@ -692,8 +693,8 @@ Column {
               height: Style.space(24)
               text: "Bracket"
               fontFamily: root ? root.contentFontFamily : Style.font.family
-              foreground: root ? root.contentForeground : ShellColor.foreground
-              accent: root ? root.contentForeground : ShellColor.foreground
+              foreground: root ? root.contentForeground : Commons.Color.foreground
+              accent: root ? root.contentForeground : Commons.Color.foreground
               fontSize: Style.font.caption
               horizontalPadding: Style.space(8)
               verticalPadding: 0
@@ -839,7 +840,7 @@ Column {
             Rectangle {
               anchors.fill: parent
               radius: Style.space(4)
-              color: root ? root.contentForeground : ShellColor.foreground
+              color: root ? root.contentForeground : Commons.Color.foreground
               opacity: expandStatsMouseArea.containsMouse ? 0.08 : 0.03
               Behavior on opacity { NumberAnimation { duration: 120 } }
             }
@@ -862,7 +863,7 @@ Column {
                 text: matchDetailView.expandAllStats
                   ? "Show less stats"
                   : "Show all stats"
-                color: root ? root.contentForeground : ShellColor.foreground
+                color: root ? root.contentForeground : Commons.Color.foreground
                 font.family: root ? root.contentFontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
@@ -872,7 +873,7 @@ Column {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 text: matchDetailView.expandAllStats ? "󰅃" : "󰅂"
-                color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
+                color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
                 font.family: root ? root.contentFontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
               }
@@ -3174,7 +3175,7 @@ Column {
             height: formModalCol.implicitHeight + Style.space(20)
             radius: Style.space(8)
             color: Qt.rgba(0.08, 0.08, 0.08, 0.96)
-            border.color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : ShellColor.accent
+            border.color: (root && root.favoriteTeamAccent) ? root.favoriteTeamAccent : Commons.Color.accent
             border.width: 1
             z: 200
 
@@ -3190,7 +3191,7 @@ Column {
                 Text {
                   textFormat: Text.PlainText
                   text: "MATCH RESULT"
-                  color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
+                  color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
                   font.family: root ? root.contentFontFamily : Style.font.family
                   font.pixelSize: Style.font.caption - 1
                   font.bold: true
@@ -3208,7 +3209,7 @@ Column {
                   height: Style.space(16)
                   iconText: "✕"
                   fontFamily: Style.font.family
-                  foreground: root ? root.contentForeground : ShellColor.foreground
+                  foreground: root ? root.contentForeground : Commons.Color.foreground
                   iconSize: Style.space(8)
                   horizontalPadding: 0
                   verticalPadding: 0
@@ -3247,7 +3248,7 @@ Column {
                   Text {
                     textFormat: Text.PlainText
                     text: matchDetailView.selectedFormMatch ? ("vs " + (matchDetailView.selectedFormMatch.opponent || "Opponent")) : ""
-                    color: root ? root.contentForeground : ShellColor.foreground
+                    color: root ? root.contentForeground : Commons.Color.foreground
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -3256,7 +3257,7 @@ Column {
                   Text {
                     textFormat: Text.PlainText
                     text: matchDetailView.selectedFormMatch ? (matchDetailView.selectedFormMatch.score + (matchDetailView.selectedFormMatch.dateFormatted ? (" · " + matchDetailView.selectedFormMatch.dateFormatted) : "")) : ""
-                    color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.4)
+                    color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.4)
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.space(8.5)
                   }

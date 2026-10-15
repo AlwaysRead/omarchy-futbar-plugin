@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Column {
@@ -55,8 +56,8 @@ Column {
           iconText: ""
           tooltipText: "Older season"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : ShellColor.foreground
-          accent: root ? root.contentForeground : ShellColor.foreground
+          foreground: root ? root.contentForeground : Commons.Color.foreground
+          accent: root ? root.contentForeground : Commons.Color.foreground
           iconSize: Style.font.caption
           horizontalPadding: 0
           verticalPadding: 0
@@ -76,8 +77,8 @@ Column {
           text: root ? root.seasonChipLabel(root.standingsSeasonOffset) : ""
           tooltipText: "Standings season"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : ShellColor.foreground
-          accent: root ? root.contentForeground : ShellColor.foreground
+          foreground: root ? root.contentForeground : Commons.Color.foreground
+          accent: root ? root.contentForeground : Commons.Color.foreground
           fontSize: Style.font.caption
           horizontalPadding: 0
           verticalPadding: 0
@@ -96,8 +97,8 @@ Column {
           iconText: ""
           tooltipText: "Newer season"
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : ShellColor.foreground
-          accent: root ? root.contentForeground : ShellColor.foreground
+          foreground: root ? root.contentForeground : Commons.Color.foreground
+          accent: root ? root.contentForeground : Commons.Color.foreground
           iconSize: Style.font.caption
           horizontalPadding: 0
           verticalPadding: 0
@@ -122,8 +123,8 @@ Column {
           text: "Table"
           fontSize: Style.font.caption - 1
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : ShellColor.foreground
-          accent: root ? root.contentForeground : ShellColor.foreground
+          foreground: root ? root.contentForeground : Commons.Color.foreground
+          accent: root ? root.contentForeground : Commons.Color.foreground
           selected: standingsView.viewMode === "table"
           horizontalPadding: Style.space(8)
           verticalPadding: 0
@@ -137,8 +138,8 @@ Column {
           text: "Bracket"
           fontSize: Style.font.caption - 1
           fontFamily: root ? root.contentFontFamily : Style.font.family
-          foreground: root ? root.contentForeground : ShellColor.foreground
-          accent: root ? root.contentForeground : ShellColor.foreground
+          foreground: root ? root.contentForeground : Commons.Color.foreground
+          accent: root ? root.contentForeground : Commons.Color.foreground
           selected: standingsView.viewMode === "bracket"
           horizontalPadding: Style.space(8)
           verticalPadding: 0
@@ -174,8 +175,8 @@ Column {
               text: root ? root.sanitizePlainText(String(modelData.name || modelData.shortName || "")) : ""
               tooltipText: root ? root.sanitizePlainText(String(modelData.name || "")) : ""
               fontFamily: root ? root.contentFontFamily : Style.font.family
-              foreground: root ? root.contentForeground : ShellColor.foreground
-              accent: root ? root.contentForeground : ShellColor.foreground
+              foreground: root ? root.contentForeground : Commons.Color.foreground
+              accent: root ? root.contentForeground : Commons.Color.foreground
               fontSize: Style.font.caption
               horizontalPadding: Style.space(10)
               verticalPadding: 0
@@ -193,7 +194,7 @@ Column {
         text: root ? (root.standingsLoading ? "Fetching standings…"
           : (root.standingsError !== "" ? root.standingsError
           : (root.standings.length === 0 ? "No standings available" : ""))) : ""
-        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
+        color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -222,7 +223,7 @@ Column {
               width: standingsView.standingsRankWidth
               height: parent.height
               text: "#"
-              color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.6)
+              color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.6)
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -236,7 +237,7 @@ Column {
               width: standingsView.standingsTeamWidth
               height: parent.height
               text: "Team"
-              color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.6)
+              color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.6)
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -249,7 +250,7 @@ Column {
                 width: standingsView.standingsStatWidth
                 height: parent.height
                 text: modelData.label
-                color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.6)
+                color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.6)
                 font.family: root ? root.contentFontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
@@ -270,7 +271,7 @@ Column {
               readonly property color zoneColor: root ? root.standingsZoneColor(modelData) : "transparent"
               readonly property bool hasZone: root ? root.standingsZoneFor(modelData) !== "" : false
               readonly property color rowAccent: favorite
-                ? (hasZone ? zoneColor : (root ? root.favoriteTeamAccent : ShellColor.accent)) : "transparent"
+                ? (hasZone ? zoneColor : (root ? root.favoriteTeamAccent : Commons.Color.accent)) : "transparent"
               readonly property color rowTint: favorite
                 ? (hasZone ? Util.alpha(zoneColor, 0.45) : (root ? root.favoriteTeamTint : "transparent")) : "transparent"
               width: parent.width
@@ -297,7 +298,7 @@ Column {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 radius: 1
-                color: root ? root.favoriteTeamAccent : ShellColor.accent
+                color: root ? root.favoriteTeamAccent : Commons.Color.accent
               }
 
               Row {
@@ -314,7 +315,7 @@ Column {
                     textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: rowRect.entry.rank
-                    color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
+                    color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     font.bold: rowRect.favorite
@@ -326,7 +327,7 @@ Column {
                     readonly property real rc: (rowRect.entry.stats && rowRect.entry.stats.rankChange) ? parseFloat(rowRect.entry.stats.rankChange) : 0
                     visible: !isNaN(rc) && rc !== 0
                     text: rc > 0 ? "▲" : "▼"
-                    color: rc > 0 ? (root ? root.favoriteTeamAccent : ShellColor.accent) : Qt.rgba(0.9, 0.3, 0.3, 0.85)
+                    color: rc > 0 ? (root ? root.favoriteTeamAccent : Commons.Color.accent) : Qt.rgba(0.9, 0.3, 0.3, 0.85)
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.font.caption - 4
                   }
@@ -357,7 +358,7 @@ Column {
                     textFormat: Text.PlainText
                     anchors.verticalCenter: parent.verticalCenter
                     text: rowRect.entry.teamName
-                    color: rowRect.favorite ? rowRect.rowAccent : (root ? root.contentForeground : ShellColor.foreground)
+                    color: rowRect.favorite ? rowRect.rowAccent : (root ? root.contentForeground : Commons.Color.foreground)
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     font.bold: rowRect.favorite
@@ -398,7 +399,7 @@ Column {
                     width: standingsView.standingsStatWidth
                     height: rowRect.height
                     text: root ? root.statFor(rowRect.entry.stats, modelData.name) : ""
-                    color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
+                    color: rowRect.favorite ? rowRect.rowAccent : Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
                     font.family: root ? root.contentFontFamily : Style.font.family
                     font.pixelSize: Style.font.caption
                     font.bold: rowRect.favorite
@@ -425,7 +426,7 @@ Column {
         text: (root && root.tournamentBracketLoading)
           ? "Loading tournament bracket…"
           : ("Knockout stage for the " + (root ? root.seasonChipLabel(root.standingsSeasonOffset) : "") + " season is not available yet")
-        color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.5)
+        color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
         font.family: root ? root.contentFontFamily : Style.font.family
         font.pixelSize: Style.font.caption
         horizontalAlignment: Text.AlignHCenter
@@ -450,7 +451,7 @@ Column {
             Text {
               textFormat: Text.PlainText
               text: modelData.label
-              color: Qt.darker(root ? root.contentForeground : ShellColor.foreground, 1.8)
+              color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.8)
               font.family: root ? root.contentFontFamily : Style.font.family
               font.pixelSize: Style.font.caption
             }

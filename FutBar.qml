@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // A deliberately small bar widget. It asks ESPN's public scoreboard for the
@@ -500,7 +501,7 @@ BarWidget {
       : (barCustomContentRow.implicitWidth + Style.space(16))
     horizontalMargin: (root.barWidgetMode === "icon" || root.barDisplayText === "") ? 0 : 8.5
     active: root.live
-    activeColor: ShellColor.accent
+    activeColor: Commons.Color.accent
     tooltipText: root.tooltip
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.MiddleButton) root.refresh()

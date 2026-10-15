@@ -2,6 +2,7 @@ import "FutData.js" as FutData
 import QtQuick
 import QtQuick.Controls as QQC
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Custom SearchableDropdown with native paste interception, bounded input length,
@@ -17,11 +18,13 @@ Item {
   property string emptyText: "No matches"
   property string triggerLabel: ""
 
-  property color foreground: ShellColor.popups.text
-  property color background: ShellColor.popups.background
-  property color popupBorder: ShellColor.popups.border
-  property color accent: ShellColor.accent
-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, ShellColor.popups.border, Style.normalBorderWidth)
+  property color foreground: Commons.Color.popups.text
+  property color background: Commons.Color.popups.background
+  property color popupBorder: Commons.Color.popups.border
+  property color accent: Commons.Color.accent
+  // Blend toward the surface instead of darkening: works for light and dark themes.
+  readonly property color secondaryForeground: Qt.tint(background, Util.alpha(foreground, 0.72))
+  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
   property string fontFamily: Style.font.family
   property int rowHeight: Style.spacing.controlHeight
   property int popupRowHeight: Style.spacing.popupRowHeight
@@ -80,7 +83,7 @@ Item {
       textFormat: Text.PlainText
       visible: root.showLabel && root.label !== ""
       text: root.label
-      color: Qt.darker(root.foreground, 1.4)
+      color: root.secondaryForeground
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       font.bold: true
@@ -124,7 +127,7 @@ Item {
         anchors.leftMargin: trigger.borderLeft + Style.spacing.controlPaddingX
         anchors.rightMargin: trigger.borderRight + Style.spacing.md
         text: root.currentLabel() || root.triggerLabel || root.placeholderText
-        color: (root.currentLabel() || root.triggerLabel) ? root.foreground : Qt.darker(root.foreground, 1.5)
+        color: (root.currentLabel() || root.triggerLabel) ? root.foreground : root.secondaryForeground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         elide: Text.ElideRight
@@ -137,7 +140,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: trigger.borderRight + Style.spacing.controlGap
         text: "󰅀"
-        color: Qt.darker(root.foreground, 1.2)
+        color: root.secondaryForeground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
       }
@@ -197,6 +200,7 @@ Item {
               placeholderText: root.placeholderText
               foreground: root.foreground
               accent: root.accent
+              placeholderTextColor: root.secondaryForeground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
 
@@ -284,7 +288,7 @@ Item {
               anchors.centerIn: parent
               visible: resultList.count === 0
               text: root.emptyText
-              color: Qt.darker(root.foreground, 1.6)
+              color: root.secondaryForeground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
             }
@@ -360,7 +364,7 @@ Item {
                     textFormat: Text.PlainText
                     visible: text !== ""
                     text: root.optionDescription(modelData)
-                    color: Qt.darker(root.foreground, 1.5)
+                    color: root.secondaryForeground
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight

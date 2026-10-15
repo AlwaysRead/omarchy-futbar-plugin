@@ -4,6 +4,7 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "FutData.js" as FutData
 
@@ -161,9 +162,8 @@ Panel {
     return root.toBool(setting("enableTrending", true), true)
   }
   onEnableTrendingChanged: if (!enableTrending && showTrending) showTrending = false
-  // Bar widgets expose their text color as barForeground. Using `foreground`
-  // here resolves to an invalid (transparent) color on the popup.
-  readonly property color contentForeground: bar ? bar.barForeground : ShellColor.foreground
+  // Panel content must use the popup surface palette, independently of bar colors.
+  readonly property color contentForeground: Commons.Color.popups.text
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property string themeColorsPath: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
   property var themePalette: ({})
@@ -186,11 +186,11 @@ Panel {
 
   readonly property color statsHomeColor: (root.themePalette && (root.themePalette.cyan || root.themePalette.blue || root.themePalette.bright_cyan || root.themePalette.bright_blue))
     ? (root.themePalette.cyan || root.themePalette.blue || root.themePalette.bright_cyan || root.themePalette.bright_blue)
-    : ShellColor.accent
+    : Commons.Color.accent
 
   readonly property color statsAwayColor: (root.themePalette && (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta))
     ? (root.themePalette.red || root.themePalette.orange || root.themePalette.bright_red || root.themePalette.magenta)
-    : ShellColor.urgent
+    : Commons.Color.urgent
 
   readonly property bool anyLoading: root.loading || root.matchListLoading || root.standingsLoading || root.statsLoading || root.matchDetailLoading || root.teamsLoading || root.searchLoading || root.searchPlayerLoading || root.searchClubLoading
 
@@ -247,7 +247,7 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       checked: sRow.checked
       foreground: root.contentForeground
-      accent: root.favoriteTeamAccent || ShellColor.accent
+      accent: root.favoriteTeamAccent || Commons.Color.accent
       onToggled: sRow.toggled()
     }
 
@@ -1419,8 +1419,8 @@ Panel {
   readonly property real matchRowHeight: Style.space(52)
   readonly property real matchLogoSize: Style.space(26)
   readonly property real matchScoreWidth: Style.space(92)
-  readonly property color favoriteTeamAccent: ShellColor.accent
-  readonly property color favoriteTeamTint: Util.alpha(ShellColor.accent, 0.45)
+  readonly property color favoriteTeamAccent: Commons.Color.accent
+  readonly property color favoriteTeamTint: Util.alpha(Commons.Color.accent, 0.45)
   function isFavoriteStanding(entry) {
     if (!entry) return false
     var tid = String(entry.teamId || "")
@@ -10461,7 +10461,7 @@ root.warnStderr("team select failed", text)
               color: root.contentForeground
               opacity: matchRow.modelData.state === "in" ? 0.07 : ((rowMouseArea.containsMouse || matchRow.isKeyboardSelected) ? 0.06 : 0.03)
               border.width: matchRow.isKeyboardSelected ? 2 : 0
-              border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
+              border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Commons.Color.accent
               Behavior on opacity { NumberAnimation { duration: 120 } }
             }
 
@@ -10539,7 +10539,7 @@ root.warnStderr("team select failed", text)
                   text: matchRow.cardStageText
                   color: (root.showClubFixtures && root.favoriteTeamAccent && root.favoriteTeamAccent !== "")
                     ? root.favoriteTeamAccent
-                    : (root.showClubFixtures ? ShellColor.accent : Qt.darker(root.contentForeground, 1.7))
+                    : (root.showClubFixtures ? Commons.Color.accent : Qt.darker(root.contentForeground, 1.7))
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.space(8.5)
                   font.letterSpacing: 0.5
@@ -11331,7 +11331,7 @@ root.warnStderr("team select failed", text)
           color: root.contentForeground
           opacity: (liveCardArea.containsMouse || liveMatchCard.isKeyboardSelected) ? 0.09 : 0.07
           border.width: liveMatchCard.isKeyboardSelected ? 2 : 0
-          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Commons.Color.accent
         }
 
         MouseArea {
@@ -11557,7 +11557,7 @@ root.warnStderr("team select failed", text)
           color: root.contentForeground
           opacity: (nextCardArea.containsMouse || nextMatchCard.isKeyboardSelected) ? 0.08 : 0.03
           border.width: nextMatchCard.isKeyboardSelected ? 2 : 0
-          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Commons.Color.accent
         }
 
         MouseArea {
@@ -11730,7 +11730,7 @@ root.warnStderr("team select failed", text)
           color: root.contentForeground
           opacity: (prevCardArea.containsMouse || prevMatchCard.isKeyboardSelected) ? 0.08 : 0.03
           border.width: prevMatchCard.isKeyboardSelected ? 2 : 0
-          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : ShellColor.accent
+          border.color: (root.favoriteTeamAccent && root.favoriteTeamAccent !== "") ? root.favoriteTeamAccent : Commons.Color.accent
         }
 
         MouseArea {
@@ -11916,7 +11916,7 @@ root.warnStderr("team select failed", text)
         width: parent.width
         implicitHeight: staleErrCol.implicitHeight + Style.space(12)
         radius: Style.cornerRadius
-        color: Util.alpha(ShellColor.accent, 0.12)
+        color: Util.alpha(Commons.Color.accent, 0.12)
 
         Column {
           id: staleErrCol
