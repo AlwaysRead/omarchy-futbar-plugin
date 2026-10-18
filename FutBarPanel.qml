@@ -1888,7 +1888,7 @@ Panel {
         if (!root.eventMatchesTeam(events[e])) continue
         if (events[e].competitionSlug === undefined) events[e].competitionSlug = slug
         if (events[e].competitionName === undefined && leagues.length > 0) {
-          events[e].competitionName = root.sanitizePlainText(String(leagues[0].shortName || leagues[0].name || leagues[0].abbreviation || slug))
+          events[e].competitionName = root.sanitizePlainText(String(leagues[0].name || leagues[0].shortName || leagues[0].abbreviation || slug))
         }
         var existingIndex = -1
         for (var k = 0; k < merged.length; k++) {
@@ -1999,13 +1999,13 @@ Panel {
     if (event && event.competitionName && event.competitionName !== "" && event.competitionName !== "all") {
       return root.sanitizePlainText(String(event.competitionName))
     }
-    if (event && event.league && (event.league.shortName || event.league.name || event.league.abbreviation)) {
-      return root.sanitizePlainText(String(event.league.shortName || event.league.name || event.league.abbreviation))
+    if (event && event.league && (event.league.name || event.league.shortName || event.league.abbreviation)) {
+      return root.sanitizePlainText(String(event.league.name || event.league.shortName || event.league.abbreviation))
     }
     if (event && Array.isArray(event.competitions) && event.competitions[0] && event.competitions[0].league) {
       var cLg = event.competitions[0].league
-      if (cLg.shortName || cLg.name || cLg.abbreviation) {
-        return root.sanitizePlainText(String(cLg.shortName || cLg.name || cLg.abbreviation))
+      if (cLg.name || cLg.shortName || cLg.abbreviation) {
+        return root.sanitizePlainText(String(cLg.name || cLg.shortName || cLg.abbreviation))
       }
     }
     var info = root.competitionInfo(slug)
@@ -2127,17 +2127,13 @@ Panel {
 
   function teamNameFor(event, side) {
     if (!event) return "—"
-    if (side === "home" && event.homeName) return root.sanitizePlainText(String(event.homeName))
-    if (side === "away" && event.awayName) return root.sanitizePlainText(String(event.awayName))
-    if (side === "home" && event.home && (event.home.name || event.home.displayName)) {
-      return root.sanitizePlainText(String(event.home.name || event.home.displayName))
-    }
-    if (side === "away" && event.away && (event.away.name || event.away.displayName)) {
-      return root.sanitizePlainText(String(event.away.name || event.away.displayName))
-    }
-    var item = competitor(event, side)
-    var raw = item && item.team ? String(item.team.shortDisplayName || item.team.displayName || item.team.name || "—") : "—"
-    return root.sanitizePlainText(raw)
+    var item = root.competitor(event, side)
+    var team = item && item.team ? item.team : {}
+    var nested = event[side] || event[side + "Team"] || {}
+    // Resolve full source names before flattened labels, which may be shortened.
+    var raw = team.displayName || team.fullName || nested.displayName || nested.fullName
+      || event[side + "Name"] || team.name || nested.name || "—"
+    return root.sanitizePlainText(String(raw))
   }
 
   function teamLogoFor(event, side) {
@@ -4882,7 +4878,7 @@ Panel {
               if (!ev.status && comp.status) ev.status = comp.status
               var lgSlug = (ev.league && ev.league.slug) ? root.safeIdentifier(ev.league.slug) : root.safeIdentifier(root.league)
               if (ev.competitionSlug === undefined) ev.competitionSlug = lgSlug
-              var lgName = (ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) ? String(ev.league.shortName || ev.league.name || ev.league.abbreviation) : ""
+              var lgName = (ev.league && (ev.league.name || ev.league.shortName || ev.league.abbreviation)) ? String(ev.league.name || ev.league.shortName || ev.league.abbreviation) : ""
               if (ev.competitionName === undefined && lgName !== "") ev.competitionName = lgName
               if (lgSlug !== "" && slugs.indexOf(lgSlug) === -1) slugs.push(lgSlug)
               if (lgSlug !== "" && !map[lgSlug] && ev.league) {
@@ -5525,8 +5521,8 @@ onStreamFinished: root.warnStderr("", text)
 
               var sHTeam = (sH && sH.team) || {}
               var sATeam = (sA && sA.team) || {}
-              var sHName = String(sHTeam.shortDisplayName || sHTeam.displayName || "Home")
-              var sAName = String(sATeam.shortDisplayName || sATeam.displayName || "Away")
+              var sHName = String(sHTeam.displayName || sHTeam.name || sHTeam.shortDisplayName || "Home")
+              var sAName = String(sATeam.displayName || sATeam.name || sATeam.shortDisplayName || "Away")
               var sHScore = String(sH && sH.score !== undefined ? sH.score : "-")
               var sAScore = String(sA && sA.score !== undefined ? sA.score : "-")
               var sCompName = String(sEv.competitionName || "")
@@ -5560,7 +5556,7 @@ onStreamFinished: root.warnStderr("", text)
                 var gObj = lfgEvs[ge]
                 if (!gObj) continue
                 var oppObj = gObj.opponent || {}
-                var oppName = String(oppObj.shortDisplayName || oppObj.displayName || "Opponent")
+                var oppName = String(oppObj.displayName || oppObj.name || oppObj.shortDisplayName || "Opponent")
                 var resChar = String(gObj.gameResult || "-").toUpperCase()
                 var gScore = String(gObj.score || "")
                 var gDateStr = gObj.gameDate ? Qt.formatDate(new Date(gObj.gameDate), "d MMM") : ""
@@ -7696,17 +7692,17 @@ onStreamFinished: root.warnStderr("", text)
               var a = (comps[1] && comps[1].homeAway === "away") ? comps[1] : ((comps[0] && comps[0].homeAway === "away") ? comps[0] : (comps[1] || {}))
               var hTeam = h.team || {}
               var aTeam = a.team || {}
-              var hName = String(hTeam.shortDisplayName || hTeam.displayName || "Home")
-              var aName = String(aTeam.shortDisplayName || aTeam.displayName || "Away")
+              var hName = String(hTeam.displayName || hTeam.name || hTeam.shortDisplayName || "Home")
+              var aName = String(aTeam.displayName || aTeam.name || aTeam.shortDisplayName || "Away")
               var hLogo = (hTeam.logos && hTeam.logos[0] && hTeam.logos[0].href) ? String(hTeam.logos[0].href) : (hTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + hTeam.id + ".png") : "")
               var aLogo = (aTeam.logos && aTeam.logos[0] && aTeam.logos[0].href) ? String(aTeam.logos[0].href) : (aTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aTeam.id + ".png") : "")
               var hScore = h.score && h.score.displayValue !== undefined ? String(h.score.displayValue) : ""
               var aScore = a.score && a.score.displayValue !== undefined ? String(a.score.displayValue) : ""
               var compLabel = ""
-              if (ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) {
-                compLabel = String(ev.league.shortName || ev.league.name || ev.league.abbreviation)
-              } else if (comp && comp.league && (comp.league.shortName || comp.league.name || comp.league.abbreviation)) {
-                compLabel = String(comp.league.shortName || comp.league.name || comp.league.abbreviation)
+              if (ev.league && (ev.league.name || ev.league.shortName || ev.league.abbreviation)) {
+                compLabel = String(ev.league.name || ev.league.shortName || ev.league.abbreviation)
+              } else if (comp && comp.league && (comp.league.name || comp.league.shortName || comp.league.abbreviation)) {
+                compLabel = String(comp.league.name || comp.league.shortName || comp.league.abbreviation)
               } else {
                 var lSlug = (ev.league && ev.league.slug) ? String(ev.league.slug) : (root.selectedClubProfile.leagueSlug || "")
                 if (lSlug !== "" && typeof FutData !== "undefined" && FutData.formatCompetitionName) {
@@ -7730,7 +7726,7 @@ onStreamFinished: root.warnStderr("", text)
 
               var oppTeam = isHome ? aTeam : hTeam
               var oppId = String(oppTeam.id || "")
-              var oppName = String(oppTeam.shortDisplayName || oppTeam.displayName || (isHome ? aName : hName))
+              var oppName = String(oppTeam.displayName || oppTeam.name || oppTeam.shortDisplayName || (isHome ? aName : hName))
               var oppLogo = isHome ? aLogo : hLogo
               var oppLeague = (ev.league && (ev.league.slug || ev.league.abbreviation)) ? String(ev.league.slug || ev.league.abbreviation) : (root.selectedClubProfile.leagueSlug || "esp.1")
 
@@ -7890,8 +7886,8 @@ onStreamFinished: root.warnStderr("", text)
               var a = (comps[1] && comps[1].homeAway === "away") ? comps[1] : ((comps[0] && comps[0].homeAway === "away") ? comps[0] : (comps[1] || {}))
               var hTeam = h.team || {}
               var aTeam = a.team || {}
-              var hName = String(hTeam.shortDisplayName || hTeam.displayName || "Home")
-              var aName = String(aTeam.shortDisplayName || aTeam.displayName || "Away")
+              var hName = String(hTeam.displayName || hTeam.name || hTeam.shortDisplayName || "Home")
+              var aName = String(aTeam.displayName || aTeam.name || aTeam.shortDisplayName || "Away")
               var hLogo = (hTeam.logos && hTeam.logos[0] && hTeam.logos[0].href) ? String(hTeam.logos[0].href) : (hTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + hTeam.id + ".png") : "")
               var aLogo = (aTeam.logos && aTeam.logos[0] && aTeam.logos[0].href) ? String(aTeam.logos[0].href) : (aTeam.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + aTeam.id + ".png") : "")
               var bList = []
@@ -7903,10 +7899,10 @@ onStreamFinished: root.warnStderr("", text)
               }
               var bStr = bList.join(", ")
               var compLabel = ""
-              if (ev.league && (ev.league.shortName || ev.league.name || ev.league.abbreviation)) {
-                compLabel = String(ev.league.shortName || ev.league.name || ev.league.abbreviation)
-              } else if (comp && comp.league && (comp.league.shortName || comp.league.name || comp.league.abbreviation)) {
-                compLabel = String(comp.league.shortName || comp.league.name || comp.league.abbreviation)
+              if (ev.league && (ev.league.name || ev.league.shortName || ev.league.abbreviation)) {
+                compLabel = String(ev.league.name || ev.league.shortName || ev.league.abbreviation)
+              } else if (comp && comp.league && (comp.league.name || comp.league.shortName || comp.league.abbreviation)) {
+                compLabel = String(comp.league.name || comp.league.shortName || comp.league.abbreviation)
               } else {
                 var lSlug = (ev.league && ev.league.slug) ? String(ev.league.slug) : (root.selectedClubProfile.leagueSlug || "")
                 if (lSlug !== "" && typeof FutData !== "undefined" && FutData.formatCompetitionName) {
@@ -7921,7 +7917,7 @@ onStreamFinished: root.warnStderr("", text)
               var isHome = String(hTeam.id || "") === String(root.selectedClubProfile.id || "")
               var oppTeam = isHome ? aTeam : hTeam
               var oppId = String(oppTeam.id || "")
-              var oppName = String(oppTeam.shortDisplayName || oppTeam.displayName || (isHome ? aName : hName))
+              var oppName = String(oppTeam.displayName || oppTeam.name || oppTeam.shortDisplayName || (isHome ? aName : hName))
               var oppLogo = isHome ? aLogo : hLogo
               var oppLeague = (ev.league && (ev.league.slug || ev.league.abbreviation)) ? String(ev.league.slug || ev.league.abbreviation) : (root.selectedClubProfile.leagueSlug || "esp.1")
 
@@ -7977,7 +7973,7 @@ onStreamFinished: root.warnStderr("", text)
                 }
                 parsed.push({
                   id: String(tm.id || ""),
-                  name: String(tm.shortDisplayName || tm.displayName || tm.name || ""),
+                  name: String(tm.displayName || tm.name || tm.shortDisplayName || ""),
                   logo: (tm.logos && tm.logos[0] && tm.logos[0].href) ? String(tm.logos[0].href) : (tm.id ? ("https://a.espncdn.com/i/teamlogos/soccer/500/" + tm.id + ".png") : ""),
                   rank: parseInt(st["rank"]) || (i + 1),
                   gamesPlayed: st["gamesPlayed"] || "",
@@ -10588,9 +10584,9 @@ root.warnStderr("team select failed", text)
                   font.pixelSize: text.length > 22 ? Style.space(10) : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
                   font.bold: matchRow.modelData.state === "in"
                   wrapMode: Text.Wrap
-                  maximumLineCount: 2
-                  lineHeight: 0.95
-                  horizontalAlignment: Text.AlignRight
+                  elide: Text.ElideNone
+                  lineHeight: 1.1
+                  horizontalAlignment: Text.AlignHCenter
                 }
 
                 // Center Score, Kickoff Time, and Status (FT, 67', etc.)
@@ -10675,9 +10671,9 @@ root.warnStderr("team select failed", text)
                   font.pixelSize: text.length > 22 ? Style.space(10) : (text.length > 15 ? Style.font.bodySmall : Style.font.body)
                   font.bold: matchRow.modelData.state === "in"
                   wrapMode: Text.Wrap
-                  maximumLineCount: 2
-                  lineHeight: 0.95
-                  horizontalAlignment: Text.AlignLeft
+                  elide: Text.ElideNone
+                  lineHeight: 1.1
+                  horizontalAlignment: Text.AlignHCenter
                 }
 
                 Item {
@@ -11384,10 +11380,9 @@ root.warnStderr("team select failed", text)
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.body
-              horizontalAlignment: Text.AlignRight
+              horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.Wrap
-              maximumLineCount: 2
-              elide: Text.ElideRight
+              elide: Text.ElideNone
             }
             Column {
               width: Style.space(90)
@@ -11436,10 +11431,9 @@ root.warnStderr("team select failed", text)
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.body
-              horizontalAlignment: Text.AlignLeft
+              horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.Wrap
-              maximumLineCount: 2
-              elide: Text.ElideRight
+              elide: Text.ElideNone
             }
             Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
           }
@@ -11604,10 +11598,9 @@ root.warnStderr("team select failed", text)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: true
-              horizontalAlignment: Text.AlignRight
+              horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.Wrap
-              maximumLineCount: 2
-              elide: Text.ElideRight
+              elide: Text.ElideNone
             }
 
             Text {
@@ -11631,10 +11624,9 @@ root.warnStderr("team select failed", text)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: true
-              horizontalAlignment: Text.AlignLeft
+              horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.Wrap
-              maximumLineCount: 2
-              elide: Text.ElideRight
+              elide: Text.ElideNone
             }
 
             Image {
@@ -11776,10 +11768,9 @@ root.warnStderr("team select failed", text)
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
-              horizontalAlignment: Text.AlignRight
+              horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.Wrap
-              maximumLineCount: 2
-              elide: Text.ElideRight
+              elide: Text.ElideNone
             }
 
             Text {
@@ -11806,14 +11797,13 @@ root.warnStderr("team select failed", text)
               textFormat: Text.PlainText
               width: (parent.width - parent.spacing * 4 - Style.space(36) * 2 - Style.space(60)) / 2
               anchors.verticalCenter: parent.verticalCenter
-              horizontalAlignment: Text.AlignLeft
+              horizontalAlignment: Text.AlignHCenter
               text: root.teamNameFor(root.previousMatch, "away")
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
               wrapMode: Text.Wrap
-              maximumLineCount: 2
-              elide: Text.ElideRight
+              elide: Text.ElideNone
             }
 
             Image {
