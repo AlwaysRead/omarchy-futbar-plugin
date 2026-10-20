@@ -92,6 +92,16 @@ omarchy plugin remove devbook.futbar
 
 ---
 
+## Image loading
+
+Remote images require `python3` (standard library only). FutBar accepts static PNGs
+from `https://a.espncdn.com`, downloads at most 512 KiB per image, and validates PNG
+structure, checksums, and dimensions (at most 1024 × 1024) before passing image data
+to Qt. Redirects, animated PNGs, and other formats are rejected; unavailable images
+remain blank. Four downloads can run at once, each with a ten-second deadline.
+The shared image cache holds at most 128 entries and 8 MiB of encoded data for five
+minutes. No remote image URL is passed directly to the shell's image decoder.
+
 ## Optional Dependencies
 
 - **`libnotify` (`notify-send`)**: Required for desktop match event notifications (goals, cards, half-time, full-time). Pre-installed on standard Linux desktop distributions (e.g. `libnotify` package).

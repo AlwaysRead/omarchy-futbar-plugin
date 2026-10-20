@@ -518,11 +518,11 @@ BarWidget {
       spacing: Style.space(4)
       visible: root.barWidgetMode !== "icon" && root.barDisplayText !== ""
 
-      Image {
+      FutRemoteImage {
         width: Style.space(14)
         height: Style.space(14)
         anchors.verticalCenter: parent.verticalCenter
-        source: root.barHomeLogo
+        remoteSource: root.barHomeLogo
         fillMode: Image.PreserveAspectFit
         sourceSize.width: 32
         sourceSize.height: 32
@@ -543,11 +543,11 @@ BarWidget {
         renderType: Text.NativeRendering
       }
 
-      Image {
+      FutRemoteImage {
         width: Style.space(14)
         height: Style.space(14)
         anchors.verticalCenter: parent.verticalCenter
-        source: root.barAwayLogo
+        remoteSource: root.barAwayLogo
         fillMode: Image.PreserveAspectFit
         sourceSize.width: 32
         sourceSize.height: 32

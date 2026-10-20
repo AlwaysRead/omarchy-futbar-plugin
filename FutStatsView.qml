@@ -278,11 +278,11 @@ Column {
 
                 Item { width: Style.space(8); height: 1 }
 
-                Image {
+                FutRemoteImage {
                   anchors.verticalCenter: parent.verticalCenter
                   width: Style.space(20)
                   height: Style.space(20)
-                  source: statRow.modelData.teamLogo
+                  remoteSource: statRow.modelData.teamLogo
                   fillMode: Image.PreserveAspectFit
                   sourceSize.width: 64
                   sourceSize.height: 64

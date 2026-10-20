@@ -204,10 +204,10 @@ Column {
                 opacity: 0.12
                 visible: root.selectedPlayerProfile && root.selectedPlayerProfile.teamCrest !== ""
 
-                Image {
+                FutRemoteImage {
                   id: playerWatermarkImg
                   anchors.fill: parent
-                  source: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
+                  remoteSource: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
                   fillMode: Image.PreserveAspectFit
                   mipmap: true
                   smooth: true
@@ -266,10 +266,10 @@ Column {
                     }
                   }
 
-                  Image {
+                  FutRemoteImage {
                     id: playerHeadshotImg
                     anchors.fill: parent
-                    source: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
+                    remoteSource: root.selectedPlayerProfile ? root.selectedPlayerProfile.headshot : ""
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
                     smooth: true
@@ -317,11 +317,11 @@ Column {
                       anchors.verticalCenter: parent.verticalCenter
                       visible: !!(root.selectedPlayerProfile && root.selectedPlayerProfile.teamCrest && root.selectedPlayerProfile.teamCrest !== "")
 
-                      Image {
+                      FutRemoteImage {
                         anchors.centerIn: parent
                         width: Style.space(16)
                         height: Style.space(16)
-                        source: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
+                        remoteSource: root.selectedPlayerProfile ? root.selectedPlayerProfile.teamCrest : ""
                         fillMode: Image.PreserveAspectFit
                         sourceSize: Qt.size(128, 128)
                         mipmap: true
@@ -357,11 +357,11 @@ Column {
                       anchors.verticalCenter: parent.verticalCenter
                       visible: !!(root.selectedPlayerProfile && root.selectedPlayerProfile.flag && root.selectedPlayerProfile.flag !== "")
 
-                      Image {
+                      FutRemoteImage {
                         anchors.centerIn: parent
                         width: Style.space(20)
                         height: Style.space(14)
-                        source: root.selectedPlayerProfile ? root.selectedPlayerProfile.flag : ""
+                        remoteSource: root.selectedPlayerProfile ? root.selectedPlayerProfile.flag : ""
                         fillMode: Image.PreserveAspectFit
                         sourceSize: Qt.size(120, 80)
                         mipmap: true
@@ -1466,11 +1466,11 @@ Column {
                       height: Style.space(24)
                       spacing: Style.space(6)
 
-                      Image {
+                      FutRemoteImage {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Style.space(24)
                         height: Style.space(16)
-                        source: modelData.logo || ""
+                        remoteSource: modelData.logo || ""
                         fillMode: Image.PreserveAspectFit
                         sourceSize: Qt.size(120, 80)
                         mipmap: true
@@ -1566,11 +1566,11 @@ Column {
                           anchors.verticalCenter: parent.verticalCenter
                           spacing: Style.space(8)
 
-                          Image {
+                          FutRemoteImage {
                             width: Style.space(18)
                             height: width
                             anchors.verticalCenter: parent.verticalCenter
-                            source: modelData.teamLogo
+                            remoteSource: modelData.teamLogo
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             smooth: true
@@ -1737,11 +1737,11 @@ Column {
                             font.family: root.contentFontFamily
                           }
 
-                          Image {
+                          FutRemoteImage {
                             anchors.verticalCenter: parent.verticalCenter
                             width: (source && String(source) !== "") ? Style.space(14) : 0
                             height: width
-                            source: modelData.fromLogo || ""
+                            remoteSource: modelData.fromLogo || ""
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             smooth: true
@@ -1775,11 +1775,11 @@ Column {
                             font.family: root.contentFontFamily
                           }
 
-                          Image {
+                          FutRemoteImage {
                             anchors.verticalCenter: parent.verticalCenter
                             width: (source && String(source) !== "") ? Style.space(14) : 0
                             height: width
-                            source: modelData.toLogo || ""
+                            remoteSource: modelData.toLogo || ""
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             smooth: true
@@ -1899,10 +1899,10 @@ Column {
               opacity: 0.12
               visible: !!(root.selectedClubProfile && root.selectedClubProfile.logo)
 
-              Image {
+              FutRemoteImage {
                 id: clubWatermarkImg
                 anchors.fill: parent
-                source: (root.selectedClubProfile && root.selectedClubProfile.logo) ? root.selectedClubProfile.logo : ""
+                remoteSource: (root.selectedClubProfile && root.selectedClubProfile.logo) ? root.selectedClubProfile.logo : ""
                 fillMode: Image.PreserveAspectFit
                 mipmap: true
                 smooth: true
@@ -2037,9 +2037,9 @@ Column {
                   height: width
                   anchors.verticalCenter: parent.verticalCenter
 
-                  Image {
+                  FutRemoteImage {
                     anchors.fill: parent
-                    source: (root.selectedClubProfile && root.selectedClubProfile.logo) ? root.selectedClubProfile.logo : ""
+                    remoteSource: (root.selectedClubProfile && root.selectedClubProfile.logo) ? root.selectedClubProfile.logo : ""
                     fillMode: Image.PreserveAspectFit
                     sourceSize: Qt.size(256, 256)
                     mipmap: true
@@ -2456,11 +2456,11 @@ Column {
                         spacing: Style.space(5)
                         clip: true
 
-                        Image {
+                        FutRemoteImage {
                           anchors.verticalCenter: parent.verticalCenter
                           width: Style.space(14)
                           height: width
-                          source: modelData.logo || ""
+                          remoteSource: modelData.logo || ""
                           fillMode: Image.PreserveAspectFit
                           mipmap: true
                           smooth: true
@@ -3168,9 +3168,9 @@ Column {
                       width: Style.space(24)
                       height: width
 
-                      Image {
+                      FutRemoteImage {
                         anchors.fill: parent
-                        source: modelData.headshot || ""
+                        remoteSource: modelData.headshot || ""
                         fillMode: Image.PreserveAspectFit
                         mipmap: true
                         smooth: true
@@ -3222,11 +3222,11 @@ Column {
                       width: Style.space(64)
                       spacing: Style.space(4)
 
-                      Image {
+                      FutRemoteImage {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Style.space(20)
                         height: Style.space(14)
-                        source: modelData.flag || ""
+                        remoteSource: modelData.flag || ""
                         fillMode: Image.PreserveAspectFit
                         sourceSize: Qt.size(80, 56)
                         mipmap: true
@@ -3480,11 +3480,11 @@ Column {
                         anchors.fill: parent
                         spacing: Style.space(6)
 
-                        Image {
+                        FutRemoteImage {
                           anchors.verticalCenter: parent.verticalCenter
                           width: Style.space(24)
                           height: width
-                          source: root.activeClubFixture() ? (root.activeClubFixture().homeLogo || "") : ""
+                          remoteSource: root.activeClubFixture() ? (root.activeClubFixture().homeLogo || "") : ""
                           fillMode: Image.PreserveAspectFit
                           mipmap: true
                           smooth: true
@@ -3573,11 +3573,11 @@ Column {
                           elide: Text.ElideRight
                         }
 
-                        Image {
+                        FutRemoteImage {
                           anchors.verticalCenter: parent.verticalCenter
                           width: Style.space(24)
                           height: width
-                          source: root.activeClubFixture() ? (root.activeClubFixture().awayLogo || "") : ""
+                          remoteSource: root.activeClubFixture() ? (root.activeClubFixture().awayLogo || "") : ""
                           fillMode: Image.PreserveAspectFit
                           mipmap: true
                           smooth: true

@@ -393,11 +393,11 @@ Column {
                     width: parent.width
                     height: Style.space(16)
 
-                    Image {
+                    FutRemoteImage {
                       id: homeLogoImg
                       width: Style.space(15)
                       height: width
-                      source: mCard.modelData ? (mCard.modelData.homeLogo || "") : ""
+                      remoteSource: mCard.modelData ? (mCard.modelData.homeLogo || "") : ""
                       fillMode: Image.PreserveAspectFit
                       sourceSize.width: 48
                       sourceSize.height: 48
@@ -494,11 +494,11 @@ Column {
                     width: parent.width
                     height: Style.space(16)
 
-                    Image {
+                    FutRemoteImage {
                       id: awayLogoImg
                       width: Style.space(15)
                       height: width
-                      source: mCard.modelData ? (mCard.modelData.awayLogo || "") : ""
+                      remoteSource: mCard.modelData ? (mCard.modelData.awayLogo || "") : ""
                       fillMode: Image.PreserveAspectFit
                       sourceSize.width: 48
                       sourceSize.height: 48

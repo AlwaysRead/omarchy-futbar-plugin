@@ -9534,12 +9534,12 @@ root.warnStderr("team select failed", text)
           width: parent.width
           spacing: Style.space(8)
 
-          Image {
+          FutRemoteImage {
             id: tournamentLogoImage
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(30)
             height: width
-            source: root.showClubFixtures
+            remoteSource: root.showClubFixtures
               ? (root.clubLogoUrl() !== "" ? root.clubLogoUrl() : root.leagueLogoUrl())
               : ((root.showMatches || root.showStats || root.showStandings || root.leagueMode)
                 ? (root.leagueLogoUrl() !== "" ? root.leagueLogoUrl() : root.clubLogoUrl())
@@ -9970,10 +9970,10 @@ root.warnStderr("team select failed", text)
                 height: Style.space(40)
                 spacing: Style.space(10)
 
-                Image {
+                FutRemoteImage {
                   width: Style.space(32)
                   height: width
-                  source: root.selectedTeam ? root.selectedTeam.logo : ""
+                  remoteSource: root.selectedTeam ? root.selectedTeam.logo : ""
                   fillMode: Image.PreserveAspectFit
                   sourceSize.width: 64
                   sourceSize.height: 64
@@ -10288,11 +10288,11 @@ root.warnStderr("team select failed", text)
                 spacing: Style.space(10)
 
                 // Image (Player headshot or Club crest)
-                Image {
+                FutRemoteImage {
                   anchors.verticalCenter: parent.verticalCenter
                   width: Style.space(32)
                   height: width
-                  source: modelData.image
+                  remoteSource: modelData.image
                   fillMode: Image.PreserveAspectFit
                   mipmap: true
                   smooth: true
@@ -10557,11 +10557,11 @@ root.warnStderr("team select failed", text)
                   height: root.matchLogoSize
                   anchors.verticalCenter: parent.verticalCenter
 
-                  Image {
+                  FutRemoteImage {
                     anchors.centerIn: parent
                     width: root.matchLogoSize
                     height: root.matchLogoSize
-                    source: matchRow.modelData.homeLogo
+                    remoteSource: matchRow.modelData.homeLogo
                     fillMode: Image.PreserveAspectFit
                     sourceSize.width: 96
                     sourceSize.height: 96
@@ -10681,11 +10681,11 @@ root.warnStderr("team select failed", text)
                   height: root.matchLogoSize
                   anchors.verticalCenter: parent.verticalCenter
 
-                  Image {
+                  FutRemoteImage {
                     anchors.centerIn: parent
                     width: root.matchLogoSize
                     height: root.matchLogoSize
-                    source: matchRow.modelData.awayLogo
+                    remoteSource: matchRow.modelData.awayLogo
                     fillMode: Image.PreserveAspectFit
                     sourceSize.width: 96
                     sourceSize.height: 96
@@ -11371,7 +11371,7 @@ root.warnStderr("team select failed", text)
             width: parent.width
             spacing: Style.space(8)
 
-            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
+            FutRemoteImage { width: Style.space(50); height: width; remoteSource: root.teamLogoFor(root.liveMatch, "home"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
             Text {
               textFormat: Text.PlainText
               width: (parent.width - Style.space(50) * 2 - Style.space(90) - parent.spacing * 4) / 2
@@ -11435,7 +11435,7 @@ root.warnStderr("team select failed", text)
               wrapMode: Text.Wrap
               elide: Text.ElideNone
             }
-            Image { width: Style.space(50); height: width; source: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
+            FutRemoteImage { width: Style.space(50); height: width; remoteSource: root.teamLogoFor(root.liveMatch, "away"); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; visible: String(source) !== "" }
           }
 
           Item {
@@ -11476,7 +11476,7 @@ root.warnStderr("team select failed", text)
             id: liveCompRow
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image { id: competitionLogo; width: Style.space(14); height: width; source: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: String(source) !== "" }
+            FutRemoteImage { id: competitionLogo; width: Style.space(14); height: width; remoteSource: root.competitionLogoFor(root.liveMatch); fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true; mipmap: true; smooth: true; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 2; visible: String(source) !== "" }
             Text {
               textFormat: Text.PlainText
               text: root.competitionNameFor(root.liveMatch)
@@ -11576,10 +11576,10 @@ root.warnStderr("team select failed", text)
             width: parent.width
             spacing: Style.space(8)
 
-            Image {
+            FutRemoteImage {
               width: Style.space(36)
               height: width
-              source: root.teamLogoFor(root.nextMatch, "home")
+              remoteSource: root.teamLogoFor(root.nextMatch, "home")
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -11629,10 +11629,10 @@ root.warnStderr("team select failed", text)
               elide: Text.ElideNone
             }
 
-            Image {
+            FutRemoteImage {
               width: Style.space(36)
               height: width
-              source: root.teamLogoFor(root.nextMatch, "away")
+              remoteSource: root.teamLogoFor(root.nextMatch, "away")
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -11646,10 +11646,10 @@ root.warnStderr("team select failed", text)
           Row {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image {
+            FutRemoteImage {
               width: Style.space(18)
               height: width
-              source: root.competitionLogoFor(root.nextMatch)
+              remoteSource: root.competitionLogoFor(root.nextMatch)
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -11747,10 +11747,10 @@ root.warnStderr("team select failed", text)
             width: parent.width
             spacing: Style.space(8)
 
-            Image {
+            FutRemoteImage {
               width: Style.space(36)
               height: width
-              source: root.teamLogoFor(root.previousMatch, "home")
+              remoteSource: root.teamLogoFor(root.previousMatch, "home")
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -11806,10 +11806,10 @@ root.warnStderr("team select failed", text)
               elide: Text.ElideNone
             }
 
-            Image {
+            FutRemoteImage {
               width: Style.space(36)
               height: width
-              source: root.teamLogoFor(root.previousMatch, "away")
+              remoteSource: root.teamLogoFor(root.previousMatch, "away")
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -11823,10 +11823,10 @@ root.warnStderr("team select failed", text)
           Row {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.space(5)
-            Image {
+            FutRemoteImage {
               width: Style.space(18)
               height: width
-              source: root.competitionLogoFor(root.previousMatch)
+              remoteSource: root.competitionLogoFor(root.previousMatch)
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true

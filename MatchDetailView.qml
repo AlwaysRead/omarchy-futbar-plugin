@@ -327,12 +327,12 @@ Column {
             anchors.rightMargin: Style.space(6)
             spacing: Style.space(4)
 
-            Image {
+            FutRemoteImage {
               id: homeDetailCrestImg
               anchors.horizontalCenter: parent.horizontalCenter
               width: Style.space(50)
               height: width
-              source: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.logo : ""
+              remoteSource: root.matchDetail && root.matchDetail.home ? root.matchDetail.home.logo : ""
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -412,12 +412,12 @@ Column {
             anchors.rightMargin: Style.space(10)
             spacing: Style.space(4)
 
-            Image {
+            FutRemoteImage {
               id: awayDetailCrestImg
               anchors.horizontalCenter: parent.horizontalCenter
               width: Style.space(50)
               height: width
-              source: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.logo : ""
+              remoteSource: root.matchDetail && root.matchDetail.away ? root.matchDetail.away.logo : ""
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: true
@@ -1858,10 +1858,10 @@ Column {
                     height: Style.space(32)
                     anchors.horizontalCenter: parent.horizontalCenter
 
-                    Image {
+                    FutRemoteImage {
                       id: playerJerseyImg
                       anchors.fill: parent
-                      source: pitchPlayerItem.modelData.jerseyImage !== "" ? pitchPlayerItem.modelData.jerseyImage : ""
+                      remoteSource: pitchPlayerItem.modelData.jerseyImage !== "" ? pitchPlayerItem.modelData.jerseyImage : ""
                       fillMode: Image.PreserveAspectFit
                       asynchronous: true
                       cache: true
@@ -2147,10 +2147,10 @@ Column {
                       height: Style.space(24)
                       anchors.verticalCenter: parent.verticalCenter
 
-                      Image {
+                      FutRemoteImage {
                         id: starterJerseyImg
                         anchors.fill: parent
-                        source: starterRow.modelData.jerseyImage !== "" ? starterRow.modelData.jerseyImage : ""
+                        remoteSource: starterRow.modelData.jerseyImage !== "" ? starterRow.modelData.jerseyImage : ""
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                         cache: true
@@ -2275,10 +2275,10 @@ Column {
                       height: Style.space(24)
                       anchors.verticalCenter: parent.verticalCenter
 
-                      Image {
+                      FutRemoteImage {
                         id: subJerseyImg
                         anchors.fill: parent
-                        source: subRow.modelData.jerseyImage !== "" ? subRow.modelData.jerseyImage : ""
+                        remoteSource: subRow.modelData.jerseyImage !== "" ? subRow.modelData.jerseyImage : ""
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                         cache: true
@@ -2555,10 +2555,10 @@ Column {
                 spacing: Style.space(8)
                 visible: !!(root.matchDetail && root.matchDetail.homeForm && root.matchDetail.homeForm.length > 0)
 
-                Image {
+                FutRemoteImage {
                   width: Style.space(22)
                   height: width
-                  source: (root.matchDetail && root.matchDetail.home) ? root.matchDetail.home.logo : ""
+                  remoteSource: (root.matchDetail && root.matchDetail.home) ? root.matchDetail.home.logo : ""
                   fillMode: Image.PreserveAspectFit
                   sourceSize.width: 64
                   sourceSize.height: 64
@@ -2642,10 +2642,10 @@ Column {
                 spacing: Style.space(8)
                 visible: !!(root.matchDetail && root.matchDetail.awayForm && root.matchDetail.awayForm.length > 0)
 
-                Image {
+                FutRemoteImage {
                   width: Style.space(22)
                   height: width
-                  source: (root.matchDetail && root.matchDetail.away) ? root.matchDetail.away.logo : ""
+                  remoteSource: (root.matchDetail && root.matchDetail.away) ? root.matchDetail.away.logo : ""
                   fillMode: Image.PreserveAspectFit
                   sourceSize.width: 64
                   sourceSize.height: 64

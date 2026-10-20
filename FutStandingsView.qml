@@ -333,11 +333,11 @@ Column {
                   }
                 }
                 Item { width: standingsView.standingsRankGap; height: 1 }
-                Image {
+                FutRemoteImage {
                   width: standingsView.standingsLogoWidth
                   height: width
                   anchors.verticalCenter: parent.verticalCenter
-                  source: rowRect.entry.logo
+                  remoteSource: rowRect.entry.logo
                   fillMode: Image.PreserveAspectFit
                   sourceSize.width: 64
                   sourceSize.height: 64

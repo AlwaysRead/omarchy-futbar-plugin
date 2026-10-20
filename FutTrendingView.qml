@@ -926,12 +926,12 @@ Column {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
 
-            Image {
+            FutRemoteImage {
               id: tournamentSectionLogo
               anchors.verticalCenter: parent.verticalCenter
               width: visible ? Style.space(16) : 0
               height: Style.space(16)
-              source: tournamentSection.modelData.logo || ""
+              remoteSource: tournamentSection.modelData.logo || ""
               fillMode: Image.PreserveAspectFit
               sourceSize.width: 32
               sourceSize.height: 32
@@ -1152,11 +1152,11 @@ Column {
                     height: root ? root.matchLogoSize : Style.space(24)
                     anchors.verticalCenter: parent.verticalCenter
 
-                    Image {
+                    FutRemoteImage {
                       anchors.centerIn: parent
                       width: parent.width
                       height: parent.height
-                      source: matchRow.modelData.homeLogo
+                      remoteSource: matchRow.modelData.homeLogo
                       fillMode: Image.PreserveAspectFit
                       sourceSize.width: 64
                       sourceSize.height: 64
@@ -1281,11 +1281,11 @@ Column {
                     height: root ? root.matchLogoSize : Style.space(24)
                     anchors.verticalCenter: parent.verticalCenter
 
-                    Image {
+                    FutRemoteImage {
                       anchors.centerIn: parent
                       width: parent.width
                       height: parent.height
-                      source: matchRow.modelData.awayLogo
+                      remoteSource: matchRow.modelData.awayLogo
                       fillMode: Image.PreserveAspectFit
                       sourceSize.width: 64
                       sourceSize.height: 64
