@@ -1231,31 +1231,15 @@ KeyboardPanel {
                 anchors.rightMargin: Style.space(10)
                 spacing: Style.space(10)
 
-                // Image (Player headshot or Club crest)
-                FutRemoteImage {
+                FutSearchResultImage {
+                  objectName: "searchResultImage"
                   anchors.verticalCenter: parent.verticalCenter
                   width: Style.space(32)
                   height: width
-                  remoteSource: modelData.image
-                  fillMode: Image.PreserveAspectFit
-                  mipmap: true
-                  smooth: true
-                  visible: true
-                }
-
-                // Fallback icon if no image
-                Text {
-                  textFormat: Text.PlainText
-                  anchors.verticalCenter: parent.verticalCenter
-                  width: Style.space(32)
-                  height: width
-                  verticalAlignment: Text.AlignVCenter
-                  horizontalAlignment: Text.AlignHCenter
-                  visible: !modelData.image || String(modelData.image) === ""
-                  text: modelData.type === "player" ? "" : "󰕲"
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.body
-                  color: Qt.darker(root.contentForeground, 1.4)
+                  imageUrl: modelData.image || ""
+                  resultType: modelData.type
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
                 }
 
                 Column {
@@ -2922,24 +2906,6 @@ KeyboardPanel {
           anchors.verticalCenter: parent.verticalCenter
           spacing: Style.space(3)
 
-          Row {
-            spacing: Style.space(6)
-            Text {
-              textFormat: Text.PlainText
-              text: "󰅢"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-            }
-            Text {
-              textFormat: Text.PlainText
-              text: (root.nextMatch || root.previousMatch || root.liveMatch) ? "Refresh unavailable" : "Network Offline"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-            }
-          }
 
           Text {
             textFormat: Text.PlainText

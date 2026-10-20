@@ -9,6 +9,8 @@ Process {
   property int contextVersion: 0
   property int launchedVersion: -1
   readonly property bool responseCurrent: launchedVersion === contextVersion
+  property bool optionalData: false
+  property bool unavailable: false
   property string errorText: ""
   property double lastSucceededAt: 0
   property double retryAt: 0
@@ -21,12 +23,12 @@ Process {
   }
   onRequestContextChanged: {
     contextVersion++
-    lastSucceededAt = 0; errorText = ""; retryAt = 0; failures = 0
+    lastSucceededAt = 0; errorText = ""; retryAt = 0; failures = 0; unavailable = false
     if (running) running = false
   }
   onRunningChanged: {
     if (running) {
-      launchedVersion = contextVersion; errorText = ""; timedOut = false
+      launchedVersion = contextVersion; errorText = ""; timedOut = false; unavailable = false
       watchdog.restart()
     } else watchdog.stop()
   }
@@ -45,6 +47,9 @@ Process {
     var detail = worker.stderr && typeof worker.stderr.text === "string" ? worker.stderr.text : ""
     if (code === 0 && output.length > 0 && output.length <= 8388608) {
       lastSucceededAt = Date.now(); failures = 0; retryAt = 0; errorText = ""
+    } else if (optionalData && /FutBar not_found/.test(detail)) {
+      unavailable = true; errorText = ""; failures = 0
+      retryAt = Date.now() + 300000
     } else {
       failures = Math.min(6,failures+1)
       retryAt = Date.now()+Math.min(60000,1000*Math.pow(2,failures))+Math.floor(Math.random()*500)

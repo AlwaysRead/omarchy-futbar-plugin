@@ -11,6 +11,9 @@ Item {
   visible: false
   property var root: null
   readonly property var requests: [internalSearchRequest, internalSearchPlayerDetailRequest, internalSearchPlayerStatsRequest, internalSearchPlayerSeasonStatsRequest, internalSearchCompQueueRequest, internalSearchPlayerBioRequest, internalSearchTransferTeamRequest, internalSearchPlayerTransactionsRequest, internalSearchPlayerLogRequest, internalSearchTeamNameRequest, internalSearchClubStatRequest, internalSearchCareerAggRequest, internalSearchClubDetailRequest, internalSearchClubScheduleRequest, internalSearchClubStatsRequest, internalSearchClubCoreRequest, internalSearchClubFixturesRequest, internalSearchClubStandingsRequest, internalSearchClubRosterRequest]
+  readonly property var playerInfoRequests: [internalSearchPlayerDetailRequest,internalSearchPlayerBioRequest,internalSearchPlayerTransactionsRequest,internalSearchPlayerLogRequest,internalSearchTransferTeamRequest,internalSearchTeamNameRequest]
+  readonly property var playerStatsRequests: [internalSearchPlayerStatsRequest,internalSearchPlayerSeasonStatsRequest,internalSearchCompQueueRequest,internalSearchClubStatRequest,internalSearchCareerAggRequest]
+  readonly property var clubRequests: [internalSearchClubDetailRequest,internalSearchClubScheduleRequest,internalSearchClubStatsRequest,internalSearchClubCoreRequest,internalSearchClubFixturesRequest,internalSearchClubStandingsRequest,internalSearchClubRosterRequest]
   readonly property var searchRequest: internalSearchRequest
   readonly property var searchPlayerDetailRequest: internalSearchPlayerDetailRequest
   readonly property var searchPlayerStatsRequest: internalSearchPlayerStatsRequest
@@ -165,6 +168,7 @@ Item {
 
   FutContextProcess {
     id: internalSearchPlayerStatsRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -240,6 +244,7 @@ Item {
   }
   FutContextProcess {
     id: internalSearchPlayerSeasonStatsRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -283,6 +288,7 @@ Item {
 
   FutContextProcess {
     id: internalSearchCompQueueRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -409,6 +415,7 @@ Item {
 
   FutContextProcess {
     id: internalSearchPlayerBioRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -509,6 +516,7 @@ Item {
 
   FutContextProcess {
     id: internalSearchTransferTeamRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -551,6 +559,7 @@ Item {
 
   FutContextProcess {
     id: internalSearchPlayerTransactionsRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -670,6 +679,7 @@ Item {
 
   FutContextProcess {
     id: internalSearchPlayerLogRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -843,6 +853,7 @@ Item {
   }
   FutContextProcess {
     id: internalSearchTeamNameRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -892,6 +903,7 @@ Item {
   }
   FutContextProcess {
     id: internalSearchClubStatRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true
@@ -933,6 +945,7 @@ Item {
   }
   FutContextProcess {
     id: internalSearchCareerAggRequest
+    optionalData: true
     requestContext: String(root.selectedPlayerProfile ? root.selectedPlayerProfile.id : "")
     stdout: StdioCollector {
       waitForEnd: true

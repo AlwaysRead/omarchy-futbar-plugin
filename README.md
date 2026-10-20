@@ -122,8 +122,10 @@ across reloads; changes to kickoff time use a new reminder identity. Initial
 fixture/lineup snapshots are silent. Available starters do not establish official
 lineup confirmation.
 
-Profile pages offer **Pin for comparison**. Pin two players or clubs to retain
-side-by-side snapshots of their displayed statistics. Players require a selected
+Profile pages offer a **Compare players/clubs** card. Pin two players or clubs to retain
+side-by-side snapshots of their displayed statistics. Update a pinned profile in place,
+remove either pin individually, or clear both; a third profile never replaces a pin
+automatically. Players require a selected
 season/tournament; different or unknown contexts are flagged. Missing values stay
 unknown, and no per-90 estimates or rankings are invented. The existing player
 Matches view includes season navigation, ESPN competition selection, refresh/retry
@@ -151,6 +153,9 @@ to Qt. Redirects, animated PNGs, and other formats are rejected; unavailable ima
 show a stable local placeholder. Ancillary metadata is stripped before decoding. Four downloads can run at once, each with a ten-second deadline.
 The shared image cache holds at most 128 entries and 8 MiB of encoded data for five
 minutes. No remote image URL is passed directly to the shell's image decoder.
+Lineup jersey URLs matching ESPN's specific soccer stitcher endpoint are routed
+through the same allowed CDN's resizer to produce 128px PNGs; the original 1440px
+images do not reach Qt.
 
 The network policy, runtime dependencies, project structure, and verification
 commands are documented in [SECURITY.md](SECURITY.md).

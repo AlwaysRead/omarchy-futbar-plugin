@@ -59,3 +59,18 @@ assert.equal(m.normalize({...fixture('1'),date:{toString:{}}},'esp.1'),null);
 assert.equal(m.normalize({...fixture('1'),id:{toString:{}}},'esp.1'),null);
 assert.equal(m.followed(match,[null,{teamId:{toString:{}}}]),false);
 assert.equal(m.plan([null,{teamId:{toString:{}}}],now).length,0);
+
+const firstWithoutId=comparison.snapshot({fullName:'First'},'player','2026 · esp.1','123');
+const secondWithoutId=comparison.snapshot({fullName:'Second'},'player','2026 · esp.1','456');
+let pins=comparison.pin([],firstWithoutId).profiles;
+pins=comparison.pin(pins,secondWithoutId).profiles;
+assert.equal(pins.length,2);
+assert.equal(pins[0].id,'123');assert.equal(pins[1].id,'456');
+const update=comparison.pin(pins,{...firstWithoutId,name:'First updated'});
+assert.equal(update.updated,true);assert.equal(update.profiles.length,2);assert.equal(update.profiles[1].id,'456');
+assert(comparison.pin(pins,{...firstWithoutId,id:'789'}).error);
+assert(comparison.pin(pins,{...firstWithoutId,kind:'club'}).error);
+assert(comparison.pin([],{...firstWithoutId,id:''}).error);
+assert.equal(comparison.remove(pins,'player','123')[0].id,'456');
+assert.equal(pins[0].name,'First');
+console.log('PASS: distinct comparison identities, update-in-place, explicit capacity and individual removal');

@@ -32,6 +32,8 @@ if '/standings?' in url:
  data={'children':[{'name':'Fixture league','standings':{'entries':[{'team':{'id':'83','displayName':'Fixture club'},'stats':[{'name':'rank','value':1},{'name':'points','value':35}]}]}}]}
 if '/athletes/123' in url:
  data.update({'id':'123','fullName':'Fixture player','displayName':'Fixture player'})
+if '/athletes/456' in url:
+ data.update({'id':'456','fullName':'Second player','displayName':'Second player'})
 if '/teams/83' in url:
  data.update({'team':{'id':'83','displayName':'Fixture club','record':{'items':[]}}})
 print(json.dumps(data))
@@ -56,6 +58,23 @@ ShellRoot {
     panel.openPlayerSearchDetail({id:"123",displayName:"Initial player",subtitle:"",leagueSlug:"esp.1",image:"",webUrl:""})
     test.phase=1
    } else if (test.phase===1 && !panel.searchPlayerLoading && panel.selectedPlayerProfile && panel.selectedPlayerProfile.fullName === "Fixture player") {
+    var first=Object.assign({},panel.selectedPlayerProfile)
+    first.availableSeasons=[{seasonYear:2026,competitions:[{league:"esp.1"}]}]
+    first.seasonGoals="5";panel.selectedPlayerProfile=first;panel.searchPlayerStatsTab="tournament"
+    panel.pinComparison()
+    if(panel.comparisonProfiles.length!==1 || panel.comparisonProfiles[0].id!=="123") {console.error("FIRST_PIN_FAILURE");Qt.quit();return}
+    panel.openPlayerSearchDetail({id:"456",displayName:"Second player",subtitle:"",leagueSlug:"esp.1",image:"",webUrl:""})
+    test.phase=10
+   } else if(test.phase===10 && !panel.searchPlayerLoading && panel.selectedPlayerProfile && panel.selectedPlayerProfile.fullName==="Second player") {
+    var second=Object.assign({},panel.selectedPlayerProfile)
+    second.availableSeasons=[{seasonYear:2026,competitions:[{league:"esp.1"}]}]
+    second.seasonGoals="7";panel.selectedPlayerProfile=second;panel.searchPlayerStatsTab="tournament"
+    panel.pinComparison()
+    if(panel.comparisonProfiles.length!==2 || panel.comparisonProfiles[0].id!=="123" || panel.comparisonProfiles[1].id!=="456") {console.error("SECOND_PIN_FAILURE");Qt.quit();return}
+    panel.pinComparison()
+    if(panel.comparisonProfiles.length!==2 || panel.comparisonProfiles[0].id!=="123") {console.error("UPDATE_PIN_FAILURE");Qt.quit();return}
+    panel.removeComparison("player","123")
+    if(panel.comparisonProfiles.length!==1 || panel.comparisonProfiles[0].id!=="456") {console.error("REMOVE_PIN_FAILURE");Qt.quit();return}
     panel.openClubSearchDetail({id:"83",displayName:"Initial club",subtitle:"La Liga",leagueSlug:"esp.1",image:"",webUrl:""})
     test.phase=2
    } else if (test.phase===2 && !panel.searchClubLoading && panel.selectedClubProfile && panel.selectedClubProfile.displayName === "Fixture club") {

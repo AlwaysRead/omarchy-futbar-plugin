@@ -95,3 +95,10 @@ skipped tests, and disables network access during tests. Recorded player-history
 fixtures verify season/competition selection, cancellation and cached-data retries.
 Layout tests use temporary preferences and mock helpers; they do not write user
 configuration. See [the profiling baseline](docs/performance.md) for measured limits.
+
+Soccer jersey stitcher URLs are accepted only in their exact league/event/athlete
+PNG endpoint shape with a boolean `darkMode` query. They are rewritten to the
+existing ESPN CDN combiner at 128 × 128. The client still downloads only from
+`a.espncdn.com`, with the existing byte, PNG dimension and decompression limits;
+redirects remain disabled. Unexpected stitcher paths/queries are not rewritten
+and are rejected by the normal image host policy.

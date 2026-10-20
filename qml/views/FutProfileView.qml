@@ -31,7 +31,6 @@ Column {
     fontFamily: root ? root.contentFontFamily : Style.font.family
     onRetryRequested: failures.forEach(function(r) { r.retry() })
   }
-  FutComparisonCard { root: profileDedicatedView.root }
 
           Column {
             width: parent.width
@@ -172,6 +171,8 @@ Column {
               elide: Text.ElideRight
             }
           }
+
+  FutComparisonCard { root: profileDedicatedView.root }
 
           // Selected Player Card
           Column {

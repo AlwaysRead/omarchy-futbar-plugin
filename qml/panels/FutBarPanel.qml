@@ -31,7 +31,9 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
-  readonly property var profileNetworkRequests: profileRequests.requests
+  readonly property var profileNetworkRequests: root.selectedPlayerProfile
+    ? (root.searchPlayerCardTab === "stats" ? profileRequests.playerInfoRequests.concat(profileRequests.playerStatsRequests) : profileRequests.playerInfoRequests)
+    : root.selectedClubProfile ? profileRequests.clubRequests : [profileRequests.searchRequest]
   readonly property var searchClubRosterRequest: profileRequests.searchClubRosterRequest
   readonly property string favoritePath: Quickshell.env("HOME") + "/.local/state/omarchy/futbar.json"
   property var savedFavorite: ({})
@@ -450,22 +452,33 @@ Panel {
   function setSettingValue(key, val) { return preferenceController.setSettingValue(key, val) }
 
   property var comparisonProfiles: []
-  function pinComparison() {
+  readonly property string comparisonKind: root.selectedPlayerProfile ? "player" : "club"
+  readonly property string comparisonProfileId: root.selectedPlayerProfile ? String(root.statsPlayerKey || root.selectedPlayerProfile.id || "") : root.selectedClubProfile ? String(root.selectedClubProfile.id || "") : ""
+  readonly property string comparisonContext: {
     var p = root.selectedPlayerProfile || root.selectedClubProfile
-    if (!p) return "Open a player or club profile first."
-    var kind = root.selectedPlayerProfile ? "player" : "club", context = ""
-    if (kind === "player") {
-      if (root.searchPlayerStatsTab !== "tournament") return "Select Statistics → Tournament and a season/competition before pinning a player."
-      var comps = root.currentSeasonComps(), comp = comps[p.selectedCompIndex || 0]
-      var seasons = p.availableSeasons || [], season = seasons[p.selectedSeasonIndex || 0]
-      if (comp && season) context = String(season.seasonYear || season.year || "") + " · " + String(comp.league || "")
-    } else if (p.comparisonSeason && p.leagueSlug) context = p.comparisonSeason + " · " + p.leagueSlug
-    var snapshot = Comparison.snapshot(p,kind,context)
-    var pinned = root.comparisonProfiles.filter(function(item) { return item.kind === kind && item.id !== snapshot.id })
-    if (pinned.length >= 2) pinned.shift()
-    pinned.push(snapshot); root.comparisonProfiles = pinned
-    return "Pinned " + root.sanitizePlainText(snapshot.name) + ". Values are snapshots of the displayed provider data."
+    if (!p) return ""
+    if (root.selectedPlayerProfile) {
+      if (root.searchPlayerStatsTab !== "tournament") return ""
+      var comps=root.currentSeasonComps(), comp=comps[p.selectedCompIndex || 0]
+      var seasons=p.availableSeasons || [], season=seasons[p.selectedSeasonIndex || 0]
+      var year=season ? String(season.seasonYear || season.year || "") : ""
+      return comp && year && comp.league ? year+" · "+String(comp.league) : ""
+    }
+    return p.comparisonSeason && p.leagueSlug ? p.comparisonSeason+" · "+p.leagueSlug : ""
   }
+  function pinComparison() {
+    var p=root.selectedPlayerProfile || root.selectedClubProfile
+    if (!p) return "Open a player or club profile first."
+    if (root.comparisonKind==="player" && !root.comparisonContext) return "Choose a season and competition in Stats → Tournament first."
+    var snapshot=Comparison.snapshot(p,root.comparisonKind,root.comparisonContext,root.comparisonProfileId)
+    var parts=root.comparisonContext.split(" · ")
+    snapshot.contextLabel=parts.length===2 ? parts[0]+" · "+FutData.leagueLabelForSlug(parts[1]) : "Context unavailable"
+    var result=Comparison.pin(root.comparisonProfiles,snapshot)
+    if (result.error) return result.error
+    root.comparisonProfiles=result.profiles
+    return result.updated ? "Snapshot updated." : "Added to comparison."
+  }
+  function removeComparison(kind, id) { root.comparisonProfiles=Comparison.remove(root.comparisonProfiles,kind,id) }
   function diagnosticsReport() {
     return "FutBar local preview\n" +
       "Runtime: Qt " + Qt.platform.os + "\n" +
@@ -6626,6 +6639,7 @@ Panel {
     searchCareerAggRequest.running = false
     root.resetPanelScroll()
     root.selectedPlayerProfile = {
+      id: String(item.id || ""),
       fullName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
       jersey: "", age: "", position: "", displayHeight: "", displayWeight: "",
       citizenship: "", birthplace: "", dateOfBirth: "", status: "Active",
@@ -6648,7 +6662,7 @@ Panel {
     }
 
     if (item.id && root._playerCache[item.id]) {
-      root.selectedPlayerProfile = Object.assign({}, root._playerCache[item.id])
+      root.selectedPlayerProfile = Object.assign({}, root._playerCache[item.id], {id:String(item.id)})
       root.searchPlayerLoading = false
     }
 
@@ -6685,8 +6699,8 @@ Panel {
   function ensurePlayerStats() {
     if (root.statsPlayerKey === "" || !root.selectedPlayerProfile) return
     var p = root.selectedPlayerProfile
-    var haveCareer = p.careerStatMap !== null && p.careerStatMap !== undefined
-    var haveSeason = p.seasonStatMap !== null && p.seasonStatMap !== undefined
+    var haveCareer = (p.careerStatMap !== null && p.careerStatMap !== undefined) || (searchPlayerStatsRequest.unavailable && Date.now() < searchPlayerStatsRequest.retryAt)
+    var haveSeason = (p.seasonStatMap !== null && p.seasonStatMap !== undefined) || (searchPlayerSeasonStatsRequest.unavailable && Date.now() < searchPlayerSeasonStatsRequest.retryAt)
     if (haveCareer && haveSeason && p.transferFetched) return
     if (root.playerStatsLoading) return
     var pid = root.statsPlayerKey

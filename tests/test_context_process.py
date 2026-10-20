@@ -50,3 +50,33 @@ ShellRoot {
             self.assertIn('CONTEXT_PASS',output,output)
             for failure in ('OBSOLETE_OUTPUT','FAILURE','ReferenceError','TypeError'):
                 self.assertNotIn(failure,output,output)
+
+    def test_optional_absence_does_not_hide_real_failures(self):
+        with tempfile.TemporaryDirectory(prefix='futbar-optional-test-') as directory:
+            work=Path(directory)
+            (work/'qml/components').mkdir(parents=True)
+            (work/'qml/services').mkdir()
+            shutil.copy(ROOT/'qml/components/FutContextProcess.qml',work/'qml/components/FutContextProcess.qml')
+            shutil.copy(ROOT/'qml/services/FutNetwork.js',work/'qml/services/FutNetwork.js')
+            (work/'shell.qml').write_text('''import QtQuick
+import Quickshell
+import Quickshell.Io
+import "qml/components"
+ShellRoot {
+ FutContextProcess { id: missing; optionalData:true; requestContext:"first"; command:["python3","-c","import sys; sys.stderr.write('FutBar not_found'); sys.exit(1)"]; running:true; stderr:StdioCollector {} }
+ FutContextProcess { id: required; command:missing.command; running:true; stderr:StdioCollector {} }
+ FutContextProcess { id: offline; optionalData:true; command:["python3","-c","import sys; sys.stderr.write('FutBar offline'); sys.exit(1)"]; running:true; stderr:StdioCollector {} }
+ Timer { interval:800; running:true; onTriggered: {
+   var ok=missing.unavailable && missing.errorText==="" && !missing.retry() && required.errorText!=="" && offline.errorText!=="" && !offline.unavailable
+   missing.requestContext="second"
+   ok=ok && !missing.unavailable && missing.retryAt===0
+   if(ok) console.log("OPTIONAL_PASS"); else console.error("OPTIONAL_FAILURE")
+   Qt.quit()
+ } }
+}
+''')
+            result=subprocess.run(['quickshell','--no-color','-p',str(work/'shell.qml')],env={**os.environ,'QT_QPA_PLATFORM':'offscreen'},capture_output=True,text=True,timeout=10)
+            output=result.stdout+result.stderr
+            self.assertIn('OPTIONAL_PASS',output,output)
+            for failure in ('OPTIONAL_FAILURE','ReferenceError','TypeError'):
+                self.assertNotIn(failure,output,output)

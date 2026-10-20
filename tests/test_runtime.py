@@ -17,14 +17,14 @@ class RuntimeTests(unittest.TestCase):
     def test_image_queue_cancellation_and_cleanup(self):
         with tempfile.TemporaryDirectory(prefix='futbar-image-test-') as directory:
             work = Path(directory)
-            for name in ('qml/components/FutRemoteImage.qml', 'qml/services/FutImageCache.js', 'qml/services/FutNetwork.js'):
+            for name in ('qml/components/FutRemoteImage.qml', 'qml/components/FutSearchResultImage.qml', 'qml/services/FutImageCache.js', 'qml/services/FutNetwork.js'):
                 destination = work / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(ROOT / name, destination)
             (work / 'lib').mkdir()
             data = 'data:image/png;base64,' + base64.b64encode(png()).decode()
             (work / 'lib' / 'fetch_image.py').write_text(
-                'import sys, time\nif "failed" in sys.argv[1]: sys.exit(1)\ntime.sleep(1 if "slow" in sys.argv[1] else .05)\nprint(' + repr(data) + ')\n')
+                'import sys, time\nif "297362" in sys.argv[1]: assert sys.argv[1].startswith("https://a.espncdn.com/combiner/i?img=") and sys.argv[1].endswith("&w=128&h=128")\nif "failed" in sys.argv[1]: sys.exit(1)\ntime.sleep(1 if "slow" in sys.argv[1] else .05)\nprint(' + repr(data) + ')\n')
             (work / 'shell.qml').write_text('''
 import QtQuick
 import Quickshell
@@ -36,12 +36,18 @@ ShellRoot {
   property var cancelled: null
   property var destroyed: null
   property var failed: null
+  property var jersey: null
   property int peak: 0
   property int ticks: 0
   Item { id: container }
+  FutSearchResultImage {id:playerFallback;resultType:"player"}
+  FutSearchResultImage {id:clubFallback;resultType:"team"}
+  FutSearchResultImage {id:failedPhoto;imageUrl:"https://a.espncdn.com/failed"}
+  FutSearchResultImage {id:loadedPhoto;imageUrl:"https://a.espncdn.com/search-photo"}
   Component.onCompleted: {
     var component = Qt.createComponent("qml/components/FutRemoteImage.qml")
     if (component.status !== Component.Ready) { console.error(component.errorString()); Qt.quit(); return }
+    jersey = component.createObject(container, {remoteSource: "https://stitcher.espn.com/sports/soccer/leagues/esp.1/events/401882913/athletes/297362/jersey.png?darkMode=false"})
     failed = component.createObject(container, {remoteSource: "https://a.espncdn.com/failed", width:32, height:32})
     cancelled = component.createObject(container, {remoteSource: "https://a.espncdn.com/slow-cancel"})
     destroyed = component.createObject(container, {remoteSource: "https://a.espncdn.com/slow-destroy"})
@@ -54,11 +60,12 @@ ShellRoot {
       test.ticks++
       test.peak = Math.max(test.peak, Cache.active)
       if (Cache.active > 4) { console.error("CONCURRENCY_FAILED"); Qt.quit(); return }
-      var ready = test.cancelled && test.cancelled.status === Image.Ready
+      var ready = test.cancelled && test.cancelled.status === Image.Ready && test.jersey && test.jersey.status === Image.Ready
       for (var i = 0; i < test.images.length; i++) ready = ready && test.images[i].status === Image.Ready
       if (test.ticks > 40 && ready && Cache.active === 0) {
         if (Cache.lookup("https://a.espncdn.com/slow-cancel") !== undefined) { console.error("CANCELLED_RESULT_CACHED"); Qt.quit(); return }
         if (!test.failed.fallbackVisible || test.cancelled.fallbackVisible) {console.error("FALLBACK_FAILURE");Qt.quit();return}
+        if (!playerFallback.fallbackVisible || !clubFallback.fallbackVisible || !failedPhoto.fallbackVisible || loadedPhoto.fallbackVisible) {console.error("SEARCH_IMAGE_FALLBACK_FAILURE");Qt.quit();return}
         console.log("RUNTIME_PASS", test.peak, test.images.length)
         Qt.quit()
       }

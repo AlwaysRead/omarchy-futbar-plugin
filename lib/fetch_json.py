@@ -25,21 +25,25 @@ def main(args):
     sys.stdout.buffer.write(b''.join(parts))
 
 
+def error_category(error):
+    if isinstance(error, urllib.error.HTTPError):
+        if error.code in (404, 410):
+            return 'not_found'
+        return 'rate_limited' if error.code == 429 else 'http_error'
+    if isinstance(error, (TimeoutError, socket.timeout)):
+        return 'timeout'
+    if 'FutBar busy:' in str(error):
+        return 'busy'
+    if isinstance(error, urllib.error.URLError):
+        return 'timeout' if isinstance(error.reason, (TimeoutError, socket.timeout)) else 'offline'
+    if isinstance(error, (ValueError, UnicodeError, RecursionError)):
+        return 'invalid_data'
+    return 'request_failed'
+
+
 if __name__ == '__main__':
     try:
         main(sys.argv[1:])
     except Exception as error:
-        if isinstance(error, urllib.error.HTTPError):
-            category = 'rate_limited' if error.code == 429 else 'http_error'
-        elif isinstance(error, (TimeoutError, socket.timeout)):
-            category = 'timeout'
-        elif 'FutBar busy:' in str(error):
-            category = 'busy'
-        elif isinstance(error, urllib.error.URLError):
-            category = 'timeout' if isinstance(error.reason, (TimeoutError, socket.timeout)) else 'offline'
-        elif isinstance(error, (ValueError, UnicodeError, RecursionError)):
-            category = 'invalid_data'
-        else:
-            category = 'request_failed'
-        print('FutBar ' + category, file=sys.stderr)
+        print('FutBar ' + error_category(error), file=sys.stderr)
         sys.exit(1)

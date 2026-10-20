@@ -232,12 +232,6 @@ Column {
             opacity: (root.matchDetailLoading && !root.matchDetail) ? 0.15 : (root.matchDetailLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: root && root.reducedMotion ? 0 : 180 } }
 
-            Text {
-              width: parent.width; wrapMode: Text.WordWrap
-              text: "* Rating estimated by FutBar from match statistics; unmarked ratings are supplied by ESPN."
-              textFormat: Text.PlainText; color: root.contentForeground; font.pixelSize: Style.font.caption
-              visible: root.matchDetailTab === "lineups"
-            }
             // Scoreboard Hero Card
         Item {
           id: heroCard

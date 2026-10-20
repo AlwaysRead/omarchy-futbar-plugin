@@ -18,6 +18,14 @@ const command = network.statsCommand('club', payload);
 assert.equal(command[0], 'python3');
 assert.ok(!command.includes('-c'));
 assert.equal(command[command.length - 1], JSON.stringify(payload));
+const jersey = 'https://stitcher.espn.com/sports/soccer/leagues/esp.1/events/401882913/athletes/297362/jersey.png?darkMode=false';
+const resized = 'https://a.espncdn.com/combiner/i?img=' + encodeURIComponent(jersey) + '&w=128&h=128';
+assert.equal(network.imageSource(jersey), resized);
+assert.equal(network.imageCommand(jersey).at(-1), resized);
+assert.equal(network.imageSource('https://a.espncdn.com/i/teamlogos/soccer/500/83.png'), 'https://a.espncdn.com/i/teamlogos/soccer/500/83.png');
+for (const invalid of [jersey.replace('stitcher.espn.com','evil.test'), jersey+'&url=https://evil.test', jersey.replace('/jersey.png','/../secret.png'), jersey.replace('https:','http:')]) {
+  assert.equal(network.imageSource(invalid), invalid); // Remains rejected by the existing PNG helper host policy.
+}
 const cache = load('FutImageCache.js');
 for (let i = 0; i < 4; i++) assert.equal(cache.acquire(), true);
 assert.equal(cache.acquire(), false);
