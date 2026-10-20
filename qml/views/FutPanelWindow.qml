@@ -197,7 +197,7 @@ KeyboardPanel {
     // Keep the card tied to its bar button instead of centering it on the bar.
     centerOnBar: false
     contentWidth: popup.fittedContentWidth(root.showTrending ? Style.space(440) : Style.space(410))
-    contentHeight: popup.fittedContentHeight((pinnedHeader.visible ? pinnedHeader.implicitHeight + Style.space(14) : 0) + content.implicitHeight, (root.showMatchDetail || root.selectedPlayerProfile !== null || root.selectedClubProfile !== null) ? Style.space(720) : Style.space(560))
+    contentHeight: popup.fittedContentHeight((pinnedHeader.visible ? pinnedHeader.implicitHeight + Style.space(14) : 0) + content.implicitHeight + Style.space(40), (root.showMatchDetail || root.selectedPlayerProfile !== null || root.selectedClubProfile !== null) ? Style.space(720) : Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -737,9 +737,9 @@ KeyboardPanel {
           onClicked: root.spoilerSessionRevealed = true
         }
       }
-      FutWindowFeedback {
-        id: windowFeedback
-        objectName: "windowFeedback"
+      FutWindowFooter {
+        id: windowFooter
+        objectName: "windowFooter"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -767,8 +767,8 @@ KeyboardPanel {
         anchors.topMargin: pinnedHeader.visible ? Style.space(14) : 0
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: windowFeedback.visible ? windowFeedback.top : parent.bottom
-        anchors.bottomMargin: windowFeedback.visible ? Style.space(8) : 0
+        anchors.bottom: windowFooter.top
+        anchors.bottomMargin: Style.space(10)
         clip: true
         contentWidth: availableWidth
         contentHeight: content.implicitHeight

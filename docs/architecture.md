@@ -32,7 +32,8 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 │   │   └── ...                    # Existing feature screens
 │   ├── components/
 │   │   ├── FutContextProcess.qml  # Selection guards for legacy request parsers
-│   │   ├── FutActionArea.qml / FutRequestStatus.qml / FutWindowFeedback.qml
+│   │   ├── FutActionArea.qml / FutRequestStatus.qml
+│   │   ├── FutWindowFooter.qml / FutWindowFeedback.qml
 │   │   ├── FutFormChart.qml       # Estimated recent-rating trend
 │   │   ├── FutRemoteImage.qml / FutNewsPhoto.qml
 │   │   └── ...                    # Loading and searchable dropdown controls
@@ -90,7 +91,8 @@ New requests and player history use `FutApiRequest`. Refreshes retain data for t
 same context; context changes invalidate obsolete output. Image placeholders keep
 reserved slots stable while helpers load or reject images. `FutWindowFeedback`
 shows refresh, cached-data and update-time messages in one faint footer pinned
-below the scroll area; each message disappears after five seconds.
+in a separate reserved strip below the scroll area, with a separator and padding;
+each message disappears after five seconds.
 
 ## Verification
 
