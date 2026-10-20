@@ -47,12 +47,6 @@ Column {
     return calcMatchCenter(rMatches, m) - cardH / 2.0
   }
 
-  function isTeamAdvancing(winner, teamName) {
-    if (!winner || !teamName) return false
-    var w = String(winner).trim().toLowerCase()
-    var t = String(teamName).trim().toLowerCase()
-    return w === t || (t !== "" && w.indexOf(t) !== -1) || (w !== "" && t.indexOf(w) !== -1)
-  }
 
   function isMatchupTeamAdvancing(m, isHome) {
     if (!m || m.completed === false) return false

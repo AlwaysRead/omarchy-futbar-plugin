@@ -7,6 +7,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "FutData.js" as FutData
+import "FutNetwork.js" as FutNetwork
 
 Column {
   id: trendingView
@@ -135,7 +136,7 @@ Column {
       url += "&dates=" + dStr
     }
     trendingRequest.running = false
-    trendingRequest.command = ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", "--", url]
+    trendingRequest.command = FutNetwork.jsonCommand([url], 5242880, 20)
     trendingRequest.running = true
   }
 
@@ -161,8 +162,7 @@ Column {
 
   Process {
     id: trendingRequest
-    command: ["curl", "--compressed", "-fsSL", "--max-time", "20", "--max-filesize", "5242880", "--",
-      "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?limit=300"]
+    command: FutNetwork.jsonCommand(["https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?limit=300"], 5242880, 20)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {

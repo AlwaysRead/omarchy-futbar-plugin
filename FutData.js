@@ -71,17 +71,6 @@
     return clean.toUpperCase()
   }
 
-  function getClubAbbrev(name, explicitAbbrev) {
-    var raw = String(name || "").trim()
-    if (raw === "") return ""
-    var lower = raw.toLowerCase()
-    if (knownClubAbbrevs[lower]) return knownClubAbbrevs[lower]
-    if (explicitAbbrev && String(explicitAbbrev).trim() !== "") {
-      var ea = String(explicitAbbrev).trim().toUpperCase()
-      if (ea.length <= 4) return ea
-    }
-    return computeClubAbbrev(raw)
-  }
 
   function computeClubShort(rawName) {
     var clean = String(rawName || "")
@@ -1230,9 +1219,7 @@ var leagues = [
       ["Progressive carries", ["progressiveCarries"]], ["Own goals", ["ownGoals"]]
     ]
   };
-  var clubAggPyScript = "import sys, json, urllib.request, concurrent.futures\nurls = json.loads(sys.argv[1])\nsums = {}\ncached_map = {}\ndef fetch(u):\n    try:\n        req = urllib.request.Request(u, headers={'User-Agent': 'curl/7.88.1', 'Accept': '*/*'})\n        with urllib.request.urlopen(req, timeout=8) as r:\n            b = r.read(1048577)\n            if len(b) > 1048576: raise ValueError('body exceeds limit')\n            return u, json.loads(b)\n    except Exception:\n        return u, None\nwith concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:\n    for u, data in ex.map(fetch, urls):\n        u_stats = {}\n        if data:\n            for c in data.get('splits', {}).get('categories', []):\n                for s in c.get('stats', []):\n                    nm = s.get('name')\n                    val = s.get('displayValue') if s.get('displayValue') is not None else s.get('value')\n                    try: raw = float(str(val).replace(',', ''))\n                    except: continue\n                    u_stats[nm] = str(val)\n                    if not any(x in nm.lower() for x in ['avg', 'time', 'pct']):\n                        sums[nm] = sums.get(nm, 0) + raw\n        cached_map[u] = u_stats\nout = {k: str(round(v)) for k, v in sums.items()}\nif sums.get('totalPasses', 0) > 0 and 'accuratePasses' in sums:\n    out['passPct'] = str(round(sums['accuratePasses'] / sums['totalPasses'] * 100)) + '%'\nprint(json.dumps({'stats': out, 'cached': {k: v for k, v in cached_map.items() if v}}))\n";
 
-  var careerAggPyScript = "import sys, json, urllib.request, concurrent.futures\nurls = json.loads(sys.argv[1])\nsums = {}\ndef fetch(u):\n    try:\n        req = urllib.request.Request(u, headers={'User-Agent': 'curl/7.88.1', 'Accept': '*/*'})\n        with urllib.request.urlopen(req, timeout=8) as r:\n            b = r.read(1048577)\n            if len(b) > 1048576: raise ValueError('body exceeds limit')\n            return json.loads(b)\n    except Exception:\n        return None\nwith concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:\n    for data in ex.map(fetch, urls):\n        if data:\n            for c in data.get('splits', {}).get('categories', []):\n                for s in c.get('stats', []):\n                    nm = s.get('name')\n                    if nm in ['goalAssists', 'appearances', 'totalGoals']:\n                        val = s.get('displayValue') if s.get('displayValue') is not None else s.get('value')\n                        try: raw = float(str(val).replace(',', ''))\n                        except: continue\n                        sums[nm] = sums.get(nm, 0) + raw\nprint(json.dumps(sums))\n";
 
 
   var leagueShortMap = {

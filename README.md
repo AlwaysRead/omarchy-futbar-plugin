@@ -2,7 +2,7 @@
 
 ![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version: 2.4.0](https://img.shields.io/badge/Version-2.4.0-green.svg)](manifest.json)
+[![Version: 2.5.0](https://img.shields.io/badge/Version-2.5.0-green.svg)](manifest.json)
 
 **FutBar** is a live football companion and match center engineered for Omarchy. Track live fixtures, tactical pitch formations with athlete kits, minute-by-minute match timelines, head-to-head records, league standings, player leaderboards, and real-time desktop event notifications seamlessly from your top bar. Powered directly by ESPN's public endpoints with zero API costs, no authentication keys, and no account setup required.
 
@@ -98,9 +98,12 @@ Remote images require `python3` (standard library only). FutBar accepts static P
 from `https://a.espncdn.com`, downloads at most 512 KiB per image, and validates PNG
 structure, checksums, and dimensions (at most 1024 × 1024) before passing image data
 to Qt. Redirects, animated PNGs, and other formats are rejected; unavailable images
-remain blank. Four downloads can run at once, each with a ten-second deadline.
+remain blank. Ancillary metadata is stripped before decoding. Four downloads can run at once, each with a ten-second deadline.
 The shared image cache holds at most 128 entries and 8 MiB of encoded data for five
 minutes. No remote image URL is passed directly to the shell's image decoder.
+
+The network policy, runtime dependencies, project structure, and verification
+commands are documented in [SECURITY.md](SECURITY.md).
 
 ## Optional Dependencies
 

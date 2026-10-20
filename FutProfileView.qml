@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "FutData.js" as FutData
+import "FutNetwork.js" as FutNetwork
 
 Column {
   id: profileDedicatedView
@@ -1833,7 +1834,8 @@ Column {
                 visible: root.selectedPlayerProfile && root.selectedPlayerProfile.webUrl !== ""
                 onClicked: {
                   if (root.selectedPlayerProfile && root.selectedPlayerProfile.webUrl !== "") {
-                    Qt.openUrlExternally(root.selectedPlayerProfile.webUrl)
+                    var url = FutNetwork.safeProfileUrl(root.selectedPlayerProfile.webUrl)
+                    if (url !== "") Qt.openUrlExternally(url)
                   }
                 }
               }
@@ -3664,7 +3666,8 @@ Column {
             visible: !!(root.selectedClubProfile && root.selectedClubProfile.webUrl)
             onClicked: {
               if (root.selectedClubProfile && root.selectedClubProfile.webUrl) {
-                Qt.openUrlExternally(root.selectedClubProfile.webUrl)
+                var url = FutNetwork.safeProfileUrl(root.selectedClubProfile.webUrl)
+                if (url !== "") Qt.openUrlExternally(url)
               }
             }
           }

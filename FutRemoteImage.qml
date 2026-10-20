@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import "FutImageCache.js" as ImageCache
+import "FutNetwork.js" as FutNetwork
 
 // Only the bounded, dimension-checked PNG returned by the helper reaches Qt.
 Image {
@@ -11,6 +12,8 @@ Image {
   property int fetchingGeneration: -1
   property bool hasSlot: false
   source: ""
+  asynchronous: true
+  sourceSize: Qt.size(128, 128)
   onRemoteSourceChanged: {
     generation++
     source = ""
@@ -33,7 +36,7 @@ Image {
       image.hasSlot = true
       image.fetchingUrl = image.remoteSource
       image.fetchingGeneration = image.generation
-      fetcher.command = ["python3", decodeURIComponent(Qt.resolvedUrl("fetch_image.py").toString().replace(/^file:\/\//, "")), image.fetchingUrl]
+      fetcher.command = FutNetwork.imageCommand(image.fetchingUrl)
       fetcher.running = true
       deadline.start()
     }

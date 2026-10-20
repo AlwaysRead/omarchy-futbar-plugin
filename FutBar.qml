@@ -25,7 +25,7 @@ BarWidget {
   }
   function sanitizePlainText(raw) {
     if (raw === undefined || raw === null) return ""
-    var str = String(raw)
+    var str = String(raw).substring(0, 4096)
     str = str.replace(/&#(?:60|0*60|x0*3c|x0*3C);/gi, '<')
              .replace(/&#(?:62|0*62|x0*3e|x0*3E);/gi, '>')
              .replace(/&lt;/gi, '<')

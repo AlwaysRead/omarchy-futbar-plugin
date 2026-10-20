@@ -4,7 +4,11 @@ import unittest
 import zlib
 from unittest.mock import patch
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 import fetch_image as image
+import http_client
 
 
 def chunk(kind, body):
@@ -30,6 +34,17 @@ class FetchTests(unittest.TestCase):
             with self.subTest(length=len(data)), self.assertRaises(ValueError):
                 image.validate_png(data)
 
+    def test_strips_compressed_metadata(self):
+        original = png()
+        data = original[:33] + chunk(b'zTXt', b'comment\0\0' + zlib.compress(b'x' * 1000000)) + original[33:]
+        self.assertEqual(image.validate_png(data), original)
+
+    def test_reject_pixel_decompression_bomb(self):
+        original = png()
+        data = original[:33] + chunk(b'IDAT', zlib.compress(b'x' * 1000000)) + chunk(b'IEND', b'')
+        with self.assertRaises(ValueError):
+            image.validate_png(data)
+
     def test_reject_bad_checksum(self):
         data = bytearray(png())
         data[29] ^= 1
@@ -46,7 +61,7 @@ class FetchTests(unittest.TestCase):
 
     def test_redirect_rejected(self):
         with self.assertRaises(ValueError):
-            image.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://evil.test/')
+            http_client.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://evil.test/')
 
     def run_response(self, body, headers):
         response = io.BytesIO(body)

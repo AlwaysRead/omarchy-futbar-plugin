@@ -2,7 +2,7 @@
 
 // Shared by all views, so large lists cannot start unbounded helper processes.
 var active = 0
-var entries = ({})
+var entries = Object.create(null)
 var order = []
 var bytes = 0
 function acquire() {
