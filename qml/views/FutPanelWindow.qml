@@ -705,7 +705,7 @@ KeyboardPanel {
         width: parent.width
         visible: root.networkError !== ""
         textFormat: Text.PlainText
-        text: root.networkError + (root.networkLastSuccess || root.lastRefresh ? " Last good data: " + Qt.formatDateTime(new Date(root.networkLastSuccess || root.lastRefresh),"hh:mm") + "." : "")
+        text: root.networkError
         wrapMode: Text.WordWrap; color: root.contentForeground
         font.family: root.contentFontFamily; font.pixelSize: Style.font.caption
       }
@@ -737,6 +737,29 @@ KeyboardPanel {
           onClicked: root.spoilerSessionRevealed = true
         }
       }
+      FutWindowFeedback {
+        id: windowFeedback
+        objectName: "windowFeedback"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        foreground: root.contentForeground
+        fontFamily: root.contentFontFamily
+        enabled: root.opened && !root.showSettings && !root.needsTeam && !root.editingTeam && !root.spoilerGuardActive
+        contextKey: root.currentViewKey
+        requests: {
+          if (root.showMatchDetail) return [root.matchDetailRequest]
+          if (root.selectedPlayerProfile || root.selectedClubProfile) return profileDedicatedView.feedbackRequests
+          if (root.showNews) return [internalNewsView.requestStatus]
+          if (root.showTrending) return [internalTrendingView.requestStatus]
+          if (root.showStandings) return internalStandingsView.viewMode === "bracket" ? root.bracketRequests : [root.standingsRequest]
+          if (root.showStats) return [root.statsRequest]
+          if (root.showMatches || root.showClubFixtures || root.leagueMode) return [root.matchListRequest]
+          if (root.showSearch) return [root.searchRequest]
+          return [root.fixtureRequest,root.sbRequest1,root.sbRequest2,root.sbRequest3]
+        }
+        fallbackUpdatedAt: !root.customViewActive ? Number(root.lastRefresh || 0) : 0
+      }
       ScrollView {
         id: internalPanelScrollArea
         visible: !root.spoilerGuardActive
@@ -744,7 +767,8 @@ KeyboardPanel {
         anchors.topMargin: pinnedHeader.visible ? Style.space(14) : 0
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.bottom: windowFeedback.visible ? windowFeedback.top : parent.bottom
+        anchors.bottomMargin: windowFeedback.visible ? Style.space(8) : 0
         clip: true
         contentWidth: availableWidth
         contentHeight: content.implicitHeight
@@ -2094,9 +2118,7 @@ KeyboardPanel {
                     Text {
           textFormat: Text.PlainText
           width: parent.width
-          text: ((root.leagueLive.length + root.leagueRecent.length + root.leagueUpcoming.length) > 0)
-            ? (root.formatCachedTimeAgo(root.lastMatchListRefresh) + " · " + root.matchListError)
-            : root.matchListError
+          text: root.matchListError
           color: Qt.darker(root.contentForeground, 1.5)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
@@ -2911,7 +2933,7 @@ KeyboardPanel {
             }
             Text {
               textFormat: Text.PlainText
-              text: (root.nextMatch || root.previousMatch || root.liveMatch) ? root.formatCachedTimeAgo(root.lastRefresh) : "Network Offline"
+              text: (root.nextMatch || root.previousMatch || root.liveMatch) ? "Refresh unavailable" : "Network Offline"
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
@@ -2940,12 +2962,6 @@ KeyboardPanel {
 
     }
 
-          FutUpdatedLabel {
-            updatedAt: (root.showMatches || root.showClubFixtures || root.leagueMode) ? root.matchListRequest.lastSucceededAt : Number(root.lastRefresh || 0)
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
-            visible: recent && !root.showNews && !root.showStandings && !root.showStats && !root.showTrending && !root.showMatchDetail && !root.showSearch && !root.showSettings && !root.needsTeam && !root.editingTeam
-          }
         }
   }
 }

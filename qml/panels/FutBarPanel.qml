@@ -3961,7 +3961,7 @@ Panel {
 
   readonly property string currentViewKey: root.showSettings ? "settings" :
     root.showMatchDetail ? "match:" + String(root.matchDetail && root.matchDetail.id) + ":" + root.matchDetailTab :
-    root.selectedPlayerProfile ? "player:" + root.selectedPlayerProfile.id + ":" + root.searchPlayerCardTab :
+    root.selectedPlayerProfile ? "player:" + root.statsPlayerKey + ":" + root.searchPlayerCardTab :
     root.selectedClubProfile ? "club:" + root.selectedClubProfile.id + ":" + root.searchClubCardTab :
     root.showNews ? "news:" + (panelWindow.newsView.selectedArticle ? panelWindow.newsView.selectedArticle.url : "feed") :
     root.showTrending ? "trending" :

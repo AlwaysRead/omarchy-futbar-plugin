@@ -3359,9 +3359,4 @@ Column {
             }
           }
         }
-  FutUpdatedLabel {
-    updatedAt: root ? root.matchDetailRequest.lastSucceededAt : 0
-    foreground: (root ? root.contentForeground : "#eeeeee")
-    fontFamily: (root ? root.contentFontFamily : Style.font.family)
-  }
 }

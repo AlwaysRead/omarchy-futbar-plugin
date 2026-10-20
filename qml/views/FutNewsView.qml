@@ -8,6 +8,7 @@ import "../data/FutExtras.js" as Extras
 Column {
   id: view
   property var root: null
+  readonly property var requestStatus: request
   property var selectedArticle: null
   property bool revealed: false
   readonly property color foreground: root ? root.contentForeground : "#eeeeee"
@@ -85,7 +86,7 @@ Column {
     Text { width: parent.width; text: "Latest football stories from ESPN"; textFormat: Text.PlainText; color: view.foreground; opacity: 0.6; font.family: view.fontFamily; font.pixelSize: Style.font.caption }
     Text {
       width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText
-      text: request.error ? request.error + (request.stale ? " Showing cached news." : "") : ""
+      text: request.error ? request.error : ""
       color: view.foreground; opacity: 0.6; font.family: view.fontFamily; font.pixelSize: Style.font.caption; visible: text !== ""
     }
     Text { width: parent.width; wrapMode: Text.WordWrap; visible: !request.loading && !request.error && view.articles.length === 0; text: "No news available in the current feed."; textFormat: Text.PlainText; color: view.foreground; font.family: view.fontFamily; font.pixelSize: Style.font.caption }
@@ -134,10 +135,5 @@ Column {
  id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onActivated: { card.forceActiveFocus(); view.openArticle(card.modelData) } }
       }
     }
-  }
-  FutUpdatedLabel {
-    updatedAt: request.updatedAt
-    foreground: view.foreground
-    fontFamily: view.fontFamily
   }
 }

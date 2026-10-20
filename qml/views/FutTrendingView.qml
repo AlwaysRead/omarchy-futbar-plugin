@@ -13,6 +13,7 @@ import "../services/FutNetwork.js" as FutNetwork
 Column {
   id: trendingView
   property var root: null
+  readonly property var requestStatus: trendingRequest
   width: parent ? parent.width : 0
   spacing: Style.space(8)
   visible: root ? (root.showTrending && !root.showMatchDetail) : false
@@ -1336,10 +1337,5 @@ Column {
   Item {
     width: parent.width
     height: Style.space(12)
-  }
-  FutUpdatedLabel {
-    updatedAt: trendingView.lastRefreshTime
-    foreground: (root ? root.contentForeground : "#eeeeee")
-    fontFamily: (root ? root.contentFontFamily : Style.font.family)
   }
 }

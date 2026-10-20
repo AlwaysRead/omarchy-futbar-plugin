@@ -32,7 +32,7 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 │   │   └── ...                    # Existing feature screens
 │   ├── components/
 │   │   ├── FutContextProcess.qml  # Selection guards for legacy request parsers
-│   │   ├── FutActionArea.qml / FutRequestStatus.qml
+│   │   ├── FutActionArea.qml / FutRequestStatus.qml / FutWindowFeedback.qml
 │   │   ├── FutFormChart.qml       # Estimated recent-rating trend
 │   │   ├── FutRemoteImage.qml / FutNewsPhoto.qml
 │   │   └── ...                    # Loading and searchable dropdown controls
@@ -85,11 +85,12 @@ remains while individual parser/view contracts can be narrowed in later refactor
 
 `FutContextProcess` gives older request parsers shared selection invalidation,
 watchdogs, failure state, retry timing and successful-response timestamps.
-`FutRequestStatus` presents loading, cached refresh, error, update time and retry
-consistently in profile, standings/bracket, statistics, match detail and match lists.
+`FutRequestStatus` presents errors and retries consistently in profile, standings/bracket, statistics, match detail and match lists.
 New requests and player history use `FutApiRequest`. Refreshes retain data for the
 same context; context changes invalidate obsolete output. Image placeholders keep
-reserved slots stable while helpers load or reject images.
+reserved slots stable while helpers load or reject images. `FutWindowFeedback`
+shows refresh, cached-data and update-time messages in one faint footer pinned
+below the scroll area; each message disappears after five seconds.
 
 ## Verification
 

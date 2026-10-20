@@ -400,9 +400,4 @@ Column {
             text: "Fetching statistics…"
           }
         }
-  FutUpdatedLabel {
-    updatedAt: root ? root.statsRequest.lastSucceededAt : 0
-    foreground: (root ? root.contentForeground : "#eeeeee")
-    fontFamily: (root ? root.contentFontFamily : Style.font.family)
-  }
 }

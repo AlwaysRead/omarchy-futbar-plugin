@@ -52,7 +52,8 @@ The internal followed-schedule controller remains for reminders and alerts.
 - [x] Shared legacy request lifecycle/status controls, context cancellation,
   retry delays, update timestamps and same-context cached refreshes.
 - [x] Stable image fallbacks and section loading/refresh status. Successful-update
-  timestamps appear faintly at section bottoms and disappear after five seconds.
+  feedback uses one faint footer pinned to the floating window bottom and disappears
+  after five seconds.
 - [x] Keyboard activation and focus metadata for legacy buttons/rows, with
   narrow-width/large-font fixture checks and horizontally scrollable standings.
 - [x] Qt 6/Quickshell integration CI with pinned Omarchy source and a headless
