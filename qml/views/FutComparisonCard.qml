@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import qs.Commons
 import qs.Ui
 import "../data/FutComparison.js" as Comparison
@@ -15,7 +16,7 @@ Rectangle {
   readonly property bool busy: !!root && (root.searchClubLoading || root.searchPlayerLoading || root.playerStatsLoading)
   readonly property bool needsContext: kind === "player" && !!root && !root.comparisonContext
   readonly property bool mixed: profiles.length > 0 && profiles[0].kind !== kind
-  readonly property bool full: profiles.length === 2 && pinnedIndex < 0
+  readonly property bool full: profiles.length >= Comparison.maximumPins && currentId !== "" && pinnedIndex < 0
   width: parent ? parent.width : 0
   implicitHeight: body.implicitHeight + Style.space(20)
   height: implicitHeight
@@ -25,7 +26,7 @@ Rectangle {
   border.color: root ? Util.alpha(root.contentForeground,0.1) : "transparent"
   onCurrentIdChanged: message = ""
   onKindChanged: message = ""
-  onProfilesChanged: if(profiles.length===2) expanded=true
+  onProfilesChanged: if(profiles.length>=2) expanded=true
 
   Column {
     id: body
@@ -39,11 +40,12 @@ Rectangle {
         id: title
         anchors.left: parent.left; anchors.right: pinButton.left; anchors.rightMargin: Style.space(8)
         anchors.verticalCenter: parent.verticalCenter; spacing: Style.space(3)
-        Text { width:parent.width; text:"Compare "+(view.kind==="player" ? "players" : "clubs");textFormat:Text.PlainText;color:root.contentForeground;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption;font.bold:true;elide:Text.ElideRight }
-        Text { width:parent.width;text:view.profiles.length+" of 2 pinned";textFormat:Text.PlainText;color:root.contentForeground;opacity:0.55;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1 }
+        Text { width:parent.width; text:"Compare "+((view.profiles.length ? view.profiles[0].kind : view.kind)==="player" ? "players" : "clubs");textFormat:Text.PlainText;color:root.contentForeground;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption;font.bold:true;elide:Text.ElideRight }
+        Text { width:parent.width;text:view.profiles.length+" of 4 pinned";textFormat:Text.PlainText;color:root.contentForeground;opacity:0.55;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1 }
       }
       Button {
         id: pinButton
+        visible: !!root && !!(root.selectedPlayerProfile || root.selectedClubProfile)
         objectName: "comparisonPinButton"
         anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
         text: view.needsContext ? "Choose stats" : view.pinnedIndex>=0 ? "Update" : "Pin "+view.kind
@@ -54,6 +56,7 @@ Rectangle {
         foreground:root.contentForeground;accent:root.favoriteTeamAccent;fontFamily:root.contentFontFamily;fontSize:Style.font.caption
         onClicked: {
           if(view.needsContext) {
+            root.showComparison=false;root.showSearch=true
             root.searchPlayerCardTab="stats";root.ensurePlayerStats();root.setPlayerStatsTab("tournament")
             view.message="Select a season and competition, then pin this player."
           } else view.message=root.pinComparison()
@@ -62,7 +65,7 @@ Rectangle {
     }
     Text {
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
-      text:view.mixed ? "Clear these pins to compare "+(view.kind==="player" ? "players." : "clubs.") : view.full ? "Remove a pin to add another "+view.kind+"." : view.message ? view.message : view.profiles.length===0 ? "Pin two profiles to compare their season statistics." : view.profiles.length===1 ? "Open another "+view.kind+" and pin it here." : "Saved snapshots · update a pin after changing its statistics."
+      text:view.mixed ? "Clear these pins to compare "+(view.kind==="player" ? "players." : "clubs.") : view.full ? "Remove a pin to add another "+view.kind+"." : view.message ? view.message : view.profiles.length===0 ? "Pin two profiles to compare their season statistics." : view.profiles.length===1 ? "Open another "+view.kind+" in Search and pin it." : "Season totals · — means ESPN has no value."
       color:root.contentForeground;opacity:0.6;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1
     }
     Column {
@@ -94,7 +97,7 @@ Rectangle {
       visible:view.profiles.length>0
       spacing:Style.space(6)
       Button {
-        visible:view.profiles.length===2;text:view.expanded ? "Hide comparison" : "Show comparison"
+        visible:view.profiles.length>=2;text:view.expanded ? "Hide comparison" : "Show comparison"
         focusable:true;Accessible.role:Accessible.Button;Accessible.name:text
         foreground:root.contentForeground;accent:root.favoriteTeamAccent;fontFamily:root.contentFontFamily;fontSize:Style.font.caption-1
         onClicked:view.expanded=!view.expanded
@@ -106,38 +109,79 @@ Rectangle {
       }
     }
     Column {
-      visible:view.profiles.length===2 && view.expanded
+      visible:view.profiles.length>=2 && view.expanded
       width:parent.width;spacing:Style.space(8)
       Text {
-        visible:view.profiles.length===2 && !Comparison.compatible(view.profiles[0],view.profiles[1])
+        visible:view.profiles.length>=2 && !Comparison.sameContext(view.profiles)
         width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
         text:"Different or unknown seasons/competitions. Compare these values with that context in mind."
         color:root.contentForeground;opacity:0.65;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1
       }
-      Row {
-        width:parent.width;spacing:Style.space(6)
-        Item {width:Style.space(74);height:1}
-        Repeater {
-          model:view.profiles
-          delegate: Text {
-            required property var modelData
-            width:Math.max(1,(body.width-Style.space(86))/2)
-            text:modelData.name;textFormat:Text.PlainText;wrapMode:Text.WordWrap;maximumLineCount:2;elide:Text.ElideRight
-            color:root.contentForeground;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1;font.bold:true
-            horizontalAlignment:Text.AlignHCenter
+      Flickable {
+        id: statsScroll
+        objectName: "comparisonStatsScroll"
+        width: parent.width
+        height: statsTable.implicitHeight + Style.space(12)
+        contentWidth: Math.max(width,Style.space(86)+view.profiles.length*Style.space(100))
+        contentHeight: height
+        clip: true
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        activeFocusOnTab: contentWidth>width
+        Accessible.name: "Comparison statistics; use left and right arrows to scroll"
+        Keys.onLeftPressed: contentX=Math.max(0,contentX-Style.space(100))
+        Keys.onRightPressed: contentX=Math.min(contentWidth-width,contentX+Style.space(100))
+        Controls.ScrollBar.horizontal: Controls.ScrollBar {policy: Controls.ScrollBar.AsNeeded}
+        Column {
+          id: statsTable
+          width: statsScroll.contentWidth
+          spacing: Style.space(8)
+          readonly property real valueWidth: (width-Style.space(74)-view.profiles.length*Style.space(6))/Math.max(1,view.profiles.length)
+          Row {
+            width: parent.width; spacing: Style.space(6)
+            Item {width:Style.space(74);height:1}
+            Repeater {
+              model: view.profiles
+              delegate: Text {
+                required property var modelData
+                width: statsTable.valueWidth
+                text: modelData.name; textFormat: Text.PlainText
+                wrapMode: Text.WordWrap;maximumLineCount:2;elide:Text.ElideRight
+                color:root.contentForeground;font.family:root.contentFontFamily
+                font.pixelSize:Style.font.caption-1;font.bold:true;horizontalAlignment:Text.AlignHCenter
+              }
+            }
+          }
+          Repeater {
+            model: Comparison.rows(view.profiles)
+            delegate: Row {
+              required property var modelData
+              width: parent.width;spacing:Style.space(6)
+              Text {width:Style.space(74);text:modelData.label;textFormat:Text.PlainText;wrapMode:Text.WordWrap;color:root.contentForeground;opacity:0.6;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1}
+              Repeater {
+                model: modelData.values
+                delegate: Text {
+                  required property var modelData
+                  width:statsTable.valueWidth;text:modelData;textFormat:Text.PlainText
+                  color:root.contentForeground;font.family:root.contentFontFamily
+                  font.pixelSize:Style.font.caption;font.bold:true;horizontalAlignment:Text.AlignHCenter
+                }
+              }
+            }
           }
         }
       }
-      Repeater {
-        model:view.profiles.length===2 ? view.profiles[0].values : []
-        delegate: Row {
-          required property var modelData
-          required property int index
-          width:parent.width;spacing:Style.space(6)
-          Text {width:Style.space(74);text:modelData.label;textFormat:Text.PlainText;wrapMode:Text.WordWrap;color:root.contentForeground;opacity:0.6;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1}
-          Text {width:Math.max(1,(body.width-Style.space(86))/2);text:modelData.value;textFormat:Text.PlainText;color:root.contentForeground;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption;font.bold:true;horizontalAlignment:Text.AlignHCenter}
-          Text {width:Math.max(1,(body.width-Style.space(86))/2);text:view.profiles.length===2 && view.profiles[1].values[index] ? view.profiles[1].values[index].value : "—";textFormat:Text.PlainText;color:root.contentForeground;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption;font.bold:true;horizontalAlignment:Text.AlignHCenter}
-        }
+      Text {
+        visible: Comparison.rows(view.profiles).length===0
+        width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+        text:"No statistics available for these snapshots. Update pins after choosing a competition with data."
+        color:root.contentForeground;opacity:0.6;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1
+      }
+      Text {
+        visible: statsScroll.contentWidth>statsScroll.width
+        width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+        text:"Scroll sideways to see every profile."
+        color:root.contentForeground;opacity:0.5;font.family:root.contentFontFamily;font.pixelSize:Style.font.caption-1
       }
     }
   }

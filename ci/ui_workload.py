@@ -61,14 +61,21 @@ import qs.Commons
 import "qml/panels"
 import "qml/views"
 import "qml/components"
+import "qml/data/FutComparison.js" as Comparison
 ShellRoot {
  id: test
  property int phase: -1
  property bool failed: false
  property int buttonCount: 0
  property var standingRows: []
+ property var playerFixture: ({})
  FutBarPanel { id: panel; manageIpc: false }
  QtObject {id:newsContext;property bool opened:true;property bool antiSpoiler:false;property color contentForeground:"#e5e7eb";property string contentFontFamily:"DejaVu Sans"}
+ function findItem(item,name) {
+  if(item.objectName===name) return item
+  for(var i=0;i<item.children.length;i++) {var found=findItem(item.children[i],name);if(found) return found}
+  return null
+ }
  function check(item) {
   if (!item.visible) return
   if (item.width < 0 || item.height < 0 || !isFinite(item.width) || !isFinite(item.height)) {
@@ -85,6 +92,7 @@ ShellRoot {
   panel.showTrending=false;panel.showStandings=false;panel.showStats=false;panel.showSettings=false;panel.showMatchDetail=false
   if(phase===0) {panel.openPlayerSearchDetail({id:"123",displayName:"Fixture player",subtitle:"Fixture club",image:"",webUrl:"",leagueSlug:"esp.1"});panel.searchPlayerCardTab="info"}
   if(phase===1) {
+   test.playerFixture=Object.assign({},panel.selectedPlayerProfile)
    panel.searchPlayerCardTab="matches"
    for(var i=0;i<profile.children.length;i++) if(profile.children[i].athleteId!==undefined) profile.children[i].active=true
   }
@@ -105,6 +113,19 @@ ShellRoot {
   if(phase===7) {panel.showSettings=true}
   if(phase===8) {news.openArticle(news.articles[0])}
   if(phase===9) {
+   panel.comparisonProfiles=[Comparison.snapshot({id:"123",fullName:"Lamine Yamal"},"player","2026 · esp.1","123",{appearances:"20",minutes:"1500",totalGoals:"12",goalAssists:"9",totalShots:"30",shotsOnTarget:"18"})]
+  }
+  if(phase===10) {
+   panel.comparisonProfiles=panel.comparisonProfiles.concat([Comparison.snapshot({id:"456",fullName:"Robert Lewandowski"},"player","2026 · esp.1","456",{appearances:"21",minutes:"1700",totalGoals:"18",goalAssists:"4",totalShots:"40",shotsOnTarget:"25"})])
+  }
+  if(phase===11 || phase===12) {
+   panel.comparisonProfiles=panel.comparisonProfiles.concat([Comparison.snapshot({id:String(phase),fullName:phase===11 ? "Jude Bellingham" : "Kylian Mbappé"},"player","2026 · esp.1",String(phase),{appearances:"22",minutes:"1800",totalGoals:"15",goalAssists:"8",totalShots:"35",shotsOnTarget:"20"})])
+  }
+  if(phase===13) {
+   panel.selectedPlayerProfile=Object.assign({},test.playerFixture,{id:"123",fullName:"Lamine Yamal",shortName:"Yamal",teamCrest:"",teamName:"Barcelona",headshot:"",status:"Active"})
+   panel.searchPlayerCardTab="info"
+  }
+  if(phase===14) {
    checkTimer.stop()
    console.log("UI_WORKLOAD_PASS", "buttons", buttonCount)
    Qt.quit()
@@ -119,7 +140,8 @@ ShellRoot {
    id: viewport;anchors.fill:parent;contentWidth:width;contentHeight:content.implicitHeight;clip:true
    Column {
     id: content;width:parent.width-24;x:12;spacing:12
-    FutProfileView {id:profile;root:panel;visible:test.phase<3}
+    FutComparisonCard {root:panel;visible:test.phase>=9 && test.phase<=12}
+    FutProfileView {id:profile;root:panel;visible:test.phase<3 || test.phase===13}
     FutStandingsView {id:standings;root:panel}
     FutStatsView {root:panel}
     FutTrendingView {root:panel}
@@ -136,6 +158,11 @@ ShellRoot {
   id:checkTimer;interval:650;repeat:true
   onTriggered:{
    if(test.phase===3)panel.standingsGroups=[{name:"Fixture league",entries:test.standingRows}]
+   if(test.phase===12) {
+    var scroll=test.findItem(content,"comparisonStatsScroll")
+    if(!scroll || scroll.contentWidth<=scroll.width) {console.error("UI_COMPARISON_SCROLL_FAILURE");test.failed=true}
+    else scroll.contentX=scroll.contentWidth-scroll.width
+   }
    test.check(content)
    if(test.phase===3 && standings.standingsTeamWidth<30){console.error("UI_TEAM_WIDTH_FAILURE",standings.standingsTeamWidth);test.failed=true}
    if(test.failed){Qt.quit();return}

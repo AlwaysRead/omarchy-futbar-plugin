@@ -122,10 +122,17 @@ across reloads; changes to kickoff time use a new reminder identity. Initial
 fixture/lineup snapshots are silent. Available starters do not establish official
 lineup confirmation.
 
-Profile pages offer a **Compare players/clubs** card. Pin two players or clubs to retain
+Profile pages offer **Pin for comparison** for up to four players or four clubs.
+Once at least two profiles are pinned, use the small **Compare (count)** button
+beside Pin to open the comparison tab whenever ready. Pinning keeps you on the
+profile so you can add a third or fourth player first. Wide tables scroll
+horizontally, including with keyboard arrows when focused.
+Pin two to four players or clubs to retain
 side-by-side snapshots of their displayed statistics. Update a pinned profile in place,
-remove either pin individually, or clear both; a third profile never replaces a pin
-automatically. Players require a selected
+remove either pin individually, or clear all; a fifth profile never replaces a pin
+automatically. Player comparisons include available minutes, shooting, creative,
+defensive and disciplinary totals from the selected ESPN competition; unsupported
+metrics remain unknown and rows missing for both profiles are hidden. Players require a selected
 season/tournament; different or unknown contexts are flagged. Missing values stay
 unknown, and no per-90 estimates or rankings are invented. The existing player
 Matches view includes season navigation, ESPN competition selection, refresh/retry

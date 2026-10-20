@@ -451,8 +451,9 @@ Panel {
   }
   function setSettingValue(key, val) { return preferenceController.setSettingValue(key, val) }
 
+  property bool showComparison: false
   property var comparisonProfiles: []
-  readonly property string comparisonKind: root.selectedPlayerProfile ? "player" : "club"
+  readonly property string comparisonKind: root.selectedPlayerProfile ? "player" : root.selectedClubProfile ? "club" : root.comparisonProfiles.length ? root.comparisonProfiles[0].kind : "player"
   readonly property string comparisonProfileId: root.selectedPlayerProfile ? String(root.statsPlayerKey || root.selectedPlayerProfile.id || "") : root.selectedClubProfile ? String(root.selectedClubProfile.id || "") : ""
   readonly property string comparisonContext: {
     var p = root.selectedPlayerProfile || root.selectedClubProfile
@@ -470,13 +471,25 @@ Panel {
     var p=root.selectedPlayerProfile || root.selectedClubProfile
     if (!p) return "Open a player or club profile first."
     if (root.comparisonKind==="player" && !root.comparisonContext) return "Choose a season and competition in Stats → Tournament first."
-    var snapshot=Comparison.snapshot(p,root.comparisonKind,root.comparisonContext,root.comparisonProfileId)
+    var providerStats
+    if (root.comparisonKind === "player") {
+      var comps=root.currentSeasonComps(), comp=comps[p.selectedCompIndex || 0]
+      providerStats=comp ? root.playerCompStatCache[comp.url] : undefined
+      if (!providerStats) return "Statistics are not available for this season and competition yet."
+    }
+    var snapshot=Comparison.snapshot(p,root.comparisonKind,root.comparisonContext,root.comparisonProfileId,providerStats)
     var parts=root.comparisonContext.split(" · ")
     snapshot.contextLabel=parts.length===2 ? parts[0]+" · "+FutData.leagueLabelForSlug(parts[1]) : "Context unavailable"
     var result=Comparison.pin(root.comparisonProfiles,snapshot)
     if (result.error) return result.error
     root.comparisonProfiles=result.profiles
     return result.updated ? "Snapshot updated." : "Added to comparison."
+  }
+  function openComparison() {
+    if(root.comparisonProfiles.length < 2) return false
+    root.showSettings=false;root.showNews=false;root.showComparison=true
+    root.resetPanelScroll()
+    return true
   }
   function removeComparison(kind, id) { root.comparisonProfiles=Comparison.remove(root.comparisonProfiles,kind,id) }
   function diagnosticsReport() {
@@ -3972,7 +3985,7 @@ Panel {
     setTeamRequest.running = true
   }
 
-  readonly property string currentViewKey: root.showSettings ? "settings" :
+  readonly property string currentViewKey: root.showComparison ? "comparison" : root.showSettings ? "settings" :
     root.showMatchDetail ? "match:" + String(root.matchDetail && root.matchDetail.id) + ":" + root.matchDetailTab :
     root.selectedPlayerProfile ? "player:" + root.statsPlayerKey + ":" + root.searchPlayerCardTab :
     root.selectedClubProfile ? "club:" + root.selectedClubProfile.id + ":" + root.searchClubCardTab :

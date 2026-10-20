@@ -55,26 +55,32 @@ ShellRoot {
    test.ticks++
    if (test.ticks>100) { console.error("PROFILE_TIMEOUT",test.phase,panel._clubFetchPending); Qt.quit() }
    if (test.phase === 0 && test.ticks > 2) {
+    if(panel.openComparison()) {console.error("EMPTY_COMPARISON_FAILURE");Qt.quit();return}
     panel.openPlayerSearchDetail({id:"123",displayName:"Initial player",subtitle:"",leagueSlug:"esp.1",image:"",webUrl:""})
     test.phase=1
    } else if (test.phase===1 && !panel.searchPlayerLoading && panel.selectedPlayerProfile && panel.selectedPlayerProfile.fullName === "Fixture player") {
     var first=Object.assign({},panel.selectedPlayerProfile)
-    first.availableSeasons=[{seasonYear:2026,competitions:[{league:"esp.1"}]}]
+    first.availableSeasons=[{seasonYear:2026,competitions:[{league:"esp.1",url:"fixture-stats"}]}]
     first.seasonGoals="5";panel.selectedPlayerProfile=first;panel.searchPlayerStatsTab="tournament"
+    panel.playerCompStatCache={"fixture-stats":{appearances:"20",totalGoals:"5"}}
     panel.pinComparison()
-    if(panel.comparisonProfiles.length!==1 || panel.comparisonProfiles[0].id!=="123") {console.error("FIRST_PIN_FAILURE");Qt.quit();return}
+    if(panel.showComparison || panel.comparisonProfiles.length!==1 || panel.comparisonProfiles[0].id!=="123") {console.error("FIRST_PIN_FAILURE");Qt.quit();return}
     panel.openPlayerSearchDetail({id:"456",displayName:"Second player",subtitle:"",leagueSlug:"esp.1",image:"",webUrl:""})
     test.phase=10
    } else if(test.phase===10 && !panel.searchPlayerLoading && panel.selectedPlayerProfile && panel.selectedPlayerProfile.fullName==="Second player") {
     var second=Object.assign({},panel.selectedPlayerProfile)
-    second.availableSeasons=[{seasonYear:2026,competitions:[{league:"esp.1"}]}]
+    second.availableSeasons=[{seasonYear:2026,competitions:[{league:"esp.1",url:"fixture-stats"}]}]
     second.seasonGoals="7";panel.selectedPlayerProfile=second;panel.searchPlayerStatsTab="tournament"
+    panel.playerCompStatCache={"fixture-stats":{appearances:"21",totalGoals:"7"}}
     panel.pinComparison()
-    if(panel.comparisonProfiles.length!==2 || panel.comparisonProfiles[0].id!=="123" || panel.comparisonProfiles[1].id!=="456") {console.error("SECOND_PIN_FAILURE");Qt.quit();return}
+    if(panel.showComparison || panel.comparisonProfiles.length!==2 || panel.comparisonProfiles[0].id!=="123" || panel.comparisonProfiles[1].id!=="456") {console.error("SECOND_PIN_FAILURE");Qt.quit();return}
+    if(!panel.openComparison() || !panel.showComparison || panel.currentViewKey!=="comparison") {console.error("OPEN_COMPARISON_FAILURE");Qt.quit();return}
+    panel.showComparison=false
     panel.pinComparison()
-    if(panel.comparisonProfiles.length!==2 || panel.comparisonProfiles[0].id!=="123") {console.error("UPDATE_PIN_FAILURE");Qt.quit();return}
+    if(panel.showComparison || panel.comparisonProfiles.length!==2 || panel.comparisonProfiles[0].id!=="123") {console.error("UPDATE_PIN_FAILURE");Qt.quit();return}
     panel.removeComparison("player","123")
     if(panel.comparisonProfiles.length!==1 || panel.comparisonProfiles[0].id!=="456") {console.error("REMOVE_PIN_FAILURE");Qt.quit();return}
+    panel.showComparison=false
     panel.openClubSearchDetail({id:"83",displayName:"Initial club",subtitle:"La Liga",leagueSlug:"esp.1",image:"",webUrl:""})
     test.phase=2
    } else if (test.phase===2 && !panel.searchClubLoading && panel.selectedClubProfile && panel.selectedClubProfile.displayName === "Fixture club") {

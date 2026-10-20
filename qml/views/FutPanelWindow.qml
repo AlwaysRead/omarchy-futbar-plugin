@@ -209,7 +209,8 @@ KeyboardPanel {
         || (searchBarInput && searchBarInput.activeFocus)
         || (internalTrendingView && internalTrendingView.searchFocused))
       onCloseRequested: {
-        if (root.showNews && internalNewsView.selectedArticle !== null) internalNewsView.closeReader()
+        if (root.showComparison) root.showComparison = false
+        else if (root.showNews && internalNewsView.selectedArticle !== null) internalNewsView.closeReader()
         else if (root.showNews) root.showNews = false
         else if (root.showSettings) root.showSettings = false
         else if (root.showMatchDetail) root.showMatchDetail = false
@@ -220,7 +221,7 @@ KeyboardPanel {
         else if (root.editingTeam) { root.editingTeam = false; root.addingTeam = false }
         else root.close()
       }
-      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onTabRequested: function(direction) { root.showComparison=false; root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) {
         if (dx < 0) {
           if (matchWeekNav && matchWeekNav.visible && prevWeekButton) prevWeekButton.clicked()
@@ -444,8 +445,9 @@ KeyboardPanel {
             iconSize: Style.space(13)
             horizontalPadding: 0
             verticalPadding: 0
-            selected: root.showSearch
+            selected: root.showSearch && !root.showComparison
             onClicked: {
+              root.showComparison = false
               root.showMatchDetail = false
               root.showClubFixtures = false
               root.showSettings = false
@@ -474,8 +476,9 @@ KeyboardPanel {
             Accessible.name: "News"
             foreground: root.contentForeground; accent: root.contentForeground
             horizontalPadding: 0; verticalPadding: 0
-            selected: root.showNews
+            selected: root.showNews && !root.showComparison
             onClicked: {
+              root.showComparison = false
               root.showSettings = false
               root.showNews = !root.showNews
               if (root.showNews) {
@@ -506,8 +509,9 @@ KeyboardPanel {
             horizontalPadding: 0
             verticalPadding: 0
             visible: root.enableTrending
-            selected: root.showTrending
+            selected: root.showTrending && !root.showComparison
             onClicked: {
+              root.showComparison = false
               root.showMatchDetail = false
               root.showClubFixtures = false
               root.showSearch = false
@@ -538,8 +542,9 @@ KeyboardPanel {
             iconSize: Style.space(13)
             horizontalPadding: 0
             verticalPadding: 0
-            selected: root.leagueMode ? (!root.showStandings && !root.showStats && (root.leagueBrowseAll || root.matchesSeasonOffset > 0)) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures)
+            selected: !root.showComparison && (root.leagueMode ? (!root.showStandings && !root.showStats && (root.leagueBrowseAll || root.matchesSeasonOffset > 0)) : (root.showMatches && !root.showStandings && !root.showStats && !root.showClubFixtures))
             onClicked: {
+              root.showComparison = false
               root.showMatchDetail = false
               root.showClubFixtures = false
               root.showSearch = false
@@ -608,8 +613,9 @@ KeyboardPanel {
             iconSize: Style.space(13)
             horizontalPadding: 0
             verticalPadding: 0
-            selected: root.showStandings
+            selected: root.showStandings && !root.showComparison
             onClicked: {
+              root.showComparison = false
               root.showMatchDetail = false
               root.showClubFixtures = false
               root.showSearch = false
@@ -649,8 +655,9 @@ KeyboardPanel {
             iconSize: Style.space(13)
             horizontalPadding: 0
             verticalPadding: 0
-            selected: root.showStats
+            selected: root.showStats && !root.showComparison
             onClicked: {
+              root.showComparison = false
               root.showMatchDetail = false
               root.showClubFixtures = false
               root.showSearch = false
@@ -686,8 +693,9 @@ KeyboardPanel {
             iconSize: Style.space(13)
             horizontalPadding: 0
             verticalPadding: 0
-            selected: root.showSettings
+            selected: root.showSettings && !root.showComparison
             onClicked: {
+              root.showComparison = false
               root.showSearch = false
               root.showClubFixtures = false
               root.showMatchDetail = false
@@ -748,6 +756,7 @@ KeyboardPanel {
         enabled: root.opened && !root.showSettings && !root.needsTeam && !root.editingTeam && !root.spoilerGuardActive
         contextKey: root.currentViewKey
         requests: {
+          if (root.showComparison || (root.selectedPlayerProfile && root.searchPlayerCardTab !== "matches")) return []
           if (root.showMatchDetail) return [root.matchDetailRequest]
           if (root.selectedPlayerProfile || root.selectedClubProfile) return profileDedicatedView.feedbackRequests
           if (root.showNews) return [internalNewsView.requestStatus]
@@ -965,13 +974,37 @@ KeyboardPanel {
         }
 
 
+      Column {
+        objectName: "comparisonView"
+        width: parent.width
+        spacing: Style.space(12)
+        visible: root.showComparison && !root.needsTeam && !root.editingTeam
+        Row {
+          width: parent.width
+          spacing: Style.space(10)
+          Button {
+            text: "Back"; iconText: ""; focusable: true; Accessible.name: "Close comparison"
+            foreground: root.contentForeground; accent: root.favoriteTeamAccent
+            fontFamily: root.contentFontFamily; fontSize: Style.font.caption
+            onClicked: {root.showComparison=false;root.resetPanelScroll()}
+          }
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Comparison"; textFormat: Text.PlainText
+            color: root.contentForeground; font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body; font.bold: true
+          }
+        }
+        FutComparisonCard {root: popup.root}
+      }
+
       FutNewsView {
         id: internalNewsView
         root: popup.root
-        visible: root.showNews && !root.needsTeam && !root.editingTeam && !root.showSettings
+        visible: !root.showComparison && root.showNews && !root.needsTeam && !root.editingTeam && !root.showSettings
       }
       Column {
-        visible: !root.showNews && !root.needsTeam && !root.editingTeam && !root.showSettings
+        visible: !root.showComparison && !root.showNews && !root.needsTeam && !root.editingTeam && !root.showSettings
         width: parent.width
         spacing: Style.space(14)
 

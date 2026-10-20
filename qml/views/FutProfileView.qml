@@ -8,6 +8,7 @@ import qs.Ui
 import "../components"
 import "../controllers"
 import "../data/FutData.js" as FutData
+import "../data/FutComparison.js" as Comparison
 import "../services/FutNetwork.js" as FutNetwork
 
 Column {
@@ -23,14 +24,7 @@ Column {
     athleteId: root && root.selectedPlayerProfile ? String(root.statsPlayerKey || "") : ""
     active: !!root && root.opened && root.searchPlayerCardTab === "matches" && !!root.selectedPlayerProfile && !root.spoilersHidden
   }
-  FutRequestStatus {
-    readonly property var failures: root ? root.profileNetworkRequests.filter(function(r) { return r.errorText !== "" }) : []
-    request: failures.length ? failures[0] : root && root.profileNetworkRequests.length ? root.profileNetworkRequests[0] : null
-    hasData: !!request && request.lastSucceededAt > 0
-    foreground: root ? root.contentForeground : "#eeeeee"
-    fontFamily: root ? root.contentFontFamily : Style.font.family
-    onRetryRequested: failures.forEach(function(r) { r.retry() })
-  }
+
 
           Column {
             width: parent.width
@@ -160,19 +154,82 @@ Column {
             }
 
             // Header Title
-            Text {
-              textFormat: Text.PlainText
+            Item {
               width: parent.width
-              text: root.selectedPlayerProfile ? root.selectedPlayerProfile.fullName : (root.selectedClubProfile ? root.selectedClubProfile.displayName : "")
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
+              implicitHeight: Math.max(profileName.implicitHeight,profileComparisonActions.implicitHeight)
+              Text {
+                id: profileName
+                anchors.left: parent.left
+                anchors.right: profileComparisonActions.left
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.selectedPlayerProfile ? root.selectedPlayerProfile.fullName : (root.selectedClubProfile ? root.selectedClubProfile.displayName : "")
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+              Row {
+                id: profileComparisonActions
+                readonly property real buttonWidth: Math.max(profilePinButton.implicitWidth,profileCompareButton.visible ? profileCompareButton.implicitWidth : 0)
+                readonly property real buttonHeight: Math.max(profilePinButton.implicitHeight,profileCompareButton.implicitHeight)
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(4)
+                Button {
+                  id: profilePinButton
+                  width: profileComparisonActions.buttonWidth
+                  height: profileComparisonActions.buttonHeight
+                  iconSize: fontSize
+                  objectName: "profilePinButton"
+                  text: Comparison.indexOf(root.comparisonProfiles,root.comparisonKind,root.comparisonProfileId)>=0 ? (root.comparisonProfiles.length>=2 ? "Update" : "Update pin") : root.comparisonProfiles.length>=2 ? "Pin" : "Pin for comparison"
+                  iconText: ""
+                  focusable: true
+                  tooltipText: "Pin this profile for comparison (up to 4)"
+                  Accessible.name: tooltipText
+                  foreground: root.contentForeground; accent: root.favoriteTeamAccent
+                  fontFamily: root.contentFontFamily; fontSize: Style.font.caption
+                  enabled: !root.searchPlayerLoading && !root.searchClubLoading && !root.playerStatsLoading
+                  onClicked: {
+                    if(root.selectedPlayerProfile && !root.comparisonContext) {
+                      root.searchPlayerCardTab="stats";root.ensurePlayerStats();root.setPlayerStatsTab("tournament")
+                      pinFeedback.text="Choose a season and competition first."
+                    } else pinFeedback.text=root.pinComparison()
+                  }
+                }
+                Button {
+                  id: profileCompareButton
+                  width: profileComparisonActions.buttonWidth
+                  height: profileComparisonActions.buttonHeight
+                  iconSize: fontSize
+                  objectName: "profileCompareButton"
+                  visible: root.comparisonProfiles.length>=2
+                  text: "Compare ("+root.comparisonProfiles.length+")"
+                  tooltipText: "Compare pinned profiles"
+                  focusable: true; Accessible.name: tooltipText
+                  foreground: root.contentForeground; accent: root.favoriteTeamAccent
+                  fontFamily: root.contentFontFamily; fontSize: Style.font.caption
+                  onClicked: root.openComparison()
+                }
+              }
+
             }
           }
 
-  FutComparisonCard { root: profileDedicatedView.root }
+  Connections {
+    target: root
+    function onComparisonProfileIdChanged() { pinFeedback.text="" }
+  }
+  Text {
+    id: pinFeedback
+    width: parent.width
+    visible: text !== ""
+    textFormat: Text.PlainText; wrapMode: Text.WordWrap
+    color: root.contentForeground; opacity: 0.6
+    font.family: root.contentFontFamily; font.pixelSize: Style.font.caption-1
+  }
 
           // Selected Player Card
           Column {
