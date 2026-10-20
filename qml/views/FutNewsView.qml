@@ -85,7 +85,7 @@ Column {
     Text { width: parent.width; text: "Latest football stories from ESPN"; textFormat: Text.PlainText; color: view.foreground; opacity: 0.6; font.family: view.fontFamily; font.pixelSize: Style.font.caption }
     Text {
       width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText
-      text: request.error ? request.error + (request.stale ? " Showing cached news." : "") : (request.updatedAt ? "Updated " + Qt.formatDateTime(new Date(request.updatedAt), "hh:mm") : "")
+      text: request.error ? request.error + (request.stale ? " Showing cached news." : "") : ""
       color: view.foreground; opacity: 0.6; font.family: view.fontFamily; font.pixelSize: Style.font.caption; visible: text !== ""
     }
     Text { width: parent.width; wrapMode: Text.WordWrap; visible: !request.loading && !request.error && view.articles.length === 0; text: "No news available in the current feed."; textFormat: Text.PlainText; color: view.foreground; font.family: view.fontFamily; font.pixelSize: Style.font.caption }
@@ -134,5 +134,10 @@ Column {
  id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onActivated: { card.forceActiveFocus(); view.openArticle(card.modelData) } }
       }
     }
+  }
+  FutUpdatedLabel {
+    updatedAt: request.updatedAt
+    foreground: view.foreground
+    fontFamily: view.fontFamily
   }
 }

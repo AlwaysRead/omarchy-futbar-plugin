@@ -28,6 +28,8 @@ import json,sys,time
 url=sys.argv[-1]
 time.sleep(.05)
 data={'events':[],'items':[],'sports':[],'leagues':[],'categories':[]}
+if '/standings?' in url:
+ data={'children':[{'name':'Fixture league','standings':{'entries':[{'team':{'id':'83','displayName':'Fixture club'},'stats':[{'name':'rank','value':1},{'name':'points','value':35}]}]}}]}
 if '/athletes/123' in url:
  data.update({'id':'123','fullName':'Fixture player','displayName':'Fixture player'})
 if '/teams/83' in url:
@@ -65,6 +67,16 @@ ShellRoot {
     if (!panel.reducedMotion) { console.error("PREFERENCE_WRITE_FAILURE"); Qt.quit(); return }
     panel.restoreSettings(JSON.stringify({format:"futbar-settings",version:1,settings:{density:"compact",reducedMotion:false,enableNotifications:false}}))
     if (panel.reducedMotion || panel.density !== "compact") { console.error("PREFERENCE_RESTORE_FAILURE"); Qt.quit(); return }
+    panel.savedFavorite={teamName:"Fixture club",teamId:"83",league:"esp.1",enableNotifications:false}
+    panel.needsTeam=false
+    panel.loadStandings(true)
+    if (!panel.standingsRequest.running) {console.error("STANDINGS_START_FAILURE",panel.needsTeam,panel.league,JSON.stringify(panel.standingsRequest.command));Qt.quit();return}
+    test.phase=3
+   } else if(test.phase===3 && !panel.standingsLoading && panel.standings.length===1) {
+    if(panel.standings[0].teamName!=="Fixture club") {console.error("STANDINGS_DATA_FAILURE");Qt.quit();return}
+    panel._lastStandingsKey=panel.league+"|"+String(panel.standingsSeasonOffset)
+    panel.loadStandings(true)
+    if(panel.standings.length!==1) {console.error("STANDINGS_CACHE_FAILURE");Qt.quit();return}
     console.log("PROFILE_PASS"); Qt.quit()
    }
   }

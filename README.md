@@ -138,6 +138,8 @@ Backups use `~/.local/state/omarchy/futbar-settings-backup.json`, are limited to
 64 KiB, and validate supported settings and followed tabs before an explicit
 restore confirmation. Transient state, caches and notification history are excluded.
 Navigation retains bounded, per-view scroll positions for the current session.
+Successful-update timestamps appear faintly at section bottoms for five seconds;
+errors and cached-data notices remain visible.
 
 ## Image loading
 

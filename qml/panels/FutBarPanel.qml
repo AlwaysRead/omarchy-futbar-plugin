@@ -2109,7 +2109,7 @@ Panel {
     if (!force && key === root._lastStandingsKey && root.standings.length > 0 && (now - root.lastStandingsRefresh < 30 * 1000)) {
       return
     }
-    if (key !== root._lastStandingsKey) root.standings = []
+    if (key !== root._lastStandingsKey) { root.standingsGroups = []; root.standingsGroupIndex = 0 }
     internalStandingsRequest.running = false
     standingsLoading = true
     standingsError = ""

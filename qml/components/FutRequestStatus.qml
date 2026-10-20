@@ -15,11 +15,11 @@ Column {
   signal retryRequested()
   width: parent ? parent.width : 0
   spacing: Style.space(6)
-  visible: !!failure || !!(request && (request.running || request.lastSucceededAt))
+  visible: !!failure || !!(request && request.running)
   Text {
     width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText
     text: status.request && status.request.running ? (status.hasData ? "Refreshing cached data…" : "Loading…") : status.failure ? status.failure + (status.hasData ? " Showing cached data." : "") :
-      status.request && status.request.lastSucceededAt ? "Updated " + Qt.formatDateTime(new Date(status.request.lastSucceededAt),"hh:mm") : ""
+      ""
     color: status.foreground; font.family: status.fontFamily; font.pixelSize: Style.font.caption
     Accessible.role: Accessible.StaticText
     Accessible.name: text

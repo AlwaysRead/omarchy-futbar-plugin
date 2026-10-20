@@ -622,7 +622,7 @@ Column {
                   }
                   Text {
                     width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText
-                    text: playerHistory.loading ? "Loading match history…" : playerHistory.error ? playerHistory.error + (playerHistory.matches.length ? " Showing cached matches." : "") : playerHistory.matches.length ? "Updated " + Qt.formatDateTime(new Date(playerHistory.updatedAt),"hh:mm") + " · ESPN coverage varies by season and competition" : "No matches available for this season and competition."
+                    text: playerHistory.loading ? "Loading match history…" : playerHistory.error ? playerHistory.error + (playerHistory.matches.length ? " Showing cached matches." : "") : playerHistory.matches.length ? "ESPN coverage varies by season and competition" : "No matches available for this season and competition."
                     font.family: root.contentFontFamily; font.pixelSize: Style.font.caption
                     color: Qt.darker(root.contentForeground, 1.4)
                   }
@@ -3879,4 +3879,9 @@ Column {
         }
       }
     }
+    FutUpdatedLabel {
+    updatedAt: root ? (root.selectedPlayerProfile && root.searchPlayerCardTab === "matches" ? playerHistory.updatedAt : Math.max.apply(null,root.profileNetworkRequests.map(function(r) {return r.lastSucceededAt}))) : 0
+    foreground: (root ? root.contentForeground : "#eeeeee")
+    fontFamily: (root ? root.contentFontFamily : Style.font.family)
   }
+}

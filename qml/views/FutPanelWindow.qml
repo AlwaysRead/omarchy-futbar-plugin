@@ -2939,7 +2939,14 @@ KeyboardPanel {
       }
 
     }
-    }
+
+          FutUpdatedLabel {
+            updatedAt: (root.showMatches || root.showClubFixtures || root.leagueMode) ? root.matchListRequest.lastSucceededAt : Number(root.lastRefresh || 0)
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            visible: recent && !root.showNews && !root.showStandings && !root.showStats && !root.showTrending && !root.showMatchDetail && !root.showSearch && !root.showSettings && !root.needsTeam && !root.editingTeam
+          }
+        }
   }
 }
 }

@@ -1337,4 +1337,9 @@ Column {
     width: parent.width
     height: Style.space(12)
   }
+  FutUpdatedLabel {
+    updatedAt: trendingView.lastRefreshTime
+    foreground: (root ? root.contentForeground : "#eeeeee")
+    fontFamily: (root ? root.contentFontFamily : Style.font.family)
+  }
 }

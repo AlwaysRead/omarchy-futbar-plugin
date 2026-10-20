@@ -28,7 +28,7 @@ Column {
   }
 
   FutRequestStatus {
-    visible: standingsView.viewMode === "bracket" && !!root
+    visible: standingsView.viewMode === "bracket" && !!root && (!!failure || !!(request && request.running))
     request: root ? (root.bracketRequests.filter(function(r) { return r.errorText !== "" })[0] || root.bracketRequests[0]) : null
     error: root ? root.tournamentBracketError : ""
     hasData: root ? root.tournamentSeasonBracket.length > 0 : false
@@ -510,5 +510,10 @@ Column {
       active: root ? ((root.standingsLoading && root.standings.length === 0) || (standingsView.viewMode === "bracket" && root.tournamentBracketLoading && (!root.tournamentSeasonBracket || root.tournamentSeasonBracket.length === 0))) : false
       text: (root && root.tournamentBracketLoading && standingsView.viewMode === "bracket") ? "Loading tournament bracket…" : "Fetching standings…"
     }
+  }
+  FutUpdatedLabel {
+    updatedAt: root ? (standingsView.viewMode === "bracket" ? Math.max.apply(null,root.bracketRequests.map(function(r) {return r.lastSucceededAt})) : root.standingsRequest.lastSucceededAt) : 0
+    foreground: (root ? root.contentForeground : "#eeeeee")
+    fontFamily: (root ? root.contentFontFamily : Style.font.family)
   }
 }
