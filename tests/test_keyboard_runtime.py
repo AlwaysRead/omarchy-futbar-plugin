@@ -8,7 +8,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 RUNNER='/usr/lib/qt6/bin/qmltestrunner' if Path('/usr/lib/qt6/bin/qmltestrunner').is_file() else shutil.which('qmltestrunner')
 
-@unittest.skipUnless(Path(RUNNER).is_file(),'Qt Quick Test is required')
+@unittest.skipUnless(RUNNER and Path(RUNNER).is_file(),'Qt Quick Test is required')
 class KeyboardTests(unittest.TestCase):
     def test_keyboard_activation_and_focus(self):
         with tempfile.TemporaryDirectory(prefix='futbar-keys-') as directory:
