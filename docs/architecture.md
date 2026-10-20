@@ -16,10 +16,14 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 │   └── roadmap.md                # Priorities and ESPN feature opportunities
 ├── qml/
 │   ├── FutBar.qml                 # Bar widget and panel loader
+│   ├── controllers/
+│   │   └── FutApiRequest.qml      # On-demand requests, cancellation, stale data
 │   ├── panels/
 │   │   └── FutBarPanel.qml        # Panel state, requests, and composition
 │   ├── views/                     # Feature-specific screens
 │   │   ├── FutBracketView.qml
+│   │   ├── FutNewsView.qml
+│   │   ├── FutGameLogView.qml
 │   │   ├── FutProfileView.qml
 │   │   ├── FutSettingsView.qml
 │   │   ├── FutStandingsView.qml
@@ -31,6 +35,7 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 │   │   ├── FutRemoteImage.qml
 │   │   └── FutSearchableDropdown.qml
 │   ├── data/
+│   │   ├── FutExtras.js           # Bounded news, game-log and video transformations
 │   │   └── FutData.js             # Football data transformations and lookup tables
 │   └── services/
 │       ├── FutNetwork.js         # Helper commands and external-link policy
@@ -47,6 +52,8 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 ## Placement and dependencies
 
 - Add feature screens under `qml/views/` and reusable UI under `qml/components/`.
+- Reusable request lifecycle components belong in `qml/controllers/`. New views
+  use `FutApiRequest` for cancellation, bounded responses, retries, and stale data.
 - Keep football parsing and formatting in `qml/data/`. Network command building
   and shared runtime services belong in `qml/services/`.
 - All Python network access goes through `lib/http_client.py`. QML invokes those

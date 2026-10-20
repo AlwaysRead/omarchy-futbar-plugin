@@ -32,3 +32,4 @@ cache.remember('https://example/update', 'first');
 cache.remember('https://example/update', 'second');
 assert.equal(cache.lookup('https://example/update'), 'second');
 console.log('PASS: profile URL restrictions, concurrency cap, cache eviction and replacement');
+require('./test_extras.js');

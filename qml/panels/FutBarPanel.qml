@@ -9,6 +9,7 @@ import qs.Ui
 import "../components"
 import "../views"
 import "../data/FutData.js" as FutData
+import "../data/FutExtras.js" as FutExtras
 import "../services/FutNetwork.js" as FutNetwork
 
 // Fixture panel view
@@ -1101,6 +1102,8 @@ Panel {
   property var activityEvents: []
   property var activityPending: ({})
   readonly property int activityPendingMaxTries: 3
+  property bool showNews: false
+  onShowNewsChanged: root.resetPanelScroll()
   property bool showSettings: false
   property bool showStandings: false
   property bool showTrending: false
@@ -1313,6 +1316,7 @@ Panel {
   property bool searchLoading: false
   property var searchResults: []
   property string searchError: ""
+  property string gameLogAthleteId: ""
   property var selectedPlayerProfile: null
   property bool searchPlayerLoading: false
   property string searchPlayerStatsTab: "all"
@@ -1408,7 +1412,7 @@ Panel {
     return list.slice(start, end)
   }
 
-  readonly property bool customViewActive: root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.showTrending || root.leagueMode
+  readonly property bool customViewActive: root.showNews || root.showStandings || root.showMatches || root.showStats || root.showClubFixtures || root.showMatchDetail || root.showSearch || root.showTrending || root.leagueMode
   property var followedLeagueMatches: []
   property var leagueSummaryQueue: []
   property string leagueCurrentId: ""
@@ -1597,6 +1601,7 @@ Panel {
     root.statsSeasonOffset = 0
     root.showStats = false
     root.showMatchDetail = false
+    root.showNews = false
     root.showTrending = false
   }
   function toggle() { if (root.opened) root.close(); else root.open() }
@@ -2662,6 +2667,7 @@ Panel {
     root.showStats = false
     root.showMatches = false
     root.showClubFixtures = false
+    root.showNews = false
     root.showTrending = false
     root.matchDetailLoading = true
     root.matchDetailError = ""
@@ -3635,7 +3641,7 @@ Panel {
   // hint and is drawn in the card's icon slot; other daemons ignore it.
   property var _notifyQueue: []
   function notify(title, body, glyph) {
-    if (!title) return
+    if (!title || root.antiSpoiler) return
     var t = String(title).toLowerCase()
     var isGoal = t.indexOf("goal") !== -1
     var isCardOrWhistle = t.indexOf("card") !== -1 || t.indexOf("half") !== -1 || t.indexOf("time") !== -1 || t.indexOf("started") !== -1 || t.indexOf("penalty") !== -1
@@ -3665,6 +3671,7 @@ Panel {
     if (isMatchAlert) root.activityPulse()
   }
   function _runNextNotify() {
+    if (root.antiSpoiler) { root._notifyQueue = []; return }
     if (notifyRequest.running || root._notifyQueue.length === 0) return
     var q = root._notifyQueue.slice()
     var cmd = q.shift()
@@ -4355,6 +4362,7 @@ Panel {
     root.showMatches = false
     root.showClubFixtures = false
     root.showMatchDetail = false
+    root.showNews = false
     root.showTrending = false
     root.clubFixturePage = 0
     root.requestError = ""
@@ -4654,6 +4662,7 @@ Panel {
     root.showStats = false
     root.showMatches = true
     root.showMatchDetail = false
+    root.showNews = false
     root.showTrending = false
     root.matchListError = ""
 
@@ -5842,11 +5851,13 @@ onStreamFinished: root.warnStderr("", text)
                 }
 
                 var playerRating = null
+                var ratingEstimated = false
                 if (isActuallyStarted && (pObj.starter === true || isSubbedIn || (pStats.appearances && pStats.appearances > 0))) {
                   var rawRating = pObj.rating !== undefined ? Number(pObj.rating) : (ath.rating !== undefined ? Number(ath.rating) : null)
                   if (rawRating !== null && !isNaN(rawRating) && rawRating > 0) {
                     playerRating = Math.max(4.0, Math.min(10.0, rawRating))
                   } else {
+                    ratingEstimated = true
                     var calcR = 6.0 + goalsCount * 1.2 + assistsCount * 0.7 + (pStats.saves || 0) * 0.3 + (pStats.shotsOnTarget || 0) * 0.2 + (pStats.foulsSuffered || 0) * 0.1 - yellowCardsCount * 0.5 - redCardsCount * 1.5 - (pStats.foulsCommitted || 0) * 0.1
                     playerRating = Math.max(4.0, Math.min(10.0, Math.round(calcR * 10) / 10))
                   }
@@ -5923,6 +5934,7 @@ onStreamFinished: root.warnStderr("", text)
                   subPartnerId: root.sanitizePlainText(subPartnerId),
                   subDesc: root.sanitizePlainText(subDesc),
                   rating: playerRating,
+                  ratingEstimated: ratingEstimated,
                   eventsText: root.sanitizePlainText(eventDetails.join(" · ")),
                   jerseyImage: root.sanitizeImageUrl(jerseyImgUrl),
                   headshot: root.sanitizeImageUrl(jerseyImgUrl)
@@ -6064,6 +6076,7 @@ onStreamFinished: root.warnStderr("", text)
             stats: parsedStats,
             leaders: parsedLeaders,
             commentary: parsedCommentary,
+            videos: FutExtras.videos(data),
             lineups: parsedLineups,
             h2h: parsedH2H,
             homeForm: parsedHomeForm,
@@ -6085,9 +6098,6 @@ onStreamFinished: root.warnStderr("", text)
             }
           }
 
-          if (!isActuallyLive && root.matchDetailTab === "commentary") {
-            root.matchDetailTab = isActuallyStarted ? "stats" : "info"
-          }
           if (!isActuallyStarted && (root.matchDetailTab === "stats" || root.matchDetailTab === "events" || root.matchDetailTab === "commentary")) {
             root.matchDetailTab = "info"
           }
@@ -8816,6 +8826,7 @@ onStreamFinished: root.warnStderr("", text)
     searchClubStatRequest.running = false
     searchCareerAggRequest.running = false
     root.resetPanelScroll()
+    root.gameLogAthleteId = item && item.id ? root.safeIdentifier(String(item.id)) : ""
     root.selectedPlayerProfile = {
       fullName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
       jersey: "", age: "", position: "", displayHeight: "", displayWeight: "",
@@ -9331,7 +9342,8 @@ root.warnStderr("team select failed", text)
         || (searchBarInput && searchBarInput.activeFocus)
         || (trendingView && trendingView.searchFocused))
       onCloseRequested: {
-        if (root.showSettings) root.showSettings = false
+        if (root.showNews) root.showNews = false
+        else if (root.showSettings) root.showSettings = false
         else if (root.showMatchDetail) root.showMatchDetail = false
         else if (root.selectedPlayerProfile !== null) root.selectedPlayerProfile = null
         else if (root.selectedClubProfile !== null) root.selectedClubProfile = null
@@ -9387,6 +9399,8 @@ root.warnStderr("team select failed", text)
           if (statsButton && statsButton.visible) statsButton.clicked()
         } else if (c === "m") {
           if (matchesButton) matchesButton.clicked()
+        } else if (c === "n") {
+          if (newsButton) newsButton.clicked()
         } else if (c === "p") {
           if (settingsButton) settingsButton.clicked()
         }
@@ -9539,6 +9553,31 @@ root.warnStderr("team select failed", text)
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
           Button {
+            id: newsButton
+            focusable: true
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28); height: Style.space(28)
+            iconText: "󰎕"
+            tooltipText: "League news (n)"
+            Accessible.name: "League news"
+            foreground: root.contentForeground; accent: root.contentForeground
+            horizontalPadding: 0; verticalPadding: 0
+            selected: root.showNews
+            onClicked: {
+              root.showSettings = false
+              root.showNews = !root.showNews
+              if (root.showNews) {
+                root.showMatchDetail = false
+                root.showSearch = false
+                root.showTrending = false
+                root.showMatches = false
+                root.showStandings = false
+                root.showStats = false
+                root.showClubFixtures = false
+              }
+            }
+          }
+          Button {
             id: searchButton
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(28)
@@ -9556,6 +9595,7 @@ root.warnStderr("team select failed", text)
               root.showMatchDetail = false
               root.showClubFixtures = false
               root.showSettings = false
+              root.showNews = false
               root.showTrending = false
               root.showSearch = !root.showSearch
               if (root.showSearch) {
@@ -9592,6 +9632,7 @@ root.warnStderr("team select failed", text)
               root.showMatches = false
               root.showStandings = false
               root.showStats = false
+              root.showNews = false
               root.showTrending = !root.showTrending
               if (root.showTrending && trendingView) {
                 trendingView.refresh(true)
@@ -9618,6 +9659,7 @@ root.warnStderr("team select failed", text)
               root.showClubFixtures = false
               root.showSearch = false
               root.showSettings = false
+              root.showNews = false
               root.showTrending = false
               if (root.leagueMode) {
                 if (root.showStandings || root.showStats) {
@@ -9685,6 +9727,7 @@ root.warnStderr("team select failed", text)
               root.showClubFixtures = false
               root.showSearch = false
               root.showSettings = false
+              root.showNews = false
               root.showTrending = false
               if (root.showStandings) {
                 root.showMatches = false
@@ -9723,6 +9766,7 @@ root.warnStderr("team select failed", text)
               root.showClubFixtures = false
               root.showSearch = false
               root.showSettings = false
+              root.showNews = false
               root.showTrending = false
               if (root.showStats) {
                 root.showMatches = false
@@ -9758,6 +9802,7 @@ root.warnStderr("team select failed", text)
               root.showMatchDetail = false
               root.showStandings = false
               root.showStats = false
+              root.showNews = false
               root.showTrending = false
               root.showSettings = !root.showSettings
             }
@@ -9963,8 +10008,12 @@ root.warnStderr("team select failed", text)
           root: root
         }
 
+      FutNewsView {
+        root: root
+        visible: root.showNews && !root.needsTeam && !root.editingTeam && !root.showSettings
+      }
       Column {
-        visible: !root.needsTeam && !root.editingTeam && !root.showSettings
+        visible: !root.showNews && !root.needsTeam && !root.editingTeam && !root.showSettings
         width: parent.width
         spacing: Style.space(14)
 

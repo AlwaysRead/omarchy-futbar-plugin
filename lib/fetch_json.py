@@ -1,5 +1,7 @@
 """Fetch bounded ESPN responses; stdout retains the scoreboard concatenation format."""
 import sys
+import socket
+import urllib.error
 
 from http_client import constrain_process, checked_url, fetch_bytes, parse_json
 
@@ -26,6 +28,16 @@ def main(args):
 if __name__ == '__main__':
     try:
         main(sys.argv[1:])
-    except Exception:
-        print("FutBar data request failed", file=sys.stderr)
+    except Exception as error:
+        if isinstance(error, urllib.error.HTTPError):
+            category = 'rate_limited' if error.code == 429 else 'http_error'
+        elif isinstance(error, (TimeoutError, socket.timeout)):
+            category = 'timeout'
+        elif isinstance(error, urllib.error.URLError):
+            category = 'timeout' if isinstance(error.reason, (TimeoutError, socket.timeout)) else 'offline'
+        elif isinstance(error, (ValueError, UnicodeError, RecursionError)):
+            category = 'invalid_data'
+        else:
+            category = 'request_failed'
+        print('FutBar ' + category, file=sys.stderr)
         sys.exit(1)

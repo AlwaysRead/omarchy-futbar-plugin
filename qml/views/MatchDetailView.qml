@@ -7,6 +7,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../components"
+import "../services/FutNetwork.js" as Network
 
 Column {
   id: matchDetailView
@@ -15,11 +16,17 @@ Column {
   width: parent ? parent.width : 0
   spacing: Style.space(12)
 
+  property bool detailRevealed: false
+  Connections { target: matchDetailView.root; function onAntiSpoilerChanged() { matchDetailView.detailRevealed = false } }
+  readonly property string detailId: root && root.matchDetail ? String(root.matchDetail.id || "") : ""
+  readonly property bool spoilerBlocked: !!(root && root.antiSpoiler && !detailRevealed)
+  onDetailIdChanged: detailRevealed = false
   property bool expandAllStats: false
   property bool heroScoreRevealed: false
   property var selectedFormMatch: null
   onVisibleChanged: {
     if (!visible) {
+      detailRevealed = false
       expandAllStats = false
       heroScoreRevealed = false
       selectedFormMatch = null
@@ -59,7 +66,7 @@ Column {
   }
 
   function copyMatchSummary() {
-    if (!root || !root.matchDetail) return
+    if (!root || !root.matchDetail || spoilerBlocked) return
     var md = root.matchDetail
     var hName = md.home ? (md.home.name || "Home") : "Home"
     var aName = md.away ? (md.away.name || "Away") : "Away"
@@ -181,12 +188,19 @@ Column {
             iconSize: Style.font.caption
             horizontalPadding: 0
             verticalPadding: 0
-            visible: !!root.matchDetail
+            visible: !!root.matchDetail && !matchDetailView.spoilerBlocked
             onClicked: matchDetailView.copyMatchSummary()
           }
         }
 
+        Button {
+          visible: matchDetailView.spoilerBlocked
+          text: "Reveal match details and results"
+          foreground: root.contentForeground; accent: root.contentForeground
+          onClicked: matchDetailView.detailRevealed = true
+        }
         Item {
+          visible: !matchDetailView.spoilerBlocked
           width: parent.width
           implicitHeight: Math.max(Style.space(260), matchDetailInnerCol.implicitHeight)
           height: implicitHeight
@@ -198,6 +212,26 @@ Column {
             opacity: (root.matchDetailLoading && !root.matchDetail) ? 0.15 : (root.matchDetailLoading ? 0.85 : 1.0)
             Behavior on opacity { NumberAnimation { duration: 180 } }
 
+            Text {
+              width: parent.width; wrapMode: Text.WordWrap
+              text: "* Rating estimated by FutBar from match statistics; unmarked ratings are supplied by ESPN."
+              textFormat: Text.PlainText; color: root.contentForeground; font.pixelSize: Style.font.caption
+              visible: root.matchDetailTab === "lineups"
+            }
+            Column {
+              width: parent.width; spacing: Style.space(4)
+              visible: root.matchDetailTab === "info" && !!root.matchDetail && !!root.matchDetail.videos && root.matchDetail.videos.length > 0
+              Text { text: "Related ESPN videos"; color: root.contentForeground; font.bold: true; textFormat: Text.PlainText }
+              Repeater {
+                model: root.matchDetail && root.matchDetail.videos ? root.matchDetail.videos : []
+                delegate: Column {
+                  required property var modelData
+                  width: parent.width
+                  Text { width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: modelData.title; color: root.contentForeground; font.pixelSize: Style.font.caption }
+                  Button { text: "Watch on ESPN" + (modelData.duration ? " · " + Math.floor(modelData.duration / 60) + "m" : ""); foreground: root.contentForeground; accent: root.contentForeground; onClicked: { var url = Network.safeProfileUrl(modelData.url); if (url) Qt.openUrlExternally(url) } }
+                }
+              }
+            }
             // Scoreboard Hero Card
         Item {
           id: heroCard
@@ -654,7 +688,7 @@ Column {
               fontSize: Style.font.caption
               horizontalPadding: Style.space(8)
               verticalPadding: 0
-              visible: !!(root.matchDetail && root.matchDetail.isLive && root.matchDetail.commentary && root.matchDetail.commentary.length > 0)
+              visible: !!(root.matchDetail && root.matchDetail.started && root.matchDetail.commentary && root.matchDetail.commentary.length > 0)
               selected: root.matchDetailTab === "commentary"
               onClicked: root.matchDetailTab = "commentary"
             }
@@ -1459,12 +1493,12 @@ Column {
         Column {
           width: parent.width
           spacing: Style.space(8)
-          visible: root.matchDetail && root.matchDetail.isLive && root.matchDetailTab === "commentary"
+          visible: root.matchDetail && root.matchDetail.started && root.matchDetailTab === "commentary"
 
           Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: "No live commentary available for this match"
+            text: "No commentary available for this match"
             color: Qt.darker(root.contentForeground, 1.6)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -2068,7 +2102,7 @@ Column {
                       id: ratingText
                       textFormat: Text.PlainText
                       anchors.centerIn: parent
-                      text: pitchPlayerItem.modelData.rating ? Number(pitchPlayerItem.modelData.rating).toFixed(1) : ""
+                      text: pitchPlayerItem.modelData.rating ? (Number(pitchPlayerItem.modelData.rating).toFixed(1) + (pitchPlayerItem.modelData.ratingEstimated ? "*" : "")) : ""
                       color: "#ffffff"
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.caption - 3
@@ -2196,7 +2230,7 @@ Column {
                         id: starterRatingTxt
                         textFormat: Text.PlainText
                         anchors.centerIn: parent
-                        text: starterRow.modelData.rating ? Number(starterRow.modelData.rating).toFixed(1) : ""
+                        text: starterRow.modelData.rating ? (Number(starterRow.modelData.rating).toFixed(1) + (starterRow.modelData.ratingEstimated ? "*" : "")) : ""
                         color: "#ffffff"
                         font.family: root.contentFontFamily
                         font.pixelSize: Style.font.caption - 2
@@ -2323,7 +2357,7 @@ Column {
                         id: subRatingTxt
                         textFormat: Text.PlainText
                         anchors.centerIn: parent
-                        text: subRow.modelData.rating ? Number(subRow.modelData.rating).toFixed(1) : ""
+                        text: subRow.modelData.rating ? (Number(subRow.modelData.rating).toFixed(1) + (subRow.modelData.ratingEstimated ? "*" : "")) : ""
                         color: "#ffffff"
                         font.family: root.contentFontFamily
                         font.pixelSize: Style.font.caption - 2

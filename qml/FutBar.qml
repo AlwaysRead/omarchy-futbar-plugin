@@ -150,6 +150,11 @@ BarWidget {
     }
     if (!p) return
     // League-follow mode summarizes the whole competition instead of one club.
+    if (p.antiSpoiler) {
+      root.tooltip = "FutBar · Spoiler protection enabled"
+      root.live = false
+      return
+    }
     if (p.leagueMode) {
       root.live = (Array.isArray(p.leagueLive) && p.leagueLive.length > 0)
       root.tooltip = root.sanitizePlainText(p.leagueLabel() + " — " +
@@ -280,6 +285,7 @@ BarWidget {
     var mode = root.barWidgetMode
     if (!p) return ""
     if (mode === "icon") return ""
+    if (p.antiSpoiler && mode === "score") return "Scores hidden"
 
     var isClub = root.primaryItem ? !root.primaryItem.followLeague : (root.teamName !== "")
     var primaryKey = p.teamKey ? p.teamKey(root.teamName, root.league) : ""
@@ -389,6 +395,7 @@ BarWidget {
     if (!p) return ""
     var mode = root.barWidgetMode
     if (mode === "icon") return ""
+    if (p.antiSpoiler && mode === "score") return ""
     var isClub = root.primaryItem ? !root.primaryItem.followLeague : (root.teamName !== "")
     var primaryKey = p.teamKey ? p.teamKey(root.teamName, root.league) : ""
     var cached = (primaryKey && p._teamStateCache) ? p._teamStateCache[primaryKey] : null
@@ -419,6 +426,7 @@ BarWidget {
     if (!p) return ""
     var mode = root.barWidgetMode
     if (mode === "icon") return ""
+    if (p.antiSpoiler && mode === "score") return ""
     var isClub = root.primaryItem ? !root.primaryItem.followLeague : (root.teamName !== "")
     var primaryKey = p.teamKey ? p.teamKey(root.teamName, root.league) : ""
     var cached = (primaryKey && p._teamStateCache) ? p._teamStateCache[primaryKey] : null
@@ -482,6 +490,7 @@ BarWidget {
       if (p.teamFixtureRowsChanged) p.teamFixtureRowsChanged.connect(function() { root.updateTooltip() })
       if (p.leagueModeChanged) p.leagueModeChanged.connect(function() { root.updateTooltip() })
       if (p.leagueBoardSummaryChanged) p.leagueBoardSummaryChanged.connect(function() { root.updateTooltip() })
+      if (p.antiSpoilerChanged) p.antiSpoilerChanged.connect(function() { root.updateTooltip() })
       if (p.barWidgetModeChanged) p.barWidgetModeChanged.connect(function() { root.updateTooltip() })
       if (p.savedFavoriteChanged) p.savedFavoriteChanged.connect(function() {
         root.savedFavorite = p.savedFavorite

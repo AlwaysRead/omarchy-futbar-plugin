@@ -2,7 +2,7 @@
 
 ![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Plugin-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version: 2.5.0](https://img.shields.io/badge/Version-2.5.0-green.svg)](manifest.json)
+[![Version: 2.6.0](https://img.shields.io/badge/Version-2.6.0-green.svg)](manifest.json)
 
 **FutBar** is a live football companion and match center engineered for Omarchy. Track live fixtures, tactical pitch formations with athlete kits, minute-by-minute match timelines, head-to-head records, league standings, player leaderboards, and real-time desktop event notifications seamlessly from your top bar. Powered directly by ESPN's public endpoints with zero API costs, no authentication keys, and no account setup required.
 
@@ -33,7 +33,11 @@
 - **Tactical Pitch & Lineups**: Full tactical pitch view featuring starting XI formations, athlete jersey kit numbers/graphics, substitutes, and live player ratings.
 - **Match Timeline & Events**: Visual minute-by-minute timeline tracking goals, penalties, yellow/red cards, substitutions, and half-time/full-time milestones.
 - **Head-to-Head & Team Form**: Detailed past encounter history, win/draw/loss counts, and recent form guide.
-- **Live Text Commentary**: Reverse-chronological commentary feed with highlighted key match moments.
+- **Match Commentary**: Reverse-chronological commentary during and after a match, where ESPN provides it.
+- **League News**: Recent ESPN headlines with followed-club filtering, transfer-news labels, and links to the original articles.
+- **Expanded Player Game Logs**: Open a player's Matches tab to load ESPN's default-season match-by-match statistics, capped at 100 entries.
+- **Related Match Videos**: Open available ESPN video pages from match information; playback stays in your browser.
+- **Rating Provenance**: An asterisk identifies ratings estimated by FutBar rather than supplied by ESPN.
 - **TV Broadcasts & Where to Watch**: Official broadcast and streaming channel pills directly in match overview.
 - **Editorial Match Stories & Recaps**: Previews, journalist bylines, and in-depth match recaps.
 - **Penalty Shootout Spot-Kick Tracker**: Complete spot-kick sequences displaying taker names and scored or missed status glyphs.
@@ -87,10 +91,25 @@ omarchy plugin remove devbook.futbar
 | **Standings / Table** | Press <kbd>t</kbd> |
 | **Player / League Stats** | Press <kbd>s</kbd> |
 | **Fixtures / Matches** | Press <kbd>m</kbd> |
+| **League News** | Press <kbd>n</kbd> |
 | **Settings / Preferences** | Press <kbd>p</kbd> |
 | **Switch Followed Tabs** | <kbd>1</kbd>–<kbd>9</kbd> |
 
 ---
+
+## ESPN news and game logs
+
+Use the news icon in the panel header for the active league's feed. “Followed
+clubs only” filters the articles ESPN returned; it is not a complete club archive.
+In a player profile, choose Matches and “Show ESPN season game log”. This uses
+ESPN's default season independently of the profile's other season selectors.
+
+These views fetch only while visible, keep the last good response on refresh
+failure, show retry guidance, and discard responses from an old selection.
+Spoiler mode requires a reveal for news, game logs, and full match details,
+suppresses desktop notifications, and hides bar scores and result tooltips.
+Other existing views retain their individual spoiler controls; broader spoiler
+coverage remains tracked in the roadmap.
 
 ## Image loading
 
@@ -135,7 +154,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Development layout
 
-- `qml/`: bar entry point, panel, feature views, shared components, data, and services.
+- `qml/`: bar entry point, panel, feature views, request controllers, shared components, data, and services.
 - `lib/`: bounded HTTP, image validation, and statistics helpers.
 - `tests/`: security regressions and Quickshell runtime checks.
 - `docs/`: architecture and contributor guidance.

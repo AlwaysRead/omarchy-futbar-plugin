@@ -16,3 +16,10 @@ function safeProfileUrl(value) {
   if (typeof value !== "string" || value.length > 2048) return ""
   return /^https:\/\/(?:www\.)?espn\.com\/[a-zA-Z0-9_./?=&%+~-]*$/.test(value) ? value : ""
 }
+function requestError(stderr, code) {
+  if (code === 124 || /timed out|timeout/i.test(stderr || "")) return "Request timed out. Retry shortly."
+  if (/rate_limited/.test(stderr || "")) return "ESPN is rate limiting requests. Retry later."
+  if (/offline/.test(stderr || "")) return "Connection unavailable. Check your network and retry."
+  if (/invalid_data/.test(stderr || "")) return "ESPN returned unsupported data. Retry later."
+  return "Could not load ESPN data. Retry shortly."
+}

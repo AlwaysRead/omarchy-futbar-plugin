@@ -24,6 +24,11 @@ the protection provided here. This is hardening, not a security certification.
   decoding; individual views may specify their display resolution. Animation and unknown
   critical chunks are rejected. Four image workers share a cache bounded to
   128 entries / 8 MiB of encoded data. Other formats remain blank.
+- News and game-log requests use a separate reusable controller: at most one
+  request per view, 2 MiB per response, a helper deadline and a QML watchdog.
+  Selection changes cancel work and reject stale results. News and video links
+  use the same ESPN-only external-link policy as profiles; no media streams or
+  article HTML are embedded. The existing image policy remains unchanged.
 - Profile links can open only `https://espn.com/…` or `https://www.espn.com/…`
   after an explicit button click. API-provided schemes cannot launch handlers.
 - QML processes use argument arrays. Remote values are never shell commands,

@@ -1,9 +1,23 @@
 # FutBar roadmap
 
-Proposed work, not implemented features. Priorities reflect reliability first,
+Unchecked items are proposed work. Priorities reflect reliability first,
 then everyday usefulness. ESPN endpoint observations were checked on 2026-10-20;
 a successful sample is not a guarantee of coverage or a stable API contract.
 This backlog uses ESPN only.
+
+## Delivered in 2.6.0
+
+- [x] League news with followed-club filtering, transfer labels, and safe ESPN links.
+- [x] Default-season player game logs, loaded on demand (up to 100 matches).
+- [x] Related match video links and completed-match commentary.
+- [x] Mark locally estimated ratings with an asterisk and explanation.
+- [x] New request controller with context cancellation, bounded payloads, failure
+  categories, retry cooldowns, and last-known-good results for the new views.
+- [x] Spoiler guards for the new views, full match details, notifications, and bar
+  scores/tooltips. This does not complete the cross-view spoiler audit below.
+
+Form charts, wider season/competition controls, global scheduling, event maps,
+lineup/schedule alerts, and the remaining items below still need implementation.
 
 ## P0 — reliability and hardening
 
@@ -54,8 +68,8 @@ and editorial previews/recaps. The items below extend that functionality.
 
 | Priority | Feature | Endpoint and observed evidence | Delivery requirements |
 | --- | --- | --- | --- |
-| P1 | League news and followed-club news feed | [`/apis/site/v2/sports/soccer/eng.1/news`](https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news) returned articles with IDs, timestamps, team/topic categories, and ESPN web links. | Filter by category team IDs, deduplicate across leagues, label transfer rumors as news, respect spoilers. Start with text and validated ESPN links. |
-| P2 | Expanded player game log and form charts | [`/apis/common/v3/sports/soccer/athletes/173896/gamelog`](https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/173896/gamelog) returned event metadata, named stat columns, and per-event statistics. | Extend the existing recent-match view with a fuller log and comparisons. Map columns by returned names, validate season filters and competition coverage, and retain missing values as unknown. |
+| Delivered | League news and followed-club news feed | [`/apis/site/v2/sports/soccer/eng.1/news`](https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news) returned articles with IDs, timestamps, team/topic categories, and ESPN web links. | Filter by category team IDs, deduplicate across leagues, label transfer rumors as news, respect spoilers. Start with text and validated ESPN links. |
+| Partial | Expanded player game log; form charts pending | [`/apis/common/v3/sports/soccer/athletes/173896/gamelog`](https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/173896/gamelog) returned event metadata, named stat columns, and per-event statistics. | Extend the existing recent-match view with a fuller log and comparisons. Map columns by returned names, validate season filters and competition coverage, and retain missing values as unknown. |
 
 The news sample returned six articles. Filtering that small feed is not a
 complete club-news archive. A probe of `/teams/364/news` returned an empty object,
@@ -73,7 +87,7 @@ contained commentary play coordinates and video metadata.
   deduplicate repeated commentary entries by play ID. Validate coordinate scale,
   attacking direction, shot classification, and coverage across competitions
   before rendering a pitch. Coordinates alone do not provide expected goals.
-- [ ] **P2: Match video links.** Show available clip titles/durations from
+- [x] **P2: Match video links.** Show available clip titles/durations from
   `videos`; open a validated ESPN web page on explicit click. Availability and
   regional restrictions may vary. Do not embed streaming URLs or load new media
   hosts into the shell.
@@ -89,9 +103,9 @@ contained commentary play coordinates and video metadata.
   seasons, competitions, units, and minutes before calculating per-90 values.
 - [ ] **P1: Data provenance.** Distinguish provider statistics from locally
   estimated player ratings and show missing/partial coverage explicitly.
-- [ ] **P2: Completed-match commentary.** Retain an accessible commentary tab
-  after full time; the sampled completed match still returned commentary, while
-  the current UI exposes the tab only for live matches.
+- [x] **P2: Completed-match commentary.** Retain an accessible commentary tab
+  after full time; the sampled completed match still returned commentary, and
+  the UI now exposes the tab after full time when commentary is available.
 
 ### Investigate before committing to a feature
 

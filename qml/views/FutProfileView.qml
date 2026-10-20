@@ -505,6 +505,12 @@ Column {
                 }
               }
 
+              FutGameLogView {
+                root: profileDedicatedView.root
+                athleteId: root ? root.gameLogAthleteId : ""
+                visible: root.searchPlayerCardTab === "matches"
+              }
+
               // Recent Match Log & Form (Last 5 Games)
               Rectangle {
                 width: parent.width
