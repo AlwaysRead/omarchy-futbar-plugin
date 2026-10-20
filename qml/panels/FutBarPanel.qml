@@ -1316,7 +1316,6 @@ Panel {
   property bool searchLoading: false
   property var searchResults: []
   property string searchError: ""
-  property string gameLogAthleteId: ""
   property var selectedPlayerProfile: null
   property bool searchPlayerLoading: false
   property string searchPlayerStatsTab: "all"
@@ -8826,7 +8825,6 @@ onStreamFinished: root.warnStderr("", text)
     searchClubStatRequest.running = false
     searchCareerAggRequest.running = false
     root.resetPanelScroll()
-    root.gameLogAthleteId = item && item.id ? root.safeIdentifier(String(item.id)) : ""
     root.selectedPlayerProfile = {
       fullName: item ? root.sanitizePlainText(String(item.displayName || "")) : "",
       jersey: "", age: "", position: "", displayHeight: "", displayWeight: "",

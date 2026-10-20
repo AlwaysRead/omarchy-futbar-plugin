@@ -39,38 +39,3 @@ function videos(data) {
   })
   return result
 }
-function gameLog(data) {
-  if (!data || !Array.isArray(data.names) || !Array.isArray(data.seasonTypes)) return []
-  var names = data.names.slice(0, 80), labels = Array.isArray(data.labels) ? data.labels : []
-  var metadata = data.events && typeof data.events === "object" ? data.events : {}
-  var seen = Object.create(null), rows = []
-  data.seasonTypes.slice(0, 10).forEach(function(season) {
-    if (!season || !Array.isArray(season.categories)) return
-    season.categories.slice(0, 20).forEach(function(category) {
-      if (!category || !Array.isArray(category.events)) return
-      category.events.slice(0, 100).forEach(function(event) {
-        if (!event || !/^[0-9]{1,20}$/.test(String(event.eventId)) || !Array.isArray(event.stats)) return
-        var id = String(event.eventId), key = String(season.displayName) + ":" + id
-        if (seen[key] || rows.length >= 100) return
-        seen[key] = true
-        var meta = metadata[id] || {}, stats = []
-        names.forEach(function(name, index) {
-          if (typeof name !== "string" || index >= event.stats.length) return
-          var value = event.stats[index]
-          if (typeof value !== "string" && typeof value !== "number") return
-          stats.push({name: plain(name, 80), label: plain(labels[index] || name, 80), value: plain(String(value), 40)})
-        })
-        var links = Array.isArray(meta.links) ? meta.links : [], url = ""
-        links.slice(0, 20).some(function(link) {
-          if (link && Array.isArray(link.rel) && link.rel.indexOf("summary") !== -1) url = webLink(link.href)
-          return url !== ""
-        })
-        var opponent = meta.opponent || {}
-        rows.push({id: id, date: plain(meta.gameDate || meta.date, 40),
-          opponent: plain(opponent.displayName || opponent.shortDisplayName || opponent.abbreviation || "Opponent unavailable", 120),
-          competition: plain(season.displayName, 120), stats: stats, url: url})
-      })
-    })
-  })
-  return rows.sort(function(a, b) { return (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0) })
-}

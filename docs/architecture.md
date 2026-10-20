@@ -23,7 +23,6 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 │   ├── views/                     # Feature-specific screens
 │   │   ├── FutBracketView.qml
 │   │   ├── FutNewsView.qml
-│   │   ├── FutGameLogView.qml
 │   │   ├── FutProfileView.qml
 │   │   ├── FutSettingsView.qml
 │   │   ├── FutStandingsView.qml
@@ -35,7 +34,7 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 │   │   ├── FutRemoteImage.qml
 │   │   └── FutSearchableDropdown.qml
 │   ├── data/
-│   │   ├── FutExtras.js           # Bounded news, game-log and video transformations
+│   │   ├── FutExtras.js           # Bounded news and video transformations
 │   │   └── FutData.js             # Football data transformations and lookup tables
 │   └── services/
 │       ├── FutNetwork.js         # Helper commands and external-link policy

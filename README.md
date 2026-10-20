@@ -35,7 +35,6 @@
 - **Head-to-Head & Team Form**: Detailed past encounter history, win/draw/loss counts, and recent form guide.
 - **Match Commentary**: Reverse-chronological commentary during and after a match, where ESPN provides it.
 - **League News**: Recent ESPN headlines with followed-club filtering, transfer-news labels, and links to the original articles.
-- **Expanded Player Game Logs**: Open a player's Matches tab to load ESPN's default-season match-by-match statistics, capped at 100 entries.
 - **Related Match Videos**: Open available ESPN video pages from match information; playback stays in your browser.
 - **Rating Provenance**: An asterisk identifies ratings estimated by FutBar rather than supplied by ESPN.
 - **TV Broadcasts & Where to Watch**: Official broadcast and streaming channel pills directly in match overview.
@@ -97,16 +96,14 @@ omarchy plugin remove devbook.futbar
 
 ---
 
-## ESPN news and game logs
+## ESPN news
 
 Use the news icon in the panel header for the active league's feed. “Followed
 clubs only” filters the articles ESPN returned; it is not a complete club archive.
-In a player profile, choose Matches and “Show ESPN season game log”. This uses
-ESPN's default season independently of the profile's other season selectors.
 
-These views fetch only while visible, keep the last good response on refresh
-failure, show retry guidance, and discard responses from an old selection.
-Spoiler mode requires a reveal for news, game logs, and full match details,
+The news view fetches only while visible, keeps the last good response on refresh
+failure, shows retry guidance, and discards responses from an old selection.
+Spoiler mode requires a reveal for news and full match details,
 suppresses desktop notifications, and hides bar scores and result tooltips.
 Other existing views retain their individual spoiler controls; broader spoiler
 coverage remains tracked in the roadmap.

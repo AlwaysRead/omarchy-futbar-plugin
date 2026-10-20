@@ -8,7 +8,8 @@ This backlog uses ESPN only.
 ## Delivered in 2.6.0
 
 - [x] League news with followed-club filtering, transfer labels, and safe ESPN links.
-- [x] Default-season player game logs, loaded on demand (up to 100 matches).
+- The duplicate default-season game-log section was removed; the existing
+  player Matches history remains the single view.
 - [x] Related match video links and completed-match commentary.
 - [x] Mark locally estimated ratings with an asterisk and explanation.
 - [x] New request controller with context cancellation, bounded payloads, failure
@@ -69,7 +70,7 @@ and editorial previews/recaps. The items below extend that functionality.
 | Priority | Feature | Endpoint and observed evidence | Delivery requirements |
 | --- | --- | --- | --- |
 | Delivered | League news and followed-club news feed | [`/apis/site/v2/sports/soccer/eng.1/news`](https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news) returned articles with IDs, timestamps, team/topic categories, and ESPN web links. | Filter by category team IDs, deduplicate across leagues, label transfer rumors as news, respect spoilers. Start with text and validated ESPN links. |
-| Partial | Expanded player game log; form charts pending | [`/apis/common/v3/sports/soccer/athletes/173896/gamelog`](https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/173896/gamelog) returned event metadata, named stat columns, and per-event statistics. | Extend the existing recent-match view with a fuller log and comparisons. Map columns by returned names, validate season filters and competition coverage, and retain missing values as unknown. |
+| Future enhancement | Improve the existing player match history; no separate game-log section | [`/apis/common/v3/sports/soccer/athletes/173896/gamelog`](https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/173896/gamelog) returned event metadata, named stat columns, and per-event statistics. | Enhance the existing recent-match view in place if needed; do not add a duplicate section. Map columns by returned names, validate season filters and competition coverage, and retain missing values as unknown. |
 
 The news sample returned six articles. Filtering that small feed is not a
 complete club-news archive. A probe of `/teams/364/news` returned an empty object,

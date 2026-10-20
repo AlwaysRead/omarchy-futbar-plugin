@@ -79,7 +79,6 @@ Item {
         var parsed = JSON.parse(output.text)
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("shape")
         if (request.responseKind === "news" && !Array.isArray(parsed.articles)) throw new Error("shape")
-        if (request.responseKind === "gamelog" && (!Array.isArray(parsed.names) || !Array.isArray(parsed.seasonTypes))) throw new Error("shape")
         request.result = parsed
         request.updatedAt = Date.now()
         request.error = ""

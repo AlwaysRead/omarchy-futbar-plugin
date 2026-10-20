@@ -15,15 +15,4 @@ for (const url of ['file:///tmp/x', 'https://www.espn.com.evil.test/x', 'https:/
 const clip = {headline: 'Analysis', duration: 90, links: {web: {href: 'https://www.espn.com/video/clip/_/id/2'}}};
 assert.equal(extras.videos({videos: [clip, clip, null]}).length, 1);
 assert.equal(extras.videos({videos: [{headline: 'stream only', links: {source: {href: 'https://www.espn.com/x'}}}]}).length, 0);
-const log = {names: ['totalGoals', 'goalAssists'], labels: ['G', 'A'], events: {'123': {gameDate: '2026-10-17', opponent: {displayName: 'Opponent'}, links: [{rel: ['summary'], href: 'https://www.espn.com/football/match/_/gameId/123'}]}}, seasonTypes: [{displayName: 'League', categories: [{events: [{eventId: '123', stats: ['0']}]}]}]};
-const row = extras.gameLog(log)[0];
-assert.equal(row.opponent, 'Opponent');
-assert.equal(row.stats.length, 1); // missing assists are not fabricated as zero
-assert.equal(row.stats[0].name, 'totalGoals');
-assert.equal(row.stats[0].value, '0');
-log.seasonTypes[0].categories[0].events.push({eventId: '123', stats: ['2', '3']});
-assert.equal(extras.gameLog(log).length, 1);
-log.seasonTypes[0].categories[0].events = Array.from({length: 150}, (_, i) => ({eventId: String(i + 1), stats: ['1']}));
-assert.equal(extras.gameLog(log).length, 100);
-for (const input of [null, {}, {names: 'invalid'}, {names: [], seasonTypes: [null, {}]}]) assert.equal(extras.gameLog(input).length, 0);
-console.log('PASS: ESPN news filtering, safe video links, game-log mapping, missing data and bounds');
+console.log('PASS: ESPN news filtering, safe video links and bounds');

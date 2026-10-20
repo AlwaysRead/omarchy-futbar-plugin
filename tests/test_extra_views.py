@@ -14,7 +14,7 @@ SHELL = Path('/usr/share/omarchy/shell')
 @unittest.skipUnless(shutil.which('quickshell') and (SHELL / 'Ui').is_dir(),
                      'Quickshell and Omarchy UI components are required')
 class ExtraViewTests(unittest.TestCase):
-    def test_news_filter_game_log_and_spoiler_controls(self):
+    def test_news_filter_and_spoiler_controls(self):
         with tempfile.TemporaryDirectory(prefix='futbar-views-test-') as directory:
             work = Path(directory)
             shutil.copytree(ROOT / 'qml', work / 'qml')
@@ -25,10 +25,6 @@ class ExtraViewTests(unittest.TestCase):
                 'articles': [{'headline': '<b>Plain text headline</b>', 'published': '2026-10-20',
                               'links': {'web': {'href': 'https://www.espn.com/soccer/story/_/id/1'}},
                               'categories': [{'type': 'team', 'teamId': 364}]}],
-                'names': ['totalGoals'], 'labels': ['G'],
-                'events': {'123': {'gameDate': '2026-10-20', 'opponent': {'displayName': 'Opponent'}}},
-                'seasonTypes': [{'displayName': 'League', 'categories': [
-                    {'events': [{'eventId': '123', 'stats': ['0']}]}]}],
             }
             (work / 'lib/fetch_json.py').write_text('print(' + repr(json.dumps(fixture)) + ')\n')
             (work / 'shell.qml').write_text('''
@@ -54,7 +50,6 @@ ShellRoot {
     Column {
       width: parent.width
       FutNewsView { id: news; root: context }
-      FutGameLogView { id: log; root: context; athleteId: "173896" }
     }
   }
   Timer {
@@ -72,14 +67,12 @@ ShellRoot {
       } else if (test.phase === 2) {
         if (news.articles.length) { console.error("FILTER_FAILURE"); Qt.quit(); return }
         context.antiSpoiler = false
-        log.expanded = true
         test.phase = 3
-      } else if (test.phase === 3 && log.rows.length === 1) {
-        if (log.rows[0].stats[0].value !== "0") { console.error("LOG_FAILURE"); Qt.quit(); return }
+      } else if (test.phase === 3) {
         context.antiSpoiler = true
         test.phase = 4
       } else if (test.phase === 4) {
-        if (!news.hiddenSpoilers || !log.hiddenSpoilers) { console.error("SPOILER_RESET_FAILURE"); Qt.quit(); return }
+        if (!news.hiddenSpoilers) { console.error("SPOILER_RESET_FAILURE"); Qt.quit(); return }
         console.log("VIEWS_PASS")
         Qt.quit()
       }
