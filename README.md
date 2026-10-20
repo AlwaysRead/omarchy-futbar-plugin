@@ -132,6 +132,7 @@ commands are documented in [SECURITY.md](SECURITY.md).
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
 ## Development layout
 
 - `qml/`: bar entry point, panel, feature views, shared components, data, and services.
@@ -142,3 +143,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 See [the architecture guide](docs/architecture.md) for the full file tree and
 [SECURITY.md](SECURITY.md#checks) for validation commands.
+
+See [the roadmap](docs/roadmap.md) for prioritized hardening, UI/UX, quality-of-life,
+and ESPN API feature proposals with endpoint evidence and coverage limitations.

@@ -12,7 +12,8 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 ├── preview.png                    # Marketplace preview
 ├── assets/                        # Documentation screenshots
 ├── docs/
-│   └── architecture.md
+│   ├── architecture.md
+│   └── roadmap.md                # Priorities and ESPN feature opportunities
 ├── qml/
 │   ├── FutBar.qml                 # Bar widget and panel loader
 │   ├── panels/
