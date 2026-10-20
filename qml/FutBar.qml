@@ -90,6 +90,8 @@ BarWidget {
   property string liveTooltip: ""
   property bool live: false
   property bool loading: (panelLoader.item ? (panelLoader.item.anyLoading === true || panelLoader.item.loading === true) : false)
+  readonly property bool reducedMotion: root.savedFavorite.reducedMotion === true
+  onReducedMotionChanged: if (root.reducedMotion && eventBlink) { eventBlink.stop(); if (button) button.useActiveColor = true }
   property real _pulse: 0.0
 
   implicitWidth: button.implicitWidth
@@ -97,10 +99,10 @@ BarWidget {
   readonly property real openPanelIndicatorWidth: (root.barWidgetMode === "icon" || root.barDisplayText === "")
     ? Math.max(Style.space(10), Math.round(Style.bar.iconSlot * 0.55))
     : (button.labelVisible ? button.labelWidth : (barCustomContentRow ? barCustomContentRow.implicitWidth : button.width))
-  opacity: root.loading ? 0.4 + 0.6 * root._pulse : 1.0
+  opacity: root.loading && !root.reducedMotion ? 0.4 + 0.6 * root._pulse : 1.0
 
   SequentialAnimation on _pulse {
-    running: root.loading
+    running: root.loading && !root.reducedMotion
     loops: Animation.Infinite
     NumberAnimation { to: 1.0; duration: 450; easing.type: Easing.InOutQuad }
     NumberAnimation { to: 0.0; duration: 450; easing.type: Easing.InOutQuad }
@@ -460,7 +462,7 @@ BarWidget {
   readonly property int idleRefreshMs: 60000
 
   Timer {
-    interval: (root.live || root.opened) ? root.liveRefreshMs : root.idleRefreshMs
+    interval: panelLoader.item ? panelLoader.item.pollingInterval : root.idleRefreshMs
     running: !root.needsTeam
     repeat: true
     onTriggered: root.refresh()
@@ -482,7 +484,7 @@ BarWidget {
       p.nextMatchChanged.connect(function() { root.updateTooltip() })
       p.previousMatchChanged.connect(function() { root.updateTooltip() })
       p.requestErrorChanged.connect(function() { root.updateTooltip() })
-      p.activityPulse.connect(eventBlink.restart)
+      p.activityPulse.connect(function() { if (!root.reducedMotion) eventBlink.restart() })
       if (p.leagueLiveChanged) p.leagueLiveChanged.connect(function() { root.updateTooltip() })
       if (p.leagueUpcomingChanged) p.leagueUpcomingChanged.connect(function() { root.updateTooltip() })
       if (p.leagueRecentChanged) p.leagueRecentChanged.connect(function() { root.updateTooltip() })

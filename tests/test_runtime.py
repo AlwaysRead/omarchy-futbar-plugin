@@ -24,7 +24,7 @@ class RuntimeTests(unittest.TestCase):
             (work / 'lib').mkdir()
             data = 'data:image/png;base64,' + base64.b64encode(png()).decode()
             (work / 'lib' / 'fetch_image.py').write_text(
-                'import sys, time\ntime.sleep(1 if "slow" in sys.argv[1] else .05)\nprint(' + repr(data) + ')\n')
+                'import sys, time\nif "failed" in sys.argv[1]: sys.exit(1)\ntime.sleep(1 if "slow" in sys.argv[1] else .05)\nprint(' + repr(data) + ')\n')
             (work / 'shell.qml').write_text('''
 import QtQuick
 import Quickshell
@@ -35,12 +35,14 @@ ShellRoot {
   property var images: []
   property var cancelled: null
   property var destroyed: null
+  property var failed: null
   property int peak: 0
   property int ticks: 0
   Item { id: container }
   Component.onCompleted: {
     var component = Qt.createComponent("qml/components/FutRemoteImage.qml")
     if (component.status !== Component.Ready) { console.error(component.errorString()); Qt.quit(); return }
+    failed = component.createObject(container, {remoteSource: "https://a.espncdn.com/failed", width:32, height:32})
     cancelled = component.createObject(container, {remoteSource: "https://a.espncdn.com/slow-cancel"})
     destroyed = component.createObject(container, {remoteSource: "https://a.espncdn.com/slow-destroy"})
     for (var i = 0; i < 12; i++) images.push(component.createObject(container, {remoteSource: "https://a.espncdn.com/" + i}))
@@ -56,6 +58,7 @@ ShellRoot {
       for (var i = 0; i < test.images.length; i++) ready = ready && test.images[i].status === Image.Ready
       if (test.ticks > 40 && ready && Cache.active === 0) {
         if (Cache.lookup("https://a.espncdn.com/slow-cancel") !== undefined) { console.error("CANCELLED_RESULT_CACHED"); Qt.quit(); return }
+        if (!test.failed.fallbackVisible || test.cancelled.fallbackVisible) {console.error("FALLBACK_FAILURE");Qt.quit();return}
         console.log("RUNTIME_PASS", test.peak, test.images.length)
         Qt.quit()
       }

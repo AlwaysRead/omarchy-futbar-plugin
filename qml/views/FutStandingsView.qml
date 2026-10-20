@@ -18,6 +18,25 @@ Column {
   }
   width: parent ? parent.width : 0
   spacing: Style.space(12)
+  FutRequestStatus {
+    request: root ? root.standingsRequest : null
+    error: root ? root.standingsError : ""
+    hasData: root ? root.standings.length > 0 : false
+    foreground: root ? root.contentForeground : "#eeeeee"
+    fontFamily: root ? root.contentFontFamily : Style.font.family
+    onRetryRequested: if (root) { root.loadStandings(true) }
+  }
+
+  FutRequestStatus {
+    visible: standingsView.viewMode === "bracket" && !!root
+    request: root ? (root.bracketRequests.filter(function(r) { return r.errorText !== "" })[0] || root.bracketRequests[0]) : null
+    error: root ? root.tournamentBracketError : ""
+    hasData: root ? root.tournamentSeasonBracket.length > 0 : false
+    foreground: root ? root.contentForeground : "#eeeeee"
+    fontFamily: root ? root.contentFontFamily : Style.font.family
+    onRetryRequested: if(root) root.loadTournamentBracket(true)
+  }
+
   visible: root ? (root.showStandings && !root.showMatchDetail && !root.showTrending) : false
   onVisibleChanged: {
     if (visible && standingsView.isCupTournament && root && root.loadTournamentBracket) {
@@ -32,7 +51,7 @@ Column {
   readonly property real standingsRankWidth: root ? root.standingsRankWidth : Style.space(24)
   readonly property real standingsRankGap: root ? root.standingsRankGap : Style.space(10)
   readonly property real standingsLogoWidth: root ? root.standingsLogoWidth : Style.space(16)
-  readonly property real standingsRowWidth: standingsTable ? standingsTable.width : Style.space(348)
+  readonly property real standingsRowWidth: standingsTable ? standingsTable.contentWidth : Style.space(348)
   readonly property real standingsTeamWidth: standingsRowWidth - standingsRankWidth - standingsRankGap - standingsLogoWidth - 8 * standingsStatWidth
 
   Item {
@@ -51,6 +70,10 @@ Column {
         spacing: Style.space(8)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           id: prevSeasonButton
           width: Style.space(22)
           height: Style.space(22)
@@ -71,6 +94,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           id: seasonChip
           anchors.verticalCenter: parent.verticalCenter
           width: Style.space(52)
@@ -92,6 +119,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           id: nextSeasonButton
           width: Style.space(22)
           height: Style.space(22)
@@ -119,6 +150,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           id: tableModeBtn
           height: Style.space(22)
           text: "Table"
@@ -134,6 +169,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           id: bracketModeBtn
           height: Style.space(22)
           text: "Bracket"
@@ -172,6 +211,10 @@ Column {
             model: root ? root.standingsGroups : []
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               height: Style.space(24)
               text: root ? root.sanitizePlainText(String(modelData.name || modelData.shortName || "")) : ""
               tooltipText: root ? root.sanitizePlainText(String(modelData.name || "")) : ""
@@ -207,12 +250,14 @@ Column {
         width: parent.width
         height: visible ? (headerRow.implicitHeight + (root ? root.standings.length : 0) * standingsView.standingsRowHeight) : 0
         clip: true
-        interactive: false
+        interactive: contentWidth > width
+        contentWidth: Math.max(width, Style.space(348))
+        flickableDirection: Flickable.HorizontalFlick
         contentHeight: headerRow.implicitHeight + (root ? root.standings.length : 0) * standingsView.standingsRowHeight
         visible: standingsView.viewMode === "table" && (root ? root.standings.length > 0 : false)
 
         Column {
-          width: parent.width
+          width: standingsTable.contentWidth
           spacing: 0
 
           Row {
@@ -346,7 +391,7 @@ Column {
                   cache: true
                   mipmap: true
                   smooth: true
-                  visible: String(source) !== ""
+                  visible: true
                 }
                 Row {
                   width: standingsView.standingsTeamWidth

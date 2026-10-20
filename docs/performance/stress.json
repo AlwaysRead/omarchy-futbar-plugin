@@ -1,0 +1,103 @@
+{
+  "wall_seconds": 8.435,
+  "unfinished_records_excluded": 0,
+  "types": {
+    "Compiling": {
+      "count": 110,
+      "inclusive_total_ms": 2512.466,
+      "longest_ms": 908.735
+    },
+    "Creating": {
+      "count": 25894,
+      "inclusive_total_ms": 1077.9,
+      "longest_ms": 68.567
+    },
+    "Javascript": {
+      "count": 317521,
+      "inclusive_total_ms": 1804.093,
+      "longest_ms": 114.753
+    },
+    "HandlingSignal": {
+      "count": 664,
+      "inclusive_total_ms": 359.817,
+      "longest_ms": 114.758
+    },
+    "Binding": {
+      "count": 99602,
+      "inclusive_total_ms": 1205.309,
+      "longest_ms": 55.767
+    }
+  },
+  "longest_handlers": [
+    {
+      "kind": "HandlingSignal",
+      "duration_ms": 114.758,
+      "file": "shell.qml",
+      "line": "79",
+      "details": ""
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 114.753,
+      "file": "shell.qml",
+      "line": "79",
+      "details": "expression for onTriggered"
+    },
+    {
+      "kind": "HandlingSignal",
+      "duration_ms": 80.658,
+      "file": "FutApiRequest.qml",
+      "line": "74",
+      "details": ""
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 80.647,
+      "file": "FutApiRequest.qml",
+      "line": "74",
+      "details": ""
+    },
+    {
+      "kind": "Binding",
+      "duration_ms": 55.767,
+      "file": "Style.qml",
+      "line": "286",
+      "details": ""
+    },
+    {
+      "kind": "Binding",
+      "duration_ms": 55.722,
+      "file": "Style.qml",
+      "line": "213",
+      "details": ""
+    },
+    {
+      "kind": "HandlingSignal",
+      "duration_ms": 54.074,
+      "file": "Color.qml",
+      "line": "256",
+      "details": ""
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 54.071,
+      "file": "Color.qml",
+      "line": "256",
+      "details": "expression for onLoadFailed"
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 54.066,
+      "file": "Color.qml",
+      "line": "221",
+      "details": "loadUserShell"
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 54.059,
+      "file": "Color.qml",
+      "line": "208",
+      "details": "mergeShell"
+    }
+  ]
+}

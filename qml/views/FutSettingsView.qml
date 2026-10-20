@@ -19,6 +19,14 @@ Column {
     property string description: ""
     property bool checked: false
     signal toggled()
+    activeFocusOnTab: true
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: sRow.title
+    Accessible.checkable: true
+    Accessible.checked: sRow.checked
+    Accessible.onPressAction: sRow.toggled()
+    Keys.onSpacePressed: sRow.toggled()
+    Keys.onReturnPressed: sRow.toggled()
 
     width: parent ? parent.width : Style.space(300)
     implicitHeight: Math.max(Style.space(38), col.implicitHeight + Style.space(6))
@@ -175,6 +183,10 @@ Column {
     spacing: Style.space(10)
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       iconText: "󰅁"
       text: "Back"
       tooltipText: "Return to match center"
@@ -269,6 +281,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               anchors.verticalCenter: parent.verticalCenter
               visible: index > 0
               iconText: "󰐊"
@@ -283,6 +299,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               anchors.verticalCenter: parent.verticalCenter
               visible: index > 0 || (root && root.allFollowedTabs().length > 1)
               iconText: "󰅖"
@@ -300,6 +320,10 @@ Column {
       }
 
       Button {
+        focusable: true
+        Accessible.role: Accessible.Button
+        Accessible.name: tooltipText || text || "Action"
+
         width: parent.width
         iconText: "󰐕"
         text: "Follow Another Club or League"
@@ -343,6 +367,10 @@ Column {
         spacing: Style.space(6)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "3 Letters"
           tooltipText: "Ultra-compact 3-letter codes (e.g. BAR, UCL, WOL)"
@@ -357,6 +385,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "Short"
           tooltipText: "Short recognizable names (e.g. Barça, UCL, Wolves)"
@@ -371,6 +403,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "Full"
           tooltipText: "Full official names (e.g. Barcelona, UEFA Champions League)"
@@ -405,6 +441,10 @@ Column {
         spacing: Style.space(6)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "Icon Only"
           tooltipText: "Minimal ball icon on desktop bar (󰒸)"
@@ -419,6 +459,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "Live Score"
           tooltipText: "Show active live match score on desktop bar"
@@ -433,6 +477,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "Next Match"
           tooltipText: "Show upcoming fixture and kickoff time on desktop bar"
@@ -467,6 +515,10 @@ Column {
         spacing: Style.space(6)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "24-Hour"
           tooltipText: "24-hour clock (e.g. 20:00)"
@@ -481,6 +533,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "12-Hour"
           tooltipText: "12-hour clock (e.g. 8:00 PM)"
@@ -495,6 +551,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "Relative"
           tooltipText: "Relative countdown (e.g. in 2h 15m)"
@@ -595,6 +655,10 @@ Column {
         spacing: Style.space(6)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(6)) / 2
           text: "Primary Club Only"
           tooltipText: "Alerts only for your primary desktop bar club"
@@ -609,6 +673,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(6)) / 2
           text: "All Followed Tabs"
           tooltipText: "Alerts for all followed clubs and tournaments"
@@ -625,6 +693,8 @@ Column {
     }
   }
 
+
+  FutExtraSettings { root: settingsView.root }
 
   // CARD 5: Performance & Cache
   SettingsCard {
@@ -650,6 +720,10 @@ Column {
         spacing: Style.space(6)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "10s (Fast)"
           tooltipText: "Real-time live score updates"
@@ -664,6 +738,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "30s"
           tooltipText: "Balanced polling cadence"
@@ -678,6 +756,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           width: (parent.width - Style.space(12)) / 3
           text: "60s (Saver)"
           tooltipText: "Battery saver mode for laptops"
@@ -694,6 +776,10 @@ Column {
     }
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       width: parent.width
       iconText: "󰑐"
       text: "Clear Cache & Reload"
@@ -719,6 +805,10 @@ Column {
       spacing: Style.space(8)
 
       Button {
+        focusable: true
+        Accessible.role: Accessible.Button
+        Accessible.name: tooltipText || text || "Action"
+
         width: (parent.width - parent.spacing) / 2
         height: parent.height
         iconText: "󰦛"
@@ -734,6 +824,10 @@ Column {
       }
 
       Button {
+        focusable: true
+        Accessible.role: Accessible.Button
+        Accessible.name: tooltipText || text || "Action"
+
         width: (parent.width - parent.spacing) / 2
         height: parent.height
         iconText: "󰄬"

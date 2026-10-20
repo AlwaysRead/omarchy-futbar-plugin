@@ -10,6 +10,8 @@ Item {
   id: overlay
   property var root: null
   property bool active: false
+  Accessible.role: Accessible.StaticText
+  Accessible.name: active ? text : ""
   property string text: "Fetching data…"
   property int spinnerSize: Style.space(36)
 
@@ -19,7 +21,7 @@ Item {
   z: 99
 
   Behavior on opacity {
-    NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
+    NumberAnimation { duration: root && root.reducedMotion ? 0 : 180; easing.type: Easing.OutQuad }
   }
 
   Rectangle {
@@ -67,7 +69,7 @@ Item {
       }
 
       RotationAnimator on rotation {
-        running: overlay.active && overlay.visible
+        running: overlay.active && overlay.visible && !(root && root.reducedMotion)
         from: 0
         to: 360
         duration: 850

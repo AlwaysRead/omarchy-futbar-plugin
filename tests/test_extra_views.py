@@ -8,13 +8,13 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SHELL = Path('/usr/share/omarchy/shell')
+SHELL = Path(os.environ.get('FUTBAR_SHELL_ROOT','/usr/share/omarchy/shell'))
 
 
 @unittest.skipUnless(shutil.which('quickshell') and (SHELL / 'Ui').is_dir(),
                      'Quickshell and Omarchy UI components are required')
 class ExtraViewTests(unittest.TestCase):
-    def test_news_filter_and_spoiler_controls(self):
+    def test_universal_news_and_spoiler_controls(self):
         with tempfile.TemporaryDirectory(prefix='futbar-views-test-') as directory:
             work = Path(directory)
             shutil.copytree(ROOT / 'qml', work / 'qml')
@@ -22,11 +22,11 @@ class ExtraViewTests(unittest.TestCase):
                 (work / name).symlink_to(SHELL / name, target_is_directory=True)
             (work / 'lib').mkdir()
             fixture = {
-                'articles': [{'headline': '<b>Plain text headline</b>', 'published': '2026-10-20',
+                'articles': [{'headline': '<b>Plain text headline</b>', 'description': 'A plain-text summary.', 'published': '2026-10-20',
                               'links': {'web': {'href': 'https://www.espn.com/soccer/story/_/id/1'}},
                               'categories': [{'type': 'team', 'teamId': 364}]}],
             }
-            (work / 'lib/fetch_json.py').write_text('print(' + repr(json.dumps(fixture)) + ')\n')
+            (work / 'lib/fetch_json.py').write_text('import sys\nassert sys.argv[-1] == \"https://site.api.espn.com/apis/site/v2/sports/soccer/all/news\"\nprint(' + repr(json.dumps(fixture)) + ')\n')
             (work / 'shell.qml').write_text('''
 import QtQuick
 import QtQuick.Window
@@ -62,10 +62,15 @@ ShellRoot {
         news.revealed = true
         test.phase = 1
       } else if (test.phase === 1 && news.articles.length === 1) {
-        news.followedOnly = true
+        news.openArticle(news.articles[0])
+        test.phase = 10
+      } else if (test.phase === 10) {
+        if (!news.selectedArticle || news.selectedArticle.description !== "A plain-text summary.") { console.error("READER_FAILURE"); Qt.quit(); return }
+        news.closeReader()
+        context.league = "esp.1"
         test.phase = 2
       } else if (test.phase === 2) {
-        if (news.articles.length) { console.error("FILTER_FAILURE"); Qt.quit(); return }
+        if (news.articles.length !== 1) { console.error("UNIVERSAL_FEED_FAILURE"); Qt.quit(); return }
         context.antiSpoiler = false
         test.phase = 3
       } else if (test.phase === 3) {

@@ -1,0 +1,61 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+function load(name) {
+  const context = vm.createContext({});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../qml/data/'+name+'.js'),'utf8').replace(/^\.pragma library\s*/,''),context);
+  return context;
+}
+const m = load('FutMatches'), p = load('FutPreferences');
+const now = Date.UTC(2026,9,20,10);
+function fixture(id, minutes=15) {return {id, date:new Date(now+minutes*60000).toISOString(),league:{slug:'esp.1',name:'La Liga'},competitions:[{timeValid:true,status:{type:{state:'pre',name:'STATUS_SCHEDULED',shortDetail:'Scheduled'}},competitors:[{homeAway:'home',team:{id:'83',displayName:'Barcelona'}},{homeAway:'away',team:{id:'86',displayName:'Real Madrid'}}]}]};}
+const match = m.normalize(fixture('1'),'esp.1');
+assert.equal(match.homeId,'83');
+assert.equal(m.normalize({},'esp.1'),null);
+assert.equal(m.followed(match,[{teamId:'83'}]),true);
+assert.equal(m.followed(match,[{teamId:'1'}]),false);
+assert.equal(m.followed(match,[{league:'esp.1',followLeague:true}]),true);
+assert.equal(m.merge([match],[Object.assign({},match,{status:'Changed'})]).length,1);
+assert.equal(m.merge([match],[Object.assign({},match,{status:'Changed'})])[0].status,'Changed');
+assert.equal(m.plan([{teamId:'83',league:'esp.1'},{teamId:'83',league:'esp.1'}],now).length,1);
+assert.equal(m.plan([{followLeague:true,league:'esp.1'}],now).length,7);
+assert.equal(m.dueReminders([match],15,{},now).length,1);
+assert.equal(m.dueReminders([match],15,{[m.reminderKey(match,15)]:now},now).length,0);
+assert.equal(m.dueReminders([Object.assign({},match,{statusName:'STATUS_POSTPONED'})],15,{},now).length,0);
+assert.equal(m.dueReminders([match],15,{},now+16*60000).length,0);
+const settings={league:'esp.1',teamId:'83',teamName:'Barcelona',tabOrder:[{league:'esp.1',teamId:'83',teamName:'Barcelona'}],reminderMinutes:15,quietHours:true,reducedMotion:true,density:'compact'};
+const restored=p.restore(p.backup(settings));
+assert.equal(restored.reminderMinutes,15);
+assert.equal(restored.tabOrder[0].teamId,'83');
+assert.throws(()=>p.restore('{"format":"futbar-settings","version":2,"settings":{}}'));
+assert.throws(()=>p.backup({...settings,reminderMinutes:99}));
+assert.throws(()=>p.backup({...settings,quietStart:24}));
+assert.throws(()=>p.backup({...settings,tabOrder:Array(25).fill(settings)}));
+assert.throws(()=>p.restore(' '.repeat(65537)));
+assert.equal(p.validate({command:'malicious',__proto__:{bad:1}}).command,undefined);
+const local = new Date(2026,9,20,23).getTime();
+assert.equal(p.quiet(local,true,22,8,0),true);
+assert.equal(p.quiet(local,true,8,22,0),false);
+assert.equal(p.quiet(local,true,8,8,0),false);
+assert.equal(p.quiet(local,false,8,8,local+1),true);
+console.log('PASS: followed matches, reminders, settings validation and quiet hours');
+
+const comparison=load('FutComparison');
+assert.equal(comparison.number(undefined),'—');
+assert.equal(comparison.number('0'),'0');
+assert.equal(comparison.number('12 minutes'),'—');
+const a=comparison.snapshot({id:'1',fullName:'Player',seasonGoals:'2'},'player','2026 · esp.1');
+const b=comparison.snapshot({id:'2',fullName:'Player 2'},'player','2026 · esp.1');
+assert.equal(comparison.compatible(a,b),true);
+assert.equal(comparison.compatible(a,{...b,context:''}),false);
+assert.equal(comparison.compatible(a,{...b,kind:'club'}),false);
+assert.equal(b.values[0].value,'—');
+
+assert.equal(m.identifier({toString:{}}),'');
+assert.equal(m.identifier('..'),'');
+assert.equal(m.score({toString:{}}),'');
+assert.equal(m.normalize({...fixture('1'),date:{toString:{}}},'esp.1'),null);
+assert.equal(m.normalize({...fixture('1'),id:{toString:{}}},'esp.1'),null);
+assert.equal(m.followed(match,[null,{teamId:{toString:{}}}]),false);
+assert.equal(m.plan([null,{teamId:{toString:{}}}],now).length,0);

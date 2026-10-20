@@ -11,6 +11,15 @@ Column {
   property var root: null
   width: parent ? parent.width : 0
   spacing: Style.space(12)
+  FutRequestStatus {
+    request: root ? root.statsRequest : null
+    error: root ? root.statsError : ""
+    hasData: root ? statsView.currentStatsCount > 0 : false
+    foreground: root ? root.contentForeground : "#eeeeee"
+    fontFamily: root ? root.contentFontFamily : Style.font.family
+    onRetryRequested: if (root) { root.loadStats(true) }
+  }
+
   visible: root ? (root.showStats && !root.showMatchDetail && !root.showTrending) : false
 
   component LoadingOverlay: FutLoadingOverlay { root: statsView.root }
@@ -32,6 +41,10 @@ Column {
               spacing: Style.space(8)
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: prevStatsSeasonButton
             width: Style.space(22)
             height: Style.space(22)
@@ -50,6 +63,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: statsSeasonChip
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(52)
@@ -69,6 +86,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: nextStatsSeasonButton
             width: Style.space(22)
             height: Style.space(22)
@@ -94,6 +115,10 @@ Column {
           spacing: Style.space(6)
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: goalsTabButton
             height: Style.space(22)
             text: "Goals"
@@ -109,6 +134,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: assistsTabButton
             height: Style.space(22)
             text: "Assists"
@@ -124,6 +153,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: yellowTabButton
             height: Style.space(22)
             text: "Yellow Cards"
@@ -139,6 +172,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: redTabButton
             height: Style.space(22)
             text: "Red Cards"
@@ -154,6 +191,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: savesTabButton
             height: Style.space(22)
             text: "Saves"
@@ -290,7 +331,7 @@ Column {
                   mipmap: true
                   asynchronous: true
                   smooth: true
-                  visible: String(source) !== ""
+                  visible: true
                 }
 
                 Item { width: Style.space(6); height: 1 }

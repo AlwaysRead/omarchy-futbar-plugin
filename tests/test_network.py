@@ -1,3 +1,5 @@
+import os
+import tempfile
 import io
 import json
 import sys
@@ -14,6 +16,13 @@ URL = 'https://sports.core.api.espn.com/v2/sports/soccer/athletes/1'
 
 
 class NetworkTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        environment = patch.dict(os.environ, {'XDG_RUNTIME_DIR': directory.name})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_api_url_policy(self):
         self.assertEqual(http_client.checked_url(URL), URL)
         for value in [URL.replace('https:', 'http:'), URL.replace('sports.core.api.espn.com', 'evil.test'),

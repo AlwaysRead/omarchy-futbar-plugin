@@ -7,6 +7,8 @@ import signal
 import urllib.parse
 import urllib.request
 
+import request_scheduler
+
 API_HOSTS = frozenset({'site.web.api.espn.com', 'site.api.espn.com', 'sports.core.api.espn.com'})
 IMAGE_HOSTS = frozenset({'a.espncdn.com'})
 
@@ -31,6 +33,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def fetch_bytes(url, limit, timeout=5, hosts=API_HOSTS):
     checked_url(url, hosts)
+    return request_scheduler.fetch(url, limit, timeout,
+        lambda remaining: _fetch_bytes(url, limit, remaining))
+
+
+def _fetch_bytes(url, limit, timeout):
     request = urllib.request.Request(url, headers={'Accept-Encoding': 'identity', 'User-Agent': 'FutBar/2.5'})
     # Do not consult proxy environment variables or local curl configuration.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)

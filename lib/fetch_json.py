@@ -33,6 +33,8 @@ if __name__ == '__main__':
             category = 'rate_limited' if error.code == 429 else 'http_error'
         elif isinstance(error, (TimeoutError, socket.timeout)):
             category = 'timeout'
+        elif 'FutBar busy:' in str(error):
+            category = 'busy'
         elif isinstance(error, urllib.error.URLError):
             category = 'timeout' if isinstance(error.reason, (TimeoutError, socket.timeout)) else 'offline'
         elif isinstance(error, (ValueError, UnicodeError, RecursionError)):

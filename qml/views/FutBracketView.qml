@@ -82,6 +82,10 @@ Column {
     spacing: Style.space(6)
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       width: Style.space(26)
       height: Style.space(24)
       iconText: "◀"
@@ -127,6 +131,10 @@ Column {
     }
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       width: Style.space(26)
       height: Style.space(24)
       iconText: "▶"

@@ -8,6 +8,7 @@ Item {
   visible: false
   property string url: ""
   property bool active: false
+  property int byteLimit: 2097152
   property string responseKind: ""
   property var result: null
   property string error: ""
@@ -39,7 +40,7 @@ Item {
     launchedUrl = url
     loading = true
     timedOut = false
-    worker.command = Network.jsonCommand([url], 2097152, 15)
+    worker.command = Network.jsonCommand([url], byteLimit, 15)
     worker.running = true
     deadline.restart()
   }
@@ -75,10 +76,12 @@ Item {
       if (request.launchedGeneration !== request.generation || request.launchedUrl !== request.url || !request.active) return
       request.loading = false
       try {
-        if (code !== 0 || !output.text || output.text.length > 2097152) throw new Error("request")
+        if (code !== 0 || !output.text || output.text.length > request.byteLimit) throw new Error("request")
         var parsed = JSON.parse(output.text)
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("shape")
         if (request.responseKind === "news" && !Array.isArray(parsed.articles)) throw new Error("shape")
+        if (request.responseKind === "gamelog" && (!Array.isArray(parsed.names) || !parsed.events || !Array.isArray(parsed.seasonTypes))) throw new Error("shape")
+        if (request.responseKind === "events" && !Array.isArray(parsed.events)) throw new Error("shape")
         request.result = parsed
         request.updatedAt = Date.now()
         request.error = ""

@@ -4,13 +4,13 @@ function helperPath(name) {
   return decodeURIComponent(Qt.resolvedUrl("../../lib/" + name).toString().replace(/^file:\/\//, ""))
 }
 function jsonCommand(urls, limit, timeout) {
-  return ["python3", "-E", "-s", helperPath("fetch_json.py"), String(timeout), String(limit)].concat(urls)
+  return ["python3", "-B", "-E", "-s", helperPath("fetch_json.py"), String(timeout), String(limit)].concat(urls)
 }
 function imageCommand(url) {
-  return ["python3", "-E", "-s", helperPath("fetch_image.py"), url]
+  return ["python3", "-B", "-E", "-s", helperPath("fetch_image.py"), url]
 }
 function statsCommand(mode, urls) {
-  return ["python3", "-E", "-s", helperPath("aggregate_stats.py"), mode, JSON.stringify(urls)]
+  return ["python3", "-B", "-E", "-s", helperPath("aggregate_stats.py"), mode, JSON.stringify(urls)]
 }
 function safeProfileUrl(value) {
   if (typeof value !== "string" || value.length > 2048) return ""
@@ -18,8 +18,12 @@ function safeProfileUrl(value) {
 }
 function requestError(stderr, code) {
   if (code === 124 || /timed out|timeout/i.test(stderr || "")) return "Request timed out. Retry shortly."
+  if (/busy/.test(stderr || "")) return "Request queue is busy. Retry shortly."
   if (/rate_limited/.test(stderr || "")) return "ESPN is rate limiting requests. Retry later."
   if (/offline/.test(stderr || "")) return "Connection unavailable. Check your network and retry."
   if (/invalid_data/.test(stderr || "")) return "ESPN returned unsupported data. Retry later."
   return "Could not load ESPN data. Retry shortly."
+}
+function photoCommand(url) {
+  return ["python3", "-B", "-E", "-s", helperPath("fetch_photo.py"), url]
 }

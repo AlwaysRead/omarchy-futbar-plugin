@@ -7,7 +7,6 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../components"
-import "../services/FutNetwork.js" as Network
 
 Column {
   id: matchDetailView
@@ -16,10 +15,19 @@ Column {
   width: parent ? parent.width : 0
   spacing: Style.space(12)
 
+  FutRequestStatus {
+    request: root ? root.matchDetailRequest : null
+    error: root ? root.matchDetailError : ""
+    hasData: root ? !!root.matchDetail : false
+    foreground: root ? root.contentForeground : "#eeeeee"
+    fontFamily: root ? root.contentFontFamily : Style.font.family
+    onRetryRequested: if (root) { root.openMatchDetail(root.matchDetail) }
+  }
+
   property bool detailRevealed: false
   Connections { target: matchDetailView.root; function onAntiSpoilerChanged() { matchDetailView.detailRevealed = false } }
   readonly property string detailId: root && root.matchDetail ? String(root.matchDetail.id || "") : ""
-  readonly property bool spoilerBlocked: !!(root && root.antiSpoiler && !detailRevealed)
+  readonly property bool spoilerBlocked: !!(root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !detailRevealed)
   onDetailIdChanged: detailRevealed = false
   property bool expandAllStats: false
   property bool heroScoreRevealed: false
@@ -129,6 +137,10 @@ Column {
           spacing: Style.space(8)
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: backBtn
             width: (root && root.returnToTrendingAfterDetail) ? implicitWidth : Style.space(26)
             height: Style.space(26)
@@ -176,6 +188,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             id: copyMatchBtn
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(26)
@@ -194,6 +210,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           visible: matchDetailView.spoilerBlocked
           text: "Reveal match details and results"
           foreground: root.contentForeground; accent: root.contentForeground
@@ -210,27 +230,13 @@ Column {
             width: parent.width
             spacing: Style.space(12)
             opacity: (root.matchDetailLoading && !root.matchDetail) ? 0.15 : (root.matchDetailLoading ? 0.85 : 1.0)
-            Behavior on opacity { NumberAnimation { duration: 180 } }
+            Behavior on opacity { NumberAnimation { duration: root && root.reducedMotion ? 0 : 180 } }
 
             Text {
               width: parent.width; wrapMode: Text.WordWrap
               text: "* Rating estimated by FutBar from match statistics; unmarked ratings are supplied by ESPN."
               textFormat: Text.PlainText; color: root.contentForeground; font.pixelSize: Style.font.caption
               visible: root.matchDetailTab === "lineups"
-            }
-            Column {
-              width: parent.width; spacing: Style.space(4)
-              visible: root.matchDetailTab === "info" && !!root.matchDetail && !!root.matchDetail.videos && root.matchDetail.videos.length > 0
-              Text { text: "Related ESPN videos"; color: root.contentForeground; font.bold: true; textFormat: Text.PlainText }
-              Repeater {
-                model: root.matchDetail && root.matchDetail.videos ? root.matchDetail.videos : []
-                delegate: Column {
-                  required property var modelData
-                  width: parent.width
-                  Text { width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: modelData.title; color: root.contentForeground; font.pixelSize: Style.font.caption }
-                  Button { text: "Watch on ESPN" + (modelData.duration ? " · " + Math.floor(modelData.duration / 60) + "m" : ""); foreground: root.contentForeground; accent: root.contentForeground; onClicked: { var url = Network.safeProfileUrl(modelData.url); if (url) Qt.openUrlExternally(url) } }
-                }
-              }
             }
             // Scoreboard Hero Card
         Item {
@@ -278,7 +284,7 @@ Column {
               // Anti-spoiler conceal badge
               Rectangle {
                 anchors.centerIn: parent
-                visible: !!(root && root.antiSpoiler && !matchDetailView.heroScoreRevealed && root.matchDetail && root.matchDetail.started)
+                visible: !!(root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !matchDetailView.heroScoreRevealed && root.matchDetail && root.matchDetail.started)
                 width: Style.space(76)
                 height: Style.space(26)
                 radius: Style.cornerRadius
@@ -307,12 +313,14 @@ Column {
                   }
                 }
 
-                MouseArea {
+                FutActionArea {
+    actionLabel: "Open details"
+
                   id: heroScoreMouse
                   anchors.fill: parent
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
-                  onClicked: matchDetailView.heroScoreRevealed = true
+                  onActivated: matchDetailView.heroScoreRevealed = true
                 }
               }
 
@@ -320,7 +328,7 @@ Column {
                 id: heroScoreText
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
-                visible: !(root && root.antiSpoiler && !matchDetailView.heroScoreRevealed && root.matchDetail && root.matchDetail.started)
+                visible: !(root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !matchDetailView.heroScoreRevealed && root.matchDetail && root.matchDetail.started)
                 text: (root.matchDetail && root.matchDetail.started && root.matchDetail.home && root.matchDetail.away)
                   ? (root.matchDetail.home.score + " – " + root.matchDetail.away.score) : "vs"
                 color: (root.matchDetail && !root.matchDetail.started) ? Qt.darker(root.contentForeground, 1.5) : root.contentForeground
@@ -373,7 +381,7 @@ Column {
               cache: true
               mipmap: true
               smooth: true
-              visible: String(source) !== ""
+              visible: true
               onStatusChanged: {
                 if (status === Image.Ready || status === Image.Error) {
                   if (!root.matchDetailCrestsLoaded && (!awayDetailCrestImg.visible || awayDetailCrestImg.status === Image.Ready || awayDetailCrestImg.status === Image.Error)) {
@@ -458,7 +466,7 @@ Column {
               cache: true
               mipmap: true
               smooth: true
-              visible: String(source) !== ""
+              visible: true
               onStatusChanged: {
                 if (status === Image.Ready || status === Image.Error) {
                   if (!root.matchDetailCrestsLoaded && (!homeDetailCrestImg.visible || homeDetailCrestImg.status === Image.Ready || homeDetailCrestImg.status === Image.Error)) {
@@ -649,6 +657,10 @@ Column {
             height: parent.height
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnStats
               height: Style.space(24)
               text: "Stats"
@@ -664,6 +676,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnTimeline
               height: Style.space(24)
               text: "Timeline"
@@ -679,6 +695,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnCommentary
               height: Style.space(24)
               text: "Commentary"
@@ -694,6 +714,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnLineups
               height: Style.space(24)
               text: "Lineups"
@@ -709,6 +733,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnH2H
               height: Style.space(24)
               text: "H2H & Form"
@@ -724,6 +752,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnBracket
               height: Style.space(24)
               text: "Bracket"
@@ -739,6 +771,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               id: btnInfo
               height: Style.space(24)
               text: "Info"
@@ -877,15 +913,17 @@ Column {
               radius: Style.space(4)
               color: root ? root.contentForeground : Commons.Color.foreground
               opacity: expandStatsMouseArea.containsMouse ? 0.08 : 0.03
-              Behavior on opacity { NumberAnimation { duration: 120 } }
+              Behavior on opacity { NumberAnimation { duration: root && root.reducedMotion ? 0 : 120 } }
             }
 
-            MouseArea {
+            FutActionArea {
+    actionLabel: "Open details"
+
               id: expandStatsMouseArea
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: matchDetailView.expandAllStats = !matchDetailView.expandAllStats
+              onActivated: matchDetailView.expandAllStats = !matchDetailView.expandAllStats
             }
 
             Row {
@@ -1519,6 +1557,10 @@ Column {
               ]
 
               Button {
+                focusable: true
+                Accessible.role: Accessible.Button
+                Accessible.name: tooltipText || text || "Action"
+
                 required property var modelData
                 height: Style.space(20)
                 text: modelData.label
@@ -1623,6 +1665,10 @@ Column {
             spacing: Style.space(8)
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               width: (parent.width - parent.spacing) / 2
               height: Style.space(28)
               text: {
@@ -1641,6 +1687,10 @@ Column {
             }
 
             Button {
+              focusable: true
+              Accessible.role: Accessible.Button
+              Accessible.name: tooltipText || text || "Action"
+
               width: (parent.width - parent.spacing) / 2
               height: Style.space(28)
               text: {
@@ -2600,7 +2650,7 @@ Column {
                   mipmap: true
                   smooth: true
                   anchors.verticalCenter: parent.verticalCenter
-                  visible: String(source) !== ""
+                  visible: true
                 }
 
                 Text {
@@ -2639,12 +2689,14 @@ Column {
                         font.bold: true
                       }
 
-                      MouseArea {
+                      FutActionArea {
+    actionLabel: "Open details"
+
                         id: hFormMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: matchDetailView.selectedFormMatch = hFormPill.modelData
+                        onActivated: matchDetailView.selectedFormMatch = hFormPill.modelData
                       }
 
                       PanelToolTip {
@@ -2687,7 +2739,7 @@ Column {
                   mipmap: true
                   smooth: true
                   anchors.verticalCenter: parent.verticalCenter
-                  visible: String(source) !== ""
+                  visible: true
                 }
 
                 Text {
@@ -2726,12 +2778,14 @@ Column {
                         font.bold: true
                       }
 
-                      MouseArea {
+                      FutActionArea {
+    actionLabel: "Open details"
+
                         id: aFormMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: matchDetailView.selectedFormMatch = aFormPill.modelData
+                        onActivated: matchDetailView.selectedFormMatch = aFormPill.modelData
                       }
 
                       PanelToolTip {
@@ -3239,6 +3293,10 @@ Column {
                 }
 
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   id: closeFormBtn
                   width: Style.space(16)
                   height: Style.space(16)

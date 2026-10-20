@@ -1,0 +1,1125 @@
+{
+  "filters": [
+    {
+      "displayName": "Season",
+      "name": "season",
+      "value": "2026",
+      "options": [
+        {
+          "value": "2026",
+          "displayValue": "2026-27"
+        }
+      ]
+    },
+    {
+      "displayName": "Team",
+      "name": "team",
+      "value": "997",
+      "options": [
+        {
+          "value": "104",
+          "displayValue": "AS Roma"
+        },
+        {
+          "value": "363",
+          "displayValue": "Chelsea"
+        },
+        {
+          "value": "2620",
+          "displayValue": "Egypt"
+        },
+        {
+          "value": "989",
+          "displayValue": "FC Basel"
+        },
+        {
+          "value": "109",
+          "displayValue": "Fiorentina"
+        },
+        {
+          "value": "364",
+          "displayValue": "Liverpool"
+        },
+        {
+          "value": "997",
+          "displayValue": "Trabzonspor"
+        }
+      ]
+    },
+    {
+      "displayName": "League",
+      "name": "league",
+      "value": "tur.1",
+      "options": [
+        {
+          "value": "tur.1",
+          "displayValue": "Turkish Super Lig",
+          "shortDisplayName": "Turkish Super Lig"
+        },
+        {
+          "value": "uefa.europa.conf",
+          "displayValue": "UEFA Conference League",
+          "shortDisplayName": "UEFA Conference League"
+        },
+        {
+          "value": "uefa.europa_qual",
+          "displayValue": "UEFA Europa League Qualifying",
+          "shortDisplayName": "UEFA Europa League Qualfiying"
+        }
+      ]
+    }
+  ],
+  "names": [
+    "totalGoals",
+    "goalAssists",
+    "totalShots",
+    "shotsOnTarget",
+    "foulsCommitted",
+    "foulsSuffered",
+    "offsides",
+    "yellowCards",
+    "redCards"
+  ],
+  "events": {
+    "401888277": {
+      "id": "401888277",
+      "atVs": "vs",
+      "gameDate": "2026-10-19T17:00:00.000+00:00",
+      "score": "2-0",
+      "homeTeamId": "997",
+      "awayTeamId": "1895",
+      "homeTeamScore": "2",
+      "awayTeamScore": "0",
+      "gameResult": "W",
+      "opponent": {
+        "id": "1895",
+        "uid": "s:600~t:1895",
+        "displayName": "Besiktas",
+        "abbreviation": "BES",
+        "links": [
+          {
+            "language": "en",
+            "rel": [
+              "clubhouse",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/football/club/_/id/1895/besiktas",
+            "text": "Clubhouse",
+            "shortText": "Clubhouse",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/stats/_/id/1895/besiktas",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:1895&section=stats",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/fixtures/_/id/1895/besiktas",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:1895&section=scores",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/results/_/id/1895/besiktas",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:1895&section=scores",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/standings/_/league/tur.1",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:1895&section=standings",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/squad/_/id/1895/besiktas",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:1895&section=squad",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/1895.png"
+      },
+      "leagueName": "Turkish Super Lig",
+      "leagueAbbreviation": "Turkish Super Lig",
+      "leagueShortName": "Turkish Super Lig",
+      "team": {
+        "id": "997",
+        "uid": "s:600~t:997",
+        "abbreviation": "TRAB",
+        "links": [
+          {
+            "language": "en",
+            "rel": [
+              "clubhouse",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/football/club/_/id/997/trabzonspor",
+            "text": "Clubhouse",
+            "shortText": "Clubhouse",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/stats/_/id/997/trabzonspor",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=stats",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/fixtures/_/id/997/trabzonspor",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=scores",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/results/_/id/997/trabzonspor",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=scores",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/standings/_/league/tur.1",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=standings",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/squad/_/id/997/trabzonspor",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=squad",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/997.png",
+        "isAllStar": false
+      }
+    },
+    "401888278": {
+      "id": "401888278",
+      "atVs": "@",
+      "gameDate": "2026-10-10T13:00:00.000+00:00",
+      "score": "3-0",
+      "homeTeamId": "11429",
+      "awayTeamId": "997",
+      "homeTeamScore": "0",
+      "awayTeamScore": "3",
+      "gameResult": "W",
+      "opponent": {
+        "id": "11429",
+        "uid": "s:600~t:11429",
+        "displayName": "Samsunspor",
+        "abbreviation": "SAM",
+        "links": [
+          {
+            "language": "en",
+            "rel": [
+              "clubhouse",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/football/club/_/id/11429/samsunspor",
+            "text": "Clubhouse",
+            "shortText": "Clubhouse",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/stats/_/id/11429/samsunspor",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:11429&section=stats",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/fixtures/_/id/11429/samsunspor",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:11429&section=scores",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/results/_/id/11429/samsunspor",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:11429&section=scores",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/standings/_/league/tur.1",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:11429&section=standings",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/squad/_/id/11429/samsunspor",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:11429&section=squad",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/11429.png"
+      },
+      "leagueName": "Turkish Super Lig",
+      "leagueAbbreviation": "Turkish Super Lig",
+      "leagueShortName": "Turkish Super Lig",
+      "team": {
+        "id": "997",
+        "uid": "s:600~t:997",
+        "abbreviation": "TRAB",
+        "links": [
+          {
+            "language": "en",
+            "rel": [
+              "clubhouse",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/football/club/_/id/997/trabzonspor",
+            "text": "Clubhouse",
+            "shortText": "Clubhouse",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/stats/_/id/997/trabzonspor",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=stats",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/fixtures/_/id/997/trabzonspor",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=scores",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/results/_/id/997/trabzonspor",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=scores",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/standings/_/league/tur.1",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=standings",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/squad/_/id/997/trabzonspor",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=squad",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/997.png",
+        "isAllStar": false
+      }
+    },
+    "401888291": {
+      "id": "401888291",
+      "atVs": "vs",
+      "gameDate": "2026-09-19T17:00:00.000+00:00",
+      "score": "4-0",
+      "homeTeamId": "997",
+      "awayTeamId": "432",
+      "homeTeamScore": "4",
+      "awayTeamScore": "0",
+      "gameResult": "W",
+      "opponent": {
+        "id": "432",
+        "uid": "s:600~t:432",
+        "displayName": "Galatasaray",
+        "abbreviation": "GAL",
+        "links": [
+          {
+            "language": "en",
+            "rel": [
+              "clubhouse",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/football/club/_/id/432/galatasaray",
+            "text": "Clubhouse",
+            "shortText": "Clubhouse",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/stats/_/id/432/galatasaray",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:432&section=stats",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/fixtures/_/id/432/galatasaray",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:432&section=scores",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/results/_/id/432/galatasaray",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:432&section=scores",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/standings/_/league/tur.1",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:432&section=standings",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/squad/_/id/432/galatasaray",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:432&section=squad",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/432.png"
+      },
+      "leagueName": "Turkish Super Lig",
+      "leagueAbbreviation": "Turkish Super Lig",
+      "leagueShortName": "Turkish Super Lig",
+      "team": {
+        "id": "997",
+        "uid": "s:600~t:997",
+        "abbreviation": "TRAB",
+        "links": [
+          {
+            "language": "en",
+            "rel": [
+              "clubhouse",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/football/club/_/id/997/trabzonspor",
+            "text": "Clubhouse",
+            "shortText": "Clubhouse",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/stats/_/id/997/trabzonspor",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "stats",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=stats",
+            "text": "Stats",
+            "shortText": "Stats",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/fixtures/_/id/997/trabzonspor",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "schedule",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=scores",
+            "text": "Fixtures",
+            "shortText": "Fixtures",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/results/_/id/997/trabzonspor",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "results",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=scores",
+            "text": "Results",
+            "shortText": "Results",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/standings/_/league/tur.1",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "standings",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=standings",
+            "text": "Standings",
+            "shortText": "Standings",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "desktop",
+              "team"
+            ],
+            "href": "https://www.espn.com/soccer/team/squad/_/id/997/trabzonspor",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          },
+          {
+            "language": "en",
+            "rel": [
+              "squad",
+              "sportscenter",
+              "app",
+              "team"
+            ],
+            "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:997&section=squad",
+            "text": "Squad",
+            "shortText": "Squad",
+            "isExternal": false,
+            "isPremium": false
+          }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/997.png",
+        "isAllStar": false
+      }
+    }
+  },
+  "seasonTypes": [
+    {
+      "displayName": "2026-27 Turkish Super Lig",
+      "categories": [
+        {
+          "displayName": "2026-27 Turkish Super Lig Stats",
+          "type": "event",
+          "splitType": "1",
+          "events": [
+            {
+              "eventId": "401888277",
+              "stats": [
+                "1",
+                "0",
+                "4",
+                "3",
+                "2",
+                "6",
+                "0",
+                "0",
+                "0"
+              ]
+            },
+            {
+              "eventId": "401888278",
+              "stats": [
+                "0",
+                "1",
+                "1",
+                "0",
+                "0",
+                "1",
+                "0",
+                "0",
+                "0"
+              ]
+            },
+            {
+              "eventId": "401888291",
+              "stats": [
+                "3",
+                "1",
+                "4",
+                "3",
+                "0",
+                "3",
+                "0",
+                "1",
+                "0"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

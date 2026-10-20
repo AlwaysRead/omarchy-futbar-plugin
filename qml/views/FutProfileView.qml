@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../components"
+import "../controllers"
 import "../data/FutData.js" as FutData
 import "../services/FutNetwork.js" as FutNetwork
 
@@ -16,6 +17,21 @@ Column {
   spacing: Style.space(12)
   visible: root && (root.selectedPlayerProfile !== null || root.selectedClubProfile !== null)
 
+  FutPlayerHistory {
+    id: playerHistory
+    athleteId: root && root.selectedPlayerProfile ? String(root.statsPlayerKey || "") : ""
+    active: !!root && root.opened && root.searchPlayerCardTab === "matches" && !!root.selectedPlayerProfile && !root.spoilersHidden
+  }
+  FutRequestStatus {
+    readonly property var failures: root ? root.profileNetworkRequests.filter(function(r) { return r.errorText !== "" }) : []
+    request: failures.length ? failures[0] : root && root.profileNetworkRequests.length ? root.profileNetworkRequests[0] : null
+    hasData: !!request && request.lastSucceededAt > 0
+    foreground: root ? root.contentForeground : "#eeeeee"
+    fontFamily: root ? root.contentFontFamily : Style.font.family
+    onRetryRequested: failures.forEach(function(r) { r.retry() })
+  }
+  FutComparisonCard { root: profileDedicatedView.root }
+
           Column {
             width: parent.width
             spacing: Style.space(6)
@@ -25,6 +41,10 @@ Column {
               height: Math.max(profileBackButton.implicitHeight, profileBreadcrumbRow.implicitHeight, Style.space(26))
 
               Button {
+                focusable: true
+                Accessible.role: Accessible.Button
+                Accessible.name: tooltipText || text || "Action"
+
                 id: profileBackButton
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
@@ -49,14 +69,16 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Style.space(4)
 
-                MouseArea {
+                FutActionArea {
+    actionLabel: "Back to search"
+
                   id: bSearchArea
                   width: bSearchText.implicitWidth
                   height: bSearchText.implicitHeight
                   anchors.verticalCenter: parent.verticalCenter
                   cursorShape: Qt.PointingHandCursor
                   hoverEnabled: true
-                  onClicked: {
+                  onActivated: {
                     root.clubProfileHistory = null
                     root.selectedPlayerProfile = null
                     root.selectedClubProfile = null
@@ -82,7 +104,9 @@ Column {
                   color: Qt.darker(root.contentForeground, 1.9)
                 }
 
-                MouseArea {
+                FutActionArea {
+    actionLabel: "Back to search"
+
                   id: bClubHistArea
                   visible: root.clubProfileHistory !== null
                   width: visible ? bClubHistText.implicitWidth : 0
@@ -90,7 +114,7 @@ Column {
                   anchors.verticalCenter: parent.verticalCenter
                   cursorShape: Qt.PointingHandCursor
                   hoverEnabled: true
-                  onClicked: {
+                  onActivated: {
                     root.selectedClubProfile = root.clubProfileHistory
                     root.clubProfileHistory = null
                     root.selectedPlayerProfile = null
@@ -275,7 +299,7 @@ Column {
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
                     smooth: true
-                    visible: String(source) !== "" && status === Image.Ready
+                    visible: true
                   }
                 }
 
@@ -402,6 +426,10 @@ Column {
                 spacing: Style.space(4)
 
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(20)
                   fontSize: Style.space(9)
                   horizontalPadding: Style.space(8)
@@ -414,6 +442,10 @@ Column {
                   onClicked: root.searchPlayerCardTab = "info"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(20)
                   fontSize: Style.space(9)
                   horizontalPadding: Style.space(8)
@@ -426,6 +458,10 @@ Column {
                   onClicked: { root.searchPlayerCardTab = "stats"; root.ensurePlayerStats(); root.ensureClubNames() }
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(20)
                   fontSize: Style.space(9)
                   horizontalPadding: Style.space(8)
@@ -505,7 +541,7 @@ Column {
                 }
               }
 
-              // Recent Match Log & Form (Last 5 Games)
+              // Season match history and form
               Rectangle {
                 width: parent.width
                 height: playerMatchesCol.implicitHeight + Style.space(20)
@@ -532,7 +568,7 @@ Column {
                       id: recentMatchesHeaderTitle
                       anchors.left: parent.left
                       anchors.verticalCenter: parent.verticalCenter
-                      text: "RECENT MATCHES"
+                      text: "MATCH HISTORY"
                       font.pixelSize: Style.font.caption
                       font.bold: true
                       font.letterSpacing: 0.5
@@ -541,20 +577,65 @@ Column {
                     }
                   }
 
-                  // If empty or loading
-                  Text {
-                    textFormat: Text.PlainText
+                  Row {
                     width: parent.width
-                    text: root.searchPlayerOverviewRequest && root.searchPlayerOverviewRequest.running ? "Loading recent matches…" : "No recent matches available"
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    color: Qt.darker(root.contentForeground, 1.6)
-                    visible: !root.selectedPlayerProfile || !root.selectedPlayerProfile.recentMatches || root.selectedPlayerProfile.recentMatches.length === 0
+                    spacing: Style.space(6)
+                    Button {
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
+                      text: "‹"; tooltipText: "Previous season"; focusable: true
+                      enabled: playerHistory.season > 1980 && !playerHistory.loading
+                      onClicked: playerHistory.season--
+                    }
+                    Text {
+                      text: playerHistory.seasonLabel
+                      anchors.verticalCenter: parent.verticalCenter
+                      color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.caption
+                      Accessible.name: "Season " + text
+                    }
+                    Button {
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
+                      text: "›"; tooltipText: "Next season"; focusable: true
+                      enabled: playerHistory.season < new Date().getFullYear()+1 && !playerHistory.loading
+                      onClicked: playerHistory.season++
+                    }
+                    Button {
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
+                      text: playerHistory.error ? "Retry" : "Refresh"; focusable: true
+                      enabled: !playerHistory.loading && playerHistory.retryInSeconds === 0
+                      onClicked: playerHistory.refresh()
+                    }
+                  }
+                  FutSearchableDropdown {
+                    width: parent.width
+                    label: "Competition"
+                    value: playerHistory.competition
+                    options: [{value:"",label:"Default competition"}].concat(playerHistory.competitions)
+                    foreground: root.contentForeground; fontFamily: root.contentFontFamily
+                    accent: root.favoriteTeamAccent
+                    onChanged: function(value) { playerHistory.competition = value }
+                  }
+                  Text {
+                    width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.PlainText
+                    text: playerHistory.loading ? "Loading match history…" : playerHistory.error ? playerHistory.error + (playerHistory.matches.length ? " Showing cached matches." : "") : playerHistory.matches.length ? "Updated " + Qt.formatDateTime(new Date(playerHistory.updatedAt),"hh:mm") + " · ESPN coverage varies by season and competition" : "No matches available for this season and competition."
+                    font.family: root.contentFontFamily; font.pixelSize: Style.font.caption
+                    color: Qt.darker(root.contentForeground, 1.4)
+                  }
+
+                  FutFormChart {
+                    matches: playerHistory.matches
+                    foreground: root.contentForeground
+                    fontFamily: root.contentFontFamily
                   }
 
                   // Match rows
                   Repeater {
-                    model: root.selectedPlayerProfile ? root.selectedPlayerProfile.recentMatches : []
+                    model: playerHistory.matches
                     delegate: Rectangle {
                       width: parent.width
                       height: (modelData.leagueName && modelData.leagueName !== "") ? Style.space(64) : Style.space(52)
@@ -647,7 +728,7 @@ Column {
                             Text {
                               textFormat: Text.PlainText
                               anchors.verticalCenter: parent.verticalCenter
-                              text: "Rating:"
+                              text: "Estimate:"
                               color: Qt.darker(root.contentForeground, 1.4)
                               font.family: root.contentFontFamily
                               font.pixelSize: Style.font.caption - 1
@@ -730,7 +811,7 @@ Column {
                     property real transitionOpacity: 1.0
 
                     SequentialAnimation on pulseOpacity {
-                      running: !!root.playerStatsLoading
+                      running: !!root.playerStatsLoading && !root.reducedMotion
                       loops: Animation.Infinite
                       NumberAnimation { to: 0.45; duration: 400; easing.type: Easing.InOutQuad }
                       NumberAnimation { to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
@@ -785,7 +866,7 @@ Column {
                           font.family: root.contentFontFamily
                           transformOrigin: Item.Center
                           NumberAnimation on rotation {
-                            running: !!root.playerStatsLoading
+                            running: !!root.playerStatsLoading && !root.reducedMotion
                             from: 0
                             to: 360
                             duration: 750
@@ -815,6 +896,10 @@ Column {
 
                       // Older Season (◀)
                       Button {
+                        focusable: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: tooltipText || text || "Action"
+
                         height: Style.space(20)
                         fontSize: Style.space(8)
                         horizontalPadding: Style.space(6)
@@ -852,12 +937,16 @@ Column {
                         font.family: root.contentFontFamily
                         opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
                         Behavior on opacity {
-                          NumberAnimation { duration: 150 }
+                          NumberAnimation { duration: root && root.reducedMotion ? 0 : 150 }
                         }
                       }
 
                       // Newer Season (▶)
                       Button {
+                        focusable: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: tooltipText || text || "Action"
+
                         height: Style.space(20)
                         fontSize: Style.space(8)
                         horizontalPadding: Style.space(6)
@@ -897,7 +986,7 @@ Column {
                       color: root.favoriteTeamAccent
 
                       SequentialAnimation on x {
-                        running: !!root.playerStatsLoading
+                        running: !!root.playerStatsLoading && !root.reducedMotion
                         loops: Animation.Infinite
                         NumberAnimation {
                           from: -statsLoadingThumb.width
@@ -915,6 +1004,10 @@ Column {
                     spacing: Style.space(4)
 
                     Button {
+                      focusable: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
                       height: Style.space(20)
                       fontSize: Style.space(8)
                       horizontalPadding: Style.space(6)
@@ -931,6 +1024,10 @@ Column {
                     }
 
                     Button {
+                      focusable: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
                       height: Style.space(20)
                       fontSize: Style.space(8)
                       horizontalPadding: Style.space(6)
@@ -950,6 +1047,10 @@ Column {
                     }
 
                     Button {
+                      focusable: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
                       height: Style.space(20)
                       fontSize: Style.space(8)
                       horizontalPadding: Style.space(6)
@@ -966,6 +1067,10 @@ Column {
                     }
 
                     Button {
+                      focusable: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
                       height: Style.space(20)
                       fontSize: Style.space(8)
                       horizontalPadding: Style.space(6)
@@ -982,6 +1087,10 @@ Column {
                     }
 
                     Button {
+                      focusable: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
                       height: Style.space(20)
                       fontSize: Style.space(8)
                       horizontalPadding: Style.space(6)
@@ -1019,6 +1128,10 @@ Column {
                         spacing: Style.space(4)
 
                         Button {
+                          focusable: true
+                          Accessible.role: Accessible.Button
+                          Accessible.name: tooltipText || text || "Action"
+
                           height: Style.space(20)
                           fontSize: Style.space(8)
                           horizontalPadding: Style.space(6)
@@ -1037,6 +1150,10 @@ Column {
                         Repeater {
                           model: root.playerClubOptions()
                           delegate: Button {
+    focusable: true
+    Accessible.role: Accessible.Button
+    Accessible.name: tooltipText || text || "Action"
+
                             height: Style.space(20)
                             fontSize: Style.space(8)
                             horizontalPadding: Style.space(6)
@@ -1079,6 +1196,10 @@ Column {
                         Repeater {
                           model: root.currentSeasonComps()
                           delegate: Button {
+    focusable: true
+    Accessible.role: Accessible.Button
+    Accessible.name: tooltipText || text || "Action"
+
                             height: Style.space(20)
                             fontSize: Style.space(8)
                             horizontalPadding: Style.space(6)
@@ -1119,7 +1240,7 @@ Column {
                     spacing: Style.space(4)
                     opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
                     Behavior on opacity {
-                      NumberAnimation { duration: 150 }
+                      NumberAnimation { duration: root && root.reducedMotion ? 0 : 150 }
                     }
 
                     Column {
@@ -1202,7 +1323,7 @@ Column {
                 visible: root.searchPlayerCardTab === "stats" && root.selectedPlayerProfile
                 opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
                 Behavior on opacity {
-                  NumberAnimation { duration: 150 }
+                  NumberAnimation { duration: root && root.reducedMotion ? 0 : 150 }
                 }
 
                 Column {
@@ -1293,7 +1414,7 @@ Column {
                 visible: root.searchPlayerCardTab === "stats" && root.selectedPlayerProfile
                 opacity: root.playerStatsLoading ? statPulseAnim.pulseOpacity : statPulseAnim.transitionOpacity
                 Behavior on opacity {
-                  NumberAnimation { duration: 150 }
+                  NumberAnimation { duration: root && root.reducedMotion ? 0 : 150 }
                 }
 
                 Column {
@@ -1477,7 +1598,7 @@ Column {
                         sourceSize: Qt.size(120, 80)
                         mipmap: true
                         smooth: true
-                        visible: String(source) !== ""
+                        visible: true
                       }
 
                       Text {
@@ -1576,7 +1697,7 @@ Column {
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             smooth: true
-                            visible: String(source) !== ""
+                            visible: true
                           }
 
                           Text {
@@ -1620,12 +1741,14 @@ Column {
                           }
                         }
 
-                        MouseArea {
+                        FutActionArea {
+    actionLabel: "Open details"
+
                           id: careerClubArea
                           anchors.fill: parent
                           hoverEnabled: true
                           cursorShape: Qt.PointingHandCursor
-                          onClicked: {
+                          onActivated: {
                             root.searchPlayerCardTab = "stats"
                             root.setPlayerStatsTab("club")
                             root.selectClubFilter(modelData.teamId)
@@ -1747,7 +1870,7 @@ Column {
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             smooth: true
-                            visible: String(source) !== ""
+                            visible: true
                           }
 
                           Text {
@@ -1785,7 +1908,7 @@ Column {
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             smooth: true
-                            visible: String(source) !== ""
+                            visible: true
                           }
 
                           Text {
@@ -1822,6 +1945,10 @@ Column {
                 }
               }
               Button {
+                focusable: true
+                Accessible.role: Accessible.Button
+                Accessible.name: tooltipText || text || "Action"
+
                 width: parent.width
                 iconText: "󰖟"
                 text: "View Career Profile on ESPN"
@@ -1971,7 +2098,7 @@ Column {
                 border.color: clubProfileFavBtn.isPrimaryFav
                   ? Util.alpha(clubProfileHeaderCard.clubBrandColor, 0.40)
                   : (clubProfileFavBtn.isFollowedFav ? Util.alpha(root.contentForeground, 0.20) : Util.alpha(root.contentForeground, 0.08))
-                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on color { ColorAnimation { duration: root && root.reducedMotion ? 0 : 150 } }
               }
 
               Text {
@@ -1986,7 +2113,7 @@ Column {
                     ? clubProfileHeaderCard.clubBrandColor
                     : (favMouse.containsMouse ? root.contentForeground : Qt.darker(root.contentForeground, 1.5)))
                 scale: favMouse.pressed ? 0.88 : (favMouse.containsMouse ? 1.12 : 1.0)
-                Behavior on scale { NumberAnimation { duration: 120 } }
+                Behavior on scale { NumberAnimation { duration: root && root.reducedMotion ? 0 : 120 } }
               }
 
               MouseArea {
@@ -1995,12 +2122,21 @@ Column {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: function(mouse) {
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Follow or promote club; Delete to unfollow"
+                Accessible.onPressAction: activate(false)
+                Keys.onReturnPressed: activate(false)
+                Keys.onEnterPressed: activate(false)
+                Keys.onSpacePressed: activate(false)
+                Keys.onDeletePressed: activate(true)
+                onClicked: function(mouse) { activate(mouse.button === Qt.RightButton) }
+                function activate(remove) {
                   if (!root.selectedClubProfile) return
                   var dName = root.selectedClubProfile.displayName || ""
                   var lSlug = root.selectedClubProfile.leagueSlug || ""
                   var cId = root.selectedClubProfile.id || ""
-                  if (mouse.button === Qt.RightButton) {
+                  if (remove) {
                     if (clubProfileFavBtn.isFollowedFav && (!clubProfileFavBtn.isPrimaryFav || root.allFollowedTabs().length > 1)) {
                       root.removeFollowedTeam(dName, lSlug)
                       root.notify("Club Unpinned", dName + " removed from followed tabs", "")
@@ -2047,7 +2183,7 @@ Column {
                     sourceSize: Qt.size(256, 256)
                     mipmap: true
                     smooth: true
-                    visible: String(source) !== ""
+                    visible: true
                   }
                 }
 
@@ -2174,6 +2310,10 @@ Column {
                 spacing: Style.space(4)
 
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(20)
                   fontSize: Style.space(9)
                   horizontalPadding: Style.space(8)
@@ -2186,6 +2326,10 @@ Column {
                   onClicked: root.searchClubCardTab = "overview"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(20)
                   fontSize: Style.space(9)
                   horizontalPadding: Style.space(8)
@@ -2198,6 +2342,10 @@ Column {
                   onClicked: root.searchClubCardTab = "squad"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(20)
                   fontSize: Style.space(9)
                   horizontalPadding: Style.space(8)
@@ -2280,7 +2428,9 @@ Column {
                   }
 
                   // Mini Table toggle button
-                  MouseArea {
+                  FutActionArea {
+    actionLabel: "Open details"
+
                     id: miniTableToggleArea
                     anchors.verticalCenter: parent.verticalCenter
                     width: miniTableToggleTxt.implicitWidth + Style.space(6)
@@ -2288,7 +2438,7 @@ Column {
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
                     visible: root.getClubStandingsSlice().length > 0
-                    onClicked: root.clubStandingsExpanded = !root.clubStandingsExpanded
+                    onActivated: root.clubStandingsExpanded = !root.clubStandingsExpanded
 
                     Text {
                       textFormat: Text.PlainText
@@ -2417,12 +2567,14 @@ Column {
                       color: zClr !== "" ? zClr : "transparent"
                     }
 
-                    MouseArea {
+                    FutActionArea {
+    actionLabel: "Open club profile"
+
                       id: miniTableRowMouse
                       anchors.fill: parent
                       hoverEnabled: true
                       cursorShape: !miniTableRowRect.isSelectedClub ? Qt.PointingHandCursor : Qt.ArrowCursor
-                      onClicked: {
+                      onActivated: {
                         if (!miniTableRowRect.isSelectedClub && modelData.id) {
                           root.openClubSearchDetail({
                             id: modelData.id,
@@ -2718,13 +2870,15 @@ Column {
                     }
                   }
 
-                  MouseArea {
+                  FutActionArea {
+    actionLabel: "Open player profile"
+
                     id: topScorerMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: (root.selectedClubProfile && root.selectedClubProfile.topScorerId) ? Qt.PointingHandCursor : Qt.ArrowCursor
                     enabled: !!(root.selectedClubProfile && root.selectedClubProfile.topScorerId)
-                    onClicked: {
+                    onActivated: {
                       if (root.selectedClubProfile && root.selectedClubProfile.topScorerId) {
                         var pName = root.selectedClubProfile.topScorer.split(" (")[0]
                         root.openPlayerSearchDetail({
@@ -2759,13 +2913,15 @@ Column {
                     }
                   }
 
-                  MouseArea {
+                  FutActionArea {
+    actionLabel: "Open player profile"
+
                     id: topAssisterMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: (root.selectedClubProfile && root.selectedClubProfile.topAssisterId) ? Qt.PointingHandCursor : Qt.ArrowCursor
                     enabled: !!(root.selectedClubProfile && root.selectedClubProfile.topAssisterId)
-                    onClicked: {
+                    onActivated: {
                       if (root.selectedClubProfile && root.selectedClubProfile.topAssisterId) {
                         var pName = root.selectedClubProfile.topAssister.split(" (")[0]
                         root.openPlayerSearchDetail({
@@ -2800,13 +2956,15 @@ Column {
                     }
                   }
 
-                  MouseArea {
+                  FutActionArea {
+    actionLabel: "Open player profile"
+
                     id: topCarderMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: (root.selectedClubProfile && root.selectedClubProfile.topCarderId) ? Qt.PointingHandCursor : Qt.ArrowCursor
                     enabled: !!(root.selectedClubProfile && root.selectedClubProfile.topCarderId)
-                    onClicked: {
+                    onActivated: {
                       if (root.selectedClubProfile && root.selectedClubProfile.topCarderId) {
                         var pName = root.selectedClubProfile.topCarder.split(" (")[0]
                         root.openPlayerSearchDetail({
@@ -3065,6 +3223,10 @@ Column {
                 spacing: Style.space(4)
 
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3077,6 +3239,10 @@ Column {
                   onClicked: root.clubSquadPositionFilter = "all"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3089,6 +3255,10 @@ Column {
                   onClicked: root.clubSquadPositionFilter = "gk"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3101,6 +3271,10 @@ Column {
                   onClicked: root.clubSquadPositionFilter = "def"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3113,6 +3287,10 @@ Column {
                   onClicked: root.clubSquadPositionFilter = "mid"
                 }
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3177,7 +3355,7 @@ Column {
                         fillMode: Image.PreserveAspectFit
                         mipmap: true
                         smooth: true
-                        visible: String(source) !== ""
+                        visible: true
                       }
 
                       Text {
@@ -3234,7 +3412,7 @@ Column {
                         sourceSize: Qt.size(80, 56)
                         mipmap: true
                         smooth: true
-                        visible: String(source) !== ""
+                        visible: true
                       }
 
                       Text {
@@ -3263,12 +3441,14 @@ Column {
                     }
                   }
 
-                  MouseArea {
+                  FutActionArea {
+    actionLabel: "Open player profile"
+
                     id: squadItemArea
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
+                    onActivated: {
                       if (modelData.id && modelData.id !== "") {
                         if (root.selectedClubProfile) {
                           root.clubProfileHistory = root.selectedClubProfile
@@ -3315,6 +3495,10 @@ Column {
                 spacing: Style.space(4)
 
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3328,6 +3512,10 @@ Column {
                 }
 
                 Button {
+                  focusable: true
+                  Accessible.role: Accessible.Button
+                  Accessible.name: tooltipText || text || "Action"
+
                   height: Style.space(18)
                   fontSize: Style.space(8)
                   horizontalPadding: Style.space(6)
@@ -3365,6 +3553,10 @@ Column {
                   visible: root.activeClubFixturesList().length > 1
 
                   Button {
+                    focusable: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: tooltipText || text || "Action"
+
                     height: Style.space(18)
                     width: Style.space(18)
                     iconText: ""
@@ -3391,6 +3583,10 @@ Column {
                   }
 
                   Button {
+                    focusable: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: tooltipText || text || "Action"
+
                     height: Style.space(18)
                     width: Style.space(18)
                     iconText: ""
@@ -3477,7 +3673,7 @@ Column {
                       }
 
                       opacity: (isOpponent && homeTeamMouse.containsMouse) ? 0.75 : 1.0
-                      Behavior on opacity { NumberAnimation { duration: 120 } }
+                      Behavior on opacity { NumberAnimation { duration: root && root.reducedMotion ? 0 : 120 } }
 
                       Row {
                         anchors.fill: parent
@@ -3491,7 +3687,7 @@ Column {
                           fillMode: Image.PreserveAspectFit
                           mipmap: true
                           smooth: true
-                          visible: String(source) !== ""
+                          visible: true
                         }
 
                         Text {
@@ -3507,13 +3703,15 @@ Column {
                         }
                       }
 
-                      MouseArea {
+                      FutActionArea {
+    actionLabel: "Open club profile"
+
                         id: homeTeamMouse
                         anchors.fill: parent
                         enabled: homeTeamBox.isOpponent
                         cursorShape: homeTeamBox.isOpponent ? Qt.PointingHandCursor : Qt.ArrowCursor
                         hoverEnabled: true
-                        onClicked: {
+                        onActivated: {
                           var fix = root.activeClubFixture()
                           if (fix && fix.oppId) {
                             root.openClubSearchDetail({
@@ -3557,7 +3755,7 @@ Column {
                       }
 
                       opacity: (isOpponent && awayTeamMouse.containsMouse) ? 0.75 : 1.0
-                      Behavior on opacity { NumberAnimation { duration: 120 } }
+                      Behavior on opacity { NumberAnimation { duration: root && root.reducedMotion ? 0 : 120 } }
 
                       Row {
                         anchors.fill: parent
@@ -3584,17 +3782,19 @@ Column {
                           fillMode: Image.PreserveAspectFit
                           mipmap: true
                           smooth: true
-                          visible: String(source) !== ""
+                          visible: true
                         }
                       }
 
-                      MouseArea {
+                      FutActionArea {
+    actionLabel: "Open club profile"
+
                         id: awayTeamMouse
                         anchors.fill: parent
                         enabled: awayTeamBox.isOpponent
                         cursorShape: awayTeamBox.isOpponent ? Qt.PointingHandCursor : Qt.ArrowCursor
                         hoverEnabled: true
-                        onClicked: {
+                        onActivated: {
                           var fix = root.activeClubFixture()
                           if (fix && fix.oppId) {
                             root.openClubSearchDetail({
@@ -3653,6 +3853,10 @@ Column {
           }
 
           Button {
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText || text || "Action"
+
             width: parent.width
             height: Style.space(28)
             iconText: "󰖟"

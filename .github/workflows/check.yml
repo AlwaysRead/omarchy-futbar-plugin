@@ -18,3 +18,15 @@ jobs:
         run: node tests/test_security.js
       - name: Python syntax
         run: python3 -m compileall -q lib tests
+
+  qt-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build pinned Omarchy runtime with Qt 6 and headless Wayland
+        run: docker build -f ci/Dockerfile -t futbar-runtime .
+      - name: Run fixture, lifecycle, integration and security checks
+        run: docker run --rm --network none -v "$GITHUB_WORKSPACE:/work" futbar-runtime

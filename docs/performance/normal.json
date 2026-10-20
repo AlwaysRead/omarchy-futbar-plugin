@@ -1,0 +1,103 @@
+{
+  "wall_seconds": 8.266,
+  "unfinished_records_excluded": 0,
+  "types": {
+    "Compiling": {
+      "count": 110,
+      "inclusive_total_ms": 3298.15,
+      "longest_ms": 895.263
+    },
+    "Creating": {
+      "count": 19556,
+      "inclusive_total_ms": 1039.854,
+      "longest_ms": 69.957
+    },
+    "Javascript": {
+      "count": 264362,
+      "inclusive_total_ms": 1511.476,
+      "longest_ms": 51.201
+    },
+    "HandlingSignal": {
+      "count": 664,
+      "inclusive_total_ms": 194.921,
+      "longest_ms": 51.204
+    },
+    "Binding": {
+      "count": 74297,
+      "inclusive_total_ms": 686.639,
+      "longest_ms": 31.324
+    }
+  },
+  "longest_handlers": [
+    {
+      "kind": "HandlingSignal",
+      "duration_ms": 51.204,
+      "file": "Color.qml",
+      "line": "256",
+      "details": ""
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 51.201,
+      "file": "Color.qml",
+      "line": "256",
+      "details": "expression for onLoadFailed"
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 51.196,
+      "file": "Color.qml",
+      "line": "221",
+      "details": "loadUserShell"
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 51.189,
+      "file": "Color.qml",
+      "line": "208",
+      "details": "mergeShell"
+    },
+    {
+      "kind": "HandlingSignal",
+      "duration_ms": 47.136,
+      "file": "Color.qml",
+      "line": "241",
+      "details": ""
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 47.132,
+      "file": "Color.qml",
+      "line": "241",
+      "details": "expression for onLoadFailed"
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 47.124,
+      "file": "Color.qml",
+      "line": "216",
+      "details": "loadShell"
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 47.098,
+      "file": "Color.qml",
+      "line": "208",
+      "details": "mergeShell"
+    },
+    {
+      "kind": "HandlingSignal",
+      "duration_ms": 43.763,
+      "file": "shell.qml",
+      "line": "79",
+      "details": ""
+    },
+    {
+      "kind": "Javascript",
+      "duration_ms": 43.76,
+      "file": "shell.qml",
+      "line": "79",
+      "details": "expression for onTriggered"
+    }
+  ]
+}

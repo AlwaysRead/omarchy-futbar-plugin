@@ -53,6 +53,15 @@ Column {
   property var collapsedMap: ({})
   property var expandedMap: ({})
   property int dayOffset: 0
+  onDayOffsetChanged: { trendingLoading = false; rawMatches = []; lastRefreshTime = 0; trendingError = ""; Qt.callLater(function() { trendingView.refresh(true) }) }
+  FutRequestStatus {
+    request: trendingRequest
+    error: trendingView.trendingError
+    hasData: trendingView.rawMatches.length > 0
+    foreground: root ? root.contentForeground : Commons.Color.foreground
+    fontFamily: root ? root.contentFontFamily : Style.font.family
+    onRetryRequested: trendingView.refresh(true)
+  }
 
   function dateParamForOffset(offset) {
     if (offset === 0) return ""
@@ -128,8 +137,8 @@ Column {
   }
 
   function refresh(showLoading) {
-    if (trendingLoading) return
-    if (showLoading && rawMatches.length === 0) trendingLoading = true
+    if (trendingRequest.running || Date.now() < trendingRequest.retryAt) return
+    trendingLoading = true
     trendingError = ""
     var dStr = dateParamForOffset(dayOffset)
     var url = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?limit=300"
@@ -151,7 +160,7 @@ Column {
 
   Timer {
     id: trendingPollTimer
-    interval: Math.max(10, (root ? root.livePollRate : 10)) * 1000
+    interval: root && root.pollFailures ? root.pollingInterval : trendingView.hasLiveMatches ? Math.max(10, (root ? root.livePollRate : 10)) * 1000 : 60000
     repeat: true
     running: trendingView.visible && !trendingView.trendingLoading
     onTriggered: {
@@ -161,17 +170,17 @@ Column {
     }
   }
 
-  Process {
+  FutContextProcess {
     id: trendingRequest
+    requestContext: String(trendingView.dayOffset)
+    onExited: { trendingView.trendingLoading = false }
     command: FutNetwork.jsonCommand(["https://site.web.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?limit=300"], 5242880, 20)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        trendingView.trendingLoading = false
+        if (!trendingRequest.responseCurrent) return
         if (typeof text !== "string" || text.length === 0 || text.length > 5242880) {
-          if (trendingView.rawMatches.length === 0) {
-            trendingView.trendingError = "Unable to load trending matches."
-          }
+          trendingView.trendingError = "Unable to load trending matches."
           return
         }
         try {
@@ -181,9 +190,7 @@ Column {
           trendingView.trendingError = ""
           trendingView.lastRefreshTime = Date.now()
         } catch (e) {
-          if (trendingView.rawMatches.length === 0) {
-            trendingView.trendingError = "Failed to parse scoreboard data."
-          }
+          trendingView.trendingError = "Failed to parse scoreboard data."
         }
       }
     }
@@ -558,6 +565,10 @@ Column {
       }
 
       Button {
+        focusable: true
+        Accessible.role: Accessible.Button
+        Accessible.name: tooltipText || text || "Action"
+
         id: clearTrendingSearchBtn
         anchors.verticalCenter: parent.verticalCenter
         width: Style.space(22)
@@ -585,6 +596,10 @@ Column {
     spacing: Style.space(4)
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       height: Style.space(22)
       text: "Yesterday"
       tooltipText: "View yesterday's completed matches"
@@ -605,6 +620,10 @@ Column {
     }
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       height: Style.space(22)
       text: "Today"
       tooltipText: "View today's live & upcoming matches"
@@ -625,6 +644,10 @@ Column {
     }
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       height: Style.space(22)
       text: "Tomorrow"
       tooltipText: "View tomorrow's upcoming fixtures"
@@ -668,6 +691,10 @@ Column {
         spacing: Style.space(4)
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           height: Style.space(24)
           text: "All"
           tooltipText: "All Matches (1)"
@@ -682,6 +709,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           height: Style.space(24)
           text: "Live"
           tooltipText: "Live Matches (2)"
@@ -696,6 +727,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           height: Style.space(24)
           text: "International"
           tooltipText: "International Tournaments (3)"
@@ -710,6 +745,10 @@ Column {
         }
 
         Button {
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText || text || "Action"
+
           height: Style.space(24)
           text: "Club Leagues"
           tooltipText: "Club Leagues & Tournaments (4)"
@@ -726,6 +765,10 @@ Column {
     }
 
     Button {
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: tooltipText || text || "Action"
+
       id: refreshBtn
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
@@ -795,84 +838,6 @@ Column {
     }
   }
 
-  // ERROR STATE
-  Item {
-    width: parent.width
-    height: Style.space(90)
-    visible: trendingView.trendingError !== "" && trendingView.rawMatches.length === 0
-
-    Column {
-      anchors.centerIn: parent
-      spacing: Style.space(6)
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        textFormat: Text.PlainText
-        text: "󰅚"
-        color: "#ef4444"
-        font.family: root ? root.contentFontFamily : Style.font.family
-        font.pixelSize: Style.space(22)
-        horizontalAlignment: Text.AlignHCenter
-      }
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        textFormat: Text.PlainText
-        text: trendingView.trendingError || "Failed to load matches"
-        color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.4)
-        font.family: root ? root.contentFontFamily : Style.font.family
-        font.pixelSize: Style.font.caption
-        horizontalAlignment: Text.AlignHCenter
-      }
-
-      Button {
-        anchors.horizontalCenter: parent.horizontalCenter
-        height: Style.space(24)
-        text: "Retry"
-        iconText: "󰑐"
-        fontFamily: root ? root.contentFontFamily : Style.font.family
-        foreground: root ? root.contentForeground : Commons.Color.foreground
-        accent: root ? root.contentForeground : Commons.Color.foreground
-        fontSize: Style.font.caption
-        iconSize: Style.font.caption
-        horizontalPadding: Style.space(12)
-        verticalPadding: 0
-        onClicked: trendingView.refresh(true)
-      }
-    }
-  }
-
-  // STALE / CACHED STATUS (Subtle banner when refresh failed but cache exists)
-  Rectangle {
-    width: parent.width
-    height: Style.space(22)
-    radius: Style.cornerRadius
-    color: Util.alpha(Commons.Color.foreground, 0.05)
-    visible: trendingView.trendingError !== "" && trendingView.rawMatches.length > 0
-
-    Row {
-      anchors.centerIn: parent
-      spacing: Style.space(6)
-
-      Text {
-        textFormat: Text.PlainText
-        anchors.verticalCenter: parent.verticalCenter
-        text: "󰒲"
-        font.pixelSize: Style.font.caption
-        color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
-      }
-
-      Text {
-        textFormat: Text.PlainText
-        anchors.verticalCenter: parent.verticalCenter
-        text: (root && root.formatCachedTimeAgo) ? root.formatCachedTimeAgo(trendingView.lastRefreshTime) : "Cached · Updated recently"
-        font.family: root ? root.contentFontFamily : Style.font.family
-        font.pixelSize: Style.font.caption - 1
-        color: Qt.darker(root ? root.contentForeground : Commons.Color.foreground, 1.5)
-      }
-    }
-  }
-
   // TOURNAMENT-GROUPED MATCHES LIST
   Column {
     id: tournamentGroupsCol
@@ -912,12 +877,14 @@ Column {
             opacity: headerMouseArea.containsMouse ? 0.05 : 0.0
           }
 
-          MouseArea {
+          FutActionArea {
+    actionLabel: "Toggle competition matches"
+
             id: headerMouseArea
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: trendingView.toggleCollapse(tournamentSection.modelData.key)
+            onActivated: trendingView.toggleCollapse(tournamentSection.modelData.key)
           }
 
           Row {
@@ -940,7 +907,7 @@ Column {
               asynchronous: true
               cache: true
               smooth: true
-              visible: String(source) !== "" && status === Image.Ready
+              visible: true
             }
 
             Text {
@@ -1003,12 +970,14 @@ Column {
                 Behavior on opacity { NumberAnimation { duration: 120 } }
               }
 
-              MouseArea {
+              FutActionArea {
+    actionLabel: "Open match details"
+
                 id: rowMouseArea
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
+                onActivated: {
                   if (root) {
                     root.returnToTrendingAfterDetail = true
                     root.openMatchDetail({
@@ -1114,6 +1083,10 @@ Column {
                     }
 
                     Button {
+                      focusable: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: tooltipText || text || "Action"
+
                       id: matchNotifyBtn
                       z: 5
                       visible: matchRow.modelData.state !== "post"
@@ -1165,7 +1138,7 @@ Column {
                       asynchronous: true
                       cache: true
                       smooth: true
-                      visible: String(source) !== ""
+                      visible: true
                     }
                   }
 
@@ -1205,14 +1178,14 @@ Column {
                         property bool revealed: false
                         text: matchRow.modelData.state === "pre"
                           ? (matchRow.modelData.timeText || "VS")
-                          : ((root && root.antiSpoiler && !revealed)
+                          : ((root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !revealed)
                             ? (matchRow.modelData.state === "post" ? "FT · 󰈈" : "Live · 󰈈")
                             : (matchRow.modelData.homeScore + "–" + matchRow.modelData.awayScore))
-                        color: (root && root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
+                        color: (root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !revealed && matchRow.modelData.state !== "pre")
                           ? (root.favoriteTeamAccent || (root ? root.contentForeground : Commons.Color.foreground))
                           : (matchRow.modelData.isLive ? "#4ade80" : (root ? root.contentForeground : Commons.Color.foreground))
                         font.family: root ? root.contentFontFamily : Style.font.family
-                        font.pixelSize: (root && root.antiSpoiler && !revealed && matchRow.modelData.state !== "pre")
+                        font.pixelSize: (root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !revealed && matchRow.modelData.state !== "pre")
                           ? Style.font.caption
                           : ((matchRow.modelData.state === "pre" && !matchRow.modelData.isLive) ? Style.font.caption : Style.font.body)
                         font.bold: matchRow.modelData.state !== "post" || matchRow.modelData.isLive
@@ -1223,7 +1196,7 @@ Column {
                         id: matchRowSubText
                         textFormat: Text.PlainText
                         anchors.horizontalCenter: parent.horizontalCenter
-                        visible: text !== "" && !(root && root.antiSpoiler && !matchScoreText.revealed)
+                        visible: text !== "" && !(root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !matchScoreText.revealed)
                         text: {
                           if (matchRow.modelData.isLive) {
                             var lt = matchRow.modelData.statusDetail || "Live"
@@ -1251,11 +1224,13 @@ Column {
                       }
                     }
 
-                    MouseArea {
+                    FutActionArea {
+    actionLabel: "Reveal score"
+
                       anchors.fill: parent
-                      enabled: root && root.antiSpoiler && !matchScoreText.revealed && matchRow.modelData.state !== "pre"
+                      enabled: root && (root.spoilersHidden !== undefined ? root.spoilersHidden : root.antiSpoiler) && !matchScoreText.revealed && matchRow.modelData.state !== "pre"
                       cursorShape: Qt.PointingHandCursor
-                      onClicked: matchScoreText.revealed = true
+                      onActivated: matchScoreText.revealed = true
                     }
                   }
 
@@ -1294,7 +1269,7 @@ Column {
                       cache: true
                       asynchronous: true
                       smooth: true
-                      visible: String(source) !== ""
+                      visible: true
                     }
                   }
                 }
@@ -1316,12 +1291,14 @@ Column {
               opacity: showMoreMouseArea.containsMouse ? 0.08 : 0.03
             }
 
-            MouseArea {
+            FutActionArea {
+    actionLabel: "Show more or fewer matches"
+
               id: showMoreMouseArea
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: trendingView.toggleExpand(tournamentSection.modelData.key)
+              onActivated: trendingView.toggleExpand(tournamentSection.modelData.key)
             }
 
             Row {

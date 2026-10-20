@@ -5,47 +5,56 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 
 ```text
 .
-├── manifest.json                  # Omarchy plugin registration and settings
-├── README.md
-├── SECURITY.md                    # Trust boundaries and security checks
-├── LICENSE
-├── preview.png                    # Marketplace preview
+├── manifest.json                  # Plugin registration and settings
+├── README.md / SECURITY.md
 ├── assets/                        # Documentation screenshots
-├── docs/
-│   ├── architecture.md
-│   └── roadmap.md                # Priorities and ESPN feature opportunities
+├── docs/                          # Architecture and remaining roadmap
 ├── qml/
 │   ├── FutBar.qml                 # Bar widget and panel loader
+│   ├── panels/FutBarPanel.qml     # Composition, compatibility facade and domain logic
+│   ├── models/                    # Profile, fixture, competition, detail and navigation state
 │   ├── controllers/
-│   │   └── FutApiRequest.qml      # On-demand requests, cancellation, stale data
-│   ├── panels/
-│   │   └── FutBarPanel.qml        # Panel state, requests, and composition
-│   ├── views/                     # Feature-specific screens
-│   │   ├── FutBracketView.qml
-│   │   ├── FutNewsView.qml
-│   │   ├── FutProfileView.qml
-│   │   ├── FutSettingsView.qml
-│   │   ├── FutStandingsView.qml
-│   │   ├── FutStatsView.qml
-│   │   ├── FutTrendingView.qml
-│   │   └── MatchDetailView.qml
-│   ├── components/                # Reusable presentation components
-│   │   ├── FutLoadingOverlay.qml
-│   │   ├── FutRemoteImage.qml
-│   │   └── FutSearchableDropdown.qml
+│   │   ├── FutPlayerHistory.qml   # Season/competition history requests
+│   │   ├── FutApiRequest.qml      # Single-flight, bounded requests and stale data
+│   │   ├── FutFixtureController.qml # Existing fixture fetch pipeline
+│   │   ├── FutProfileRequests.qml # Existing profile/search requests and parsers
+│   │   ├── FutNotificationController.qml # Desktop notification delivery
+│   │   ├── FutPreferenceController.qml # Preference persistence and reset
+│   │   ├── FutFollowedMatches.qml # Bounded followed-schedule aggregation
+│   │   ├── FutAlertController.qml # Persistent reminders and fixture transitions
+│   │   ├── FutLineupAlerts.qml    # Starting-lineup availability transitions
+│   │   └── FutViewState.qml       # Bounded per-view scroll restoration
+│   ├── views/                     # News, matches, profiles, tables, settings
+│   │   ├── FutPanelWindow.qml     # Popup layout and private view handles
+│   │   ├── FutComparisonCard.qml
+│   │   ├── FutExtraSettings.qml
+│   │   ├── FutNewsView.qml / FutNewsReader.qml
+│   │   └── ...                    # Existing feature screens
+│   ├── components/
+│   │   ├── FutContextProcess.qml  # Selection guards for legacy request parsers
+│   │   ├── FutActionArea.qml / FutRequestStatus.qml
+│   │   ├── FutFormChart.qml       # Estimated recent-rating trend
+│   │   ├── FutRemoteImage.qml / FutNewsPhoto.qml
+│   │   └── ...                    # Loading and searchable dropdown controls
 │   ├── data/
-│   │   ├── FutExtras.js           # Bounded news and video transformations
-│   │   └── FutData.js             # Football data transformations and lookup tables
+│   │   ├── FutPlayerHistory.js    # Bounded named-stat parsing and filter URLs
+│   │   ├── FutMatches.js          # Schedule normalization and reminders
+│   │   ├── FutPreferences.js      # Typed/versioned settings and quiet hours
+│   │   ├── FutComparison.js       # Context-preserving statistic snapshots
+│   │   └── FutData.js / FutExtras.js
 │   └── services/
-│       ├── FutNetwork.js         # Helper commands and external-link policy
-│       └── FutImageCache.js      # Shared bounded image cache and worker slots
-├── lib/                           # Python subprocess helpers; standard library only
-│   ├── http_client.py            # Shared HTTP policy and resource limits
-│   ├── fetch_json.py
-│   ├── fetch_image.py
-│   └── aggregate_stats.py
-├── tests/                         # Unit, security, and QML runtime checks
-└── .github/workflows/check.yml    # Continuous regression checks
+│       ├── FutNetwork.js          # Fixed helper commands and URL policy
+│       ├── FutPollingPolicy.js    # Activity-aware intervals and backoff
+│       └── FutImageCache.js       # Bounded image cache and worker slots
+├── lib/
+│   ├── http_client.py             # HTTP policy and resource limits
+│   ├── request_scheduler.py       # Cross-process HTTP budget and coalescing
+│   ├── fetch_json.py / aggregate_stats.py
+│   ├── fetch_image.py / fetch_photo.py
+│   └── diagnostics.py             # Redacted dependency report
+├── ci/                            # Pinned runtime, offline UI workload and profiling
+├── tests/                         # Data, security, concurrency and Qt runtime
+└── .github/workflows/check.yml
 ```
 
 ## Placement and dependencies
@@ -64,19 +73,49 @@ install the plugin. Its entry point is `qml/FutBar.qml`.
 - Keep user-facing documentation images in `assets/`; they are not runtime UI
   resources. The root preview remains available to marketplace tooling.
 
-## Remaining internal refactor
+## Model and view boundaries
 
-The directory boundaries are established, but `FutBarPanel.qml` still combines
-about 12,000 lines of state, request orchestration, and layout. Its next refactor
-should extract profile/search state and fixture/calendar state into controllers,
-then move panel layout into smaller components with explicit properties and
-signals. That work needs view-by-view behavior tests; moving files alone does
-not resolve this coupling.
+`qml/models/` owns mutable profile, competition, fixture, detail and navigation
+state. `FutBarPanel.qml` exposes compatibility aliases so existing views and
+parsers keep the same root contract. `FutPanelWindow.qml` owns the popup layout,
+UI-only inline controls, and private view IDs; it exports the four handles needed
+for navigation and scroll restoration. The panel is about 7,100 lines, primarily
+existing domain logic; the window is about 2,900 lines. The root facade deliberately
+remains while individual parser/view contracts can be narrowed in later refactors.
+
+`FutContextProcess` gives older request parsers shared selection invalidation,
+watchdogs, failure state, retry timing and successful-response timestamps.
+`FutRequestStatus` presents loading, cached refresh, error, update time and retry
+consistently in profile, standings/bracket, statistics, match detail and match lists.
+New requests and player history use `FutApiRequest`. Refreshes retain data for the
+same context; context changes invalidate obsolete output. Image placeholders keep
+reserved slots stable while helpers load or reject images.
 
 ## Verification
 
 Run the commands listed in [SECURITY.md](../SECURITY.md#checks). The runtime tests
 preserve the packaged directory layout so they detect broken imports and helper
-paths. The full widget/panel test requires an installed Omarchy Wayland session;
+paths. The full widget/panel test requires Omarchy UI modules and a Wayland compositor;
 it isolates favorite state in a temporary copy. The image lifecycle test needs
-Quickshell and runs offscreen. CI skips tests whose runtime is unavailable.
+Quickshell and runs offscreen. The lightweight security job permits unavailable-runtime skips; the separate
+Qt integration job builds `ci/Dockerfile`, pins Omarchy source to
+`0a7beb7d6fe2b677bdc57ff05518b073b2d6ee60`, runs Cage with a headless software
+renderer, disables test network access, and fails if any test skips. Arch runtime
+packages update together; the base image digest and shell source are pinned.
+
+```sh
+docker build -f ci/Dockerfile -t futbar-runtime .
+docker run --rm --network none -v "$PWD:/work" futbar-runtime
+```
+
+The UI workload checks visible geometry and focus metadata at 360px width with
+12px and 18px base fonts, captures screenshots, and exercises profiles, standings,
+statistics, trending, match detail, settings and news. Qt Quick Test sends real
+Tab/Shift+Tab/Return/Space events to legacy clickable rows. These fixture checks
+complement interactive QA; they do not establish coverage of every live API shape.
+
+The new features are already separated into controllers, pure data helpers and
+views. Legacy parser callbacks use `FutContextProcess` to keep selection lifetime
+checks out of their football parsing. `FutFollowedMatches` talks only to bounded
+requests and normalized match records; `FutAlertController` owns reminder state
+and emits notification requests rather than executing desktop commands itself.

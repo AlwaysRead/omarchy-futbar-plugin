@@ -33,3 +33,14 @@ cache.remember('https://example/update', 'second');
 assert.equal(cache.lookup('https://example/update'), 'second');
 console.log('PASS: profile URL restrictions, concurrency cap, cache eviction and replacement');
 require('./test_extras.js');
+
+require("./test_features.js");
+
+const polling=load('FutPollingPolicy.js');
+assert.equal(polling.interval(true,false,false,0,10,0),10000);
+assert.equal(polling.interval(false,true,false,0,10,0),60000);
+assert.equal(polling.interval(false,false,false,0,10,0),300000);
+assert(polling.interval(true,true,false,4,10,.5)>10000);
+assert(polling.interval(true,true,false,6,10,.5)<=301000);
+
+require("./test_player_history.js");

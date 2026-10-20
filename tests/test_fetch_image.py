@@ -1,3 +1,5 @@
+import os
+import tempfile
 import io
 import struct
 import unittest
@@ -21,6 +23,13 @@ def png(width=1, height=1):
 
 
 class FetchTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        environment = patch.dict(os.environ, {'XDG_RUNTIME_DIR': directory.name})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_valid_png(self):
         self.assertEqual(image.validate_png(png()), png())
 
