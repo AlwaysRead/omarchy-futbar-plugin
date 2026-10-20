@@ -132,3 +132,13 @@ commands are documented in [SECURITY.md](SECURITY.md).
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+## Development layout
+
+- `qml/`: bar entry point, panel, feature views, shared components, data, and services.
+- `lib/`: bounded HTTP, image validation, and statistics helpers.
+- `tests/`: security regressions and Quickshell runtime checks.
+- `docs/`: architecture and contributor guidance.
+- `assets/`: documentation screenshots.
+
+See [the architecture guide](docs/architecture.md) for the full file tree and
+[SECURITY.md](SECURITY.md#checks) for validation commands.

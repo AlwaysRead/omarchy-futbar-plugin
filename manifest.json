@@ -10,7 +10,7 @@
     "bar-widget"
   ],
   "entryPoints": {
-    "barWidget": "FutBar.qml"
+    "barWidget": "qml/FutBar.qml"
   },
   "barWidget": {
     "displayName": "FutBar",

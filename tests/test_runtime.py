@@ -17,8 +17,10 @@ class RuntimeTests(unittest.TestCase):
     def test_image_queue_cancellation_and_cleanup(self):
         with tempfile.TemporaryDirectory(prefix='futbar-image-test-') as directory:
             work = Path(directory)
-            for name in ('FutRemoteImage.qml', 'FutImageCache.js', 'FutNetwork.js'):
-                shutil.copy(ROOT / name, work / name)
+            for name in ('qml/components/FutRemoteImage.qml', 'qml/services/FutImageCache.js', 'qml/services/FutNetwork.js'):
+                destination = work / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(ROOT / name, destination)
             (work / 'lib').mkdir()
             data = 'data:image/png;base64,' + base64.b64encode(png()).decode()
             (work / 'lib' / 'fetch_image.py').write_text(
@@ -26,8 +28,8 @@ class RuntimeTests(unittest.TestCase):
             (work / 'shell.qml').write_text('''
 import QtQuick
 import Quickshell
-import "."
-import "FutImageCache.js" as Cache
+import "qml/components"
+import "qml/services/FutImageCache.js" as Cache
 ShellRoot {
   id: test
   property var images: []
@@ -37,7 +39,7 @@ ShellRoot {
   property int ticks: 0
   Item { id: container }
   Component.onCompleted: {
-    var component = Qt.createComponent("FutRemoteImage.qml")
+    var component = Qt.createComponent("qml/components/FutRemoteImage.qml")
     if (component.status !== Component.Ready) { console.error(component.errorString()); Qt.quit(); return }
     cancelled = component.createObject(container, {remoteSource: "https://a.espncdn.com/slow-cancel"})
     destroyed = component.createObject(container, {remoteSource: "https://a.espncdn.com/slow-destroy"})

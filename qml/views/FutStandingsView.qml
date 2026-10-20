@@ -5,6 +5,7 @@ import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "../components"
 
 Column {
   id: standingsView

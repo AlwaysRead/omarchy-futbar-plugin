@@ -1,7 +1,7 @@
 .pragma library
 
 function helperPath(name) {
-  return decodeURIComponent(Qt.resolvedUrl("lib/" + name).toString().replace(/^file:\/\//, ""))
+  return decodeURIComponent(Qt.resolvedUrl("../../lib/" + name).toString().replace(/^file:\/\//, ""))
 }
 function jsonCommand(urls, limit, timeout) {
   return ["python3", "-E", "-s", helperPath("fetch_json.py"), String(timeout), String(limit)].concat(urls)

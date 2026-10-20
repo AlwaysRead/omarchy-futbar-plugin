@@ -6,8 +6,9 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "FutData.js" as FutData
-import "FutNetwork.js" as FutNetwork
+import "../components"
+import "../data/FutData.js" as FutData
+import "../services/FutNetwork.js" as FutNetwork
 
 Column {
   id: trendingView

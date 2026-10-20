@@ -4,6 +4,7 @@ import QtQuick.Effects
 import Quickshell
 import qs.Commons
 import qs.Ui
+import "../components"
 
 Column {
   id: statsView

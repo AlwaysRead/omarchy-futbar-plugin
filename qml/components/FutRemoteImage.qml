@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell.Io
-import "FutImageCache.js" as ImageCache
-import "FutNetwork.js" as FutNetwork
+import "../services/FutImageCache.js" as ImageCache
+import "../services/FutNetwork.js" as FutNetwork
 
 // Only the bounded, dimension-checked PNG returned by the helper reaches Qt.
 Image {

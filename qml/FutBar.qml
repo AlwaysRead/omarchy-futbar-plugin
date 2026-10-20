@@ -4,6 +4,8 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "components"
+import "panels"
 
 // A deliberately small bar widget. It asks ESPN's public scoreboard for the
 // selected league, then makes a second request only for a live match so that
@@ -459,7 +461,7 @@ BarWidget {
   Loader {
     id: panelLoader
     active: true
-    source: Qt.resolvedUrl("FutBarPanel.qml")
+    sourceComponent: FutBarPanel {}
     visible: false
     onLoaded: {
       root.injectPanel()

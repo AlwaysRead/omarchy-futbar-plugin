@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 function load(name) {
   const context = vm.createContext({});
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', name), 'utf8').replace(/^\.pragma library\s*/, ''), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'qml', 'services', name), 'utf8').replace(/^\.pragma library\s*/, ''), context);
   return context;
 }
 const network = load('FutNetwork.js');

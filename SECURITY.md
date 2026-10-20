@@ -37,21 +37,10 @@ the protection provided here. This is hardening, not a security certification.
 
 ## Structure
 
-- `FutBar.qml`: bar widget and panel loader.
-- `FutBarPanel.qml`: panel state, request orchestration, and layout.
-- `Fut*View.qml`, `MatchDetailView.qml`: individual views.
-- `FutData.js`: football data transformations.
-- `FutNetwork.js`: command construction and external-link policy.
-- `FutRemoteImage.qml`, `FutImageCache.js`: safe image presentation and cache.
-- `lib/`: HTTP policy, image validation, and statistics aggregation.
-- `tests/`: regression tests; no runtime dependency on test tooling.
-
-The security boundary is now separate from presentation and aggregation code.
-The panel is still about 12,000 lines and combines too many responsibilities.
-A later UI refactor should split profile/search request state, fixture/calendar
-state, and panel layout behind explicit component interfaces. Moving all those
-properties during a security fix would require broader interactive regression
-coverage; the current hardening retains the existing view interfaces.
+QML lives under `qml/`, grouped into `panels/`, `views/`, `components/`, `data/`,
+and `services/`. Python helpers remain in `lib/` and regression tests in `tests/`.
+See [the architecture guide](docs/architecture.md) for the file map, dependency
+rules, and the remaining work to split the large panel's state and layout.
 
 ## Checks
 

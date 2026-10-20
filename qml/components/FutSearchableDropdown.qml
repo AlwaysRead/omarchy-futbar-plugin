@@ -1,4 +1,4 @@
-import "FutData.js" as FutData
+import "../data/FutData.js" as FutData
 import QtQuick
 import QtQuick.Controls as QQC
 import qs.Commons
