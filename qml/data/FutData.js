@@ -1380,10 +1380,12 @@ var leagues = [
   }
 
   function layoutPitchPlayers(starters) {
-    if (!starters || starters.length === 0) return [];
+    // The collision solver is quadratic; soccer has at most eleven starters.
+    if (!Array.isArray(starters) || starters.length > 11) return [];
     var result = [];
     for (var i = 0; i < starters.length; i++) {
       var pObj = starters[i];
+      if (!pObj || typeof pObj !== "object" || Array.isArray(pObj)) continue;
       var coords = getTacticalCoordinates(pObj);
       var sName = pObj.shortName || "";
       if (sName === "" && pObj.name) {
@@ -1442,6 +1444,17 @@ var leagues = [
     return result;
   }
 
+  function formatPassPercentage(value) {
+    if (typeof value !== "number" && typeof value !== "string") return "";
+    var raw = String(value).trim();
+    if (raw.length > 32) return "";
+    if (!/^\d+(?:\.\d+)?%?$/.test(raw)) return "";
+    var percent = raw.endsWith("%");
+    var number = Number(percent ? raw.slice(0, -1) : raw);
+    if (!isFinite(number) || number < 0 || number > 100) return "";
+    return Math.round(!percent && number <= 1 ? number * 100 : number) + "%";
+  }
+
   function applySingleStatMap(prof, statMap, label) {
     if (!prof || !statMap) return prof;
     var p = Object.assign({}, prof);
@@ -1450,7 +1463,7 @@ var leagues = [
     p.seasonGoals = statMap["totalGoals"] !== undefined ? String(statMap["totalGoals"]) : "0";
     p.seasonAssists = statMap["goalAssists"] !== undefined ? String(statMap["goalAssists"]) : "0";
     p.seasonKeyPasses = statMap["shotAssists"] !== undefined ? String(statMap["shotAssists"]) : "0";
-    p.seasonPassPct = statMap["passPct"] ? (Math.round(parseFloat(statMap["passPct"]) * 100) + "%") : "";
+    p.seasonPassPct = formatPassPercentage(statMap["passPct"]);
     p.seasonTackles = (statMap["effectiveTackles"] || statMap["totalTackles"]) ? String(statMap["effectiveTackles"] || statMap["totalTackles"]) : "";
     p.seasonInterceptions = statMap["interceptions"] ? String(statMap["interceptions"]) : "";
     p.seasonShots = statMap["totalShots"] !== undefined ? String(statMap["totalShots"]) : "0";
@@ -1514,8 +1527,8 @@ var leagues = [
       p.passDistribution = "—";
     }
 
-    if (statMap["passPct"]) statMap["passPct"] = p.seasonPassPct;
-    p.seasonStatMap = statMap;
+    p.seasonStatMap = Object.assign({}, statMap);
+    if (p.seasonPassPct !== "") p.seasonStatMap["passPct"] = p.seasonPassPct;
     if (label) p.selectedSeasonYear = label;
 
     return p;
@@ -1523,7 +1536,7 @@ var leagues = [
 
   function formatGroupedScorers(items, sanitizePlainText) {
     var cleanText = sanitizePlainText || function(s) { return s ? String(s) : ""; };
-    var grouped = {};
+    var grouped = Object.create(null);
     var order = [];
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
@@ -1548,6 +1561,15 @@ var leagues = [
       if (line !== "") res.push(cleanText(line));
     }
     return res;
+  }
+
+  function penaltyScore(note) {
+    // Bound both the input and backtracking: long digit runs with no score
+    // separator must not monopolize the shared shell's GUI thread.
+    if (typeof note !== "string") return null;
+    var text = note.slice(0, 512);
+    return text.match(/\b(\d{1,3})\s{0,8}[-–]\s{0,8}(\d{1,3})\s{1,8}on\s{1,8}penalties/i)
+      || text.match(/penalties.{0,256}?\b(\d{1,3})\s{0,8}[-–]\s{0,8}(\d{1,3})\b/i);
   }
 
   var matchStatDefs = [
@@ -1965,7 +1987,11 @@ var leagues = [
     for (var i = 0; i < incoming.length; i++) {
       var inR = incoming[i];
       var exR = existing[i];
-      if (inR.id !== exR.id || inR.state !== exR.state || inR.homeScore !== exR.homeScore || inR.awayScore !== exR.awayScore || inR.status !== exR.status || inR.timeText !== exR.timeText || inR.dateText !== exR.dateText) {
+      // Rows contain scalar presentation fields. Compare all of them so a
+      // corrected team, crest, competition or series note survives refresh.
+      var keys = Object.keys(inR);
+      var same = keys.length === Object.keys(exR).length && keys.every(function(key) { return inR[key] === exR[key]; });
+      if (!same) {
         changed = true;
         merged.push(inR);
       } else {

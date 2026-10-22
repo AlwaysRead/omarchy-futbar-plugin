@@ -4635,20 +4635,25 @@ Panel {
         }
         try {
           var data = JSON.parse(text)
-          var children = data.children || []
+          var children = data.children === undefined ? [] : data.children
+          if (!Array.isArray(children)) throw new Error("Invalid standings children")
           var groups = []
           for (var c = 0; c < children.length; c++) {
             var child = children[c]
+            if (!child || typeof child !== "object" || Array.isArray(child)) throw new Error("Invalid standings group")
             var standing = child.standings || {}
-            var rawEntries = standing.entries || []
+            var rawEntries = standing.entries === undefined ? [] : standing.entries
+            if (!Array.isArray(rawEntries)) throw new Error("Invalid standings entries")
             var groupName = String(child.name || "")
             var groupAbbrev = String(child.abbreviation || child.shortName || groupName)
             if (rawEntries.length === 0) continue
 
             var parsedEntries = rawEntries.map(function(entry, index) {
+              if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new Error("Invalid standings entry")
               var team = entry.team || {}
               var stats = {}
-              var list = entry.stats || []
+              var list = entry.stats === undefined ? [] : entry.stats
+              if (!Array.isArray(list)) throw new Error("Invalid standings stats")
               for (var s = 0; s < list.length; s++) {
                 var item = list[s]
                 if (!item) continue
@@ -4960,7 +4965,7 @@ Panel {
             for (var nti = 0; nti < comp.notes.length; nti++) {
               var nt = comp.notes[nti]
               var ntText = nt ? String(nt.headline || nt.text || "") : ""
-              var mPen = ntText.match(/(\d+)\s*[-–]\s*(\d+)\s+on\s+penalties/i) || ntText.match(/penalties.*?(\d+)\s*[-–]\s*(\d+)/i)
+              var mPen = FutData.penaltyScore(ntText)
               if (mPen && shootoutNote === "") {
                 shootoutScore = mPen[1] + " – " + mPen[2]
                 shootoutNote = mPen[1] + "–" + mPen[2] + " Pens"
@@ -5374,7 +5379,7 @@ Panel {
           }
 
           if (Array.isArray(data.rosters) && data.rosters.length > 0) {
-            for (var rIdx = 0; rIdx < data.rosters.length; rIdx++) {
+            for (var rIdx = 0; rIdx < Math.min(data.rosters.length, 2); rIdx++) {
               var rTeam = data.rosters[rIdx]
               if (!rTeam) continue
               var rTeamId = rTeam.team ? String(rTeam.team.id || "") : ""
@@ -5391,7 +5396,7 @@ Panel {
                 isHomeRoster = (rIdx === 0)
               }
               var rFormation = root.sanitizePlainText(String(rTeam.formation || ""))
-              var rPlayers = Array.isArray(rTeam.roster) ? rTeam.roster : []
+              var rPlayers = Array.isArray(rTeam.roster) ? rTeam.roster.slice(0, 64) : []
               var rStarters = []
               var rSubs = []
 

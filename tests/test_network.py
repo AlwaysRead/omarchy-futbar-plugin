@@ -55,6 +55,25 @@ class NetworkTests(unittest.TestCase):
                 http_client.fetch_bytes(URL, 10)
             read.assert_called_once_with(11)
 
+    def test_array_impostors_rejected_at_every_depth(self):
+        for length in (0, 5000, 10**100, '999999999999999999', [10**20], None):
+            for value in ({'length': length}, {'children': [{'standings': {
+                    'entries': [{'stats': {'length': length}}]}}]}):
+                with self.subTest(value=value), self.assertRaises(ValueError):
+                    http_client.parse_json(json.dumps(value).encode())
+        valid = {'children': [{'standings': {'entries': [{'stats': [
+            {'name': 'points', 'displayValue': '42'}]}]}}]}
+        self.assertEqual(http_client.parse_json(json.dumps(valid).encode()), valid)
+
+    def test_array_impostor_batch_emits_no_partial_output(self):
+        from types import SimpleNamespace
+        output = io.BytesIO()
+        with patch('fetch_json.constrain_process'), patch('fetch_json.sys.stdout', SimpleNamespace(buffer=output)):
+            with patch('fetch_json.fetch_bytes', side_effect=[b'{"events":[]}', b'{"stats":{"length":999999999999999999}}']):
+                with self.assertRaises(ValueError):
+                    fetch_json.main(['10', '100', URL, URL])
+        self.assertEqual(output.getvalue(), b'')
+
     def test_batch_rejects_excess_urls_before_network(self):
         with patch('fetch_json.fetch_bytes') as fetch, self.assertRaises(ValueError):
             fetch_json.main(['10', '100', *([URL] * 65)])

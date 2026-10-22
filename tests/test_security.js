@@ -52,3 +52,5 @@ assert(polling.interval(true,true,false,4,10,.5)>10000);
 assert(polling.interval(true,true,false,6,10,.5)<=301000);
 
 require("./test_player_history.js");
+require('./test_standings.js');
+require('./test_repo_review.js');

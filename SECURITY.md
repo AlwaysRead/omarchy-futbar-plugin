@@ -23,8 +23,12 @@ the protection provided here. This is hardening, not a security certification.
 - JSON responses have caller-specific limits of 1–8 MiB. Multi-URL requests
   share a total byte budget and allow at most 64 URLs. JSON is checked before
   reaching QML: depth ≤64, arrays ≤5,000 entries, objects ≤1,024 keys, strings
-  ≤64 KiB, and at most 300,000 values per response. Aggregation permits at
-  most 128 API URLs with four workers and 1 MiB per response. Helpers have wall
+  ≤64 KiB, and at most 300,000 values per response. Objects containing a
+  `length` key are rejected at every nesting level so they cannot impersonate
+  arrays in QML loops; legitimate provider data using that key is also rejected.
+  Standings additionally require actual arrays for groups, entries and stats.
+  Aggregation permits at most 128 API URLs with four workers and 1 MiB per
+  response. Helpers have wall
   time, CPU time, and 256 MiB virtual-memory limits.
 - Remote image bodies are limited to 512 KiB and PNG dimensions to 1024×1024.
   Ancillary metadata is removed and the decompressed pixel stream is bounded
@@ -32,6 +36,10 @@ the protection provided here. This is hardening, not a security certification.
   decoding; individual views may specify their display resolution. Animation and unknown
   critical chunks are rejected. Four image workers share a cache bounded to
   128 entries / 8 MiB of encoded data. Other formats remain blank.
+- Match lineups process at most two rosters of 64 players. The quadratic pitch
+  collision solver accepts only actual arrays of at most eleven starters;
+  oversized starter lists produce no pitch markers. Penalty-score matching
+  examines at most 512 characters with bounded digit and whitespace patterns.
 - News requests use a separate reusable controller: at most one
   request per view, 2 MiB for news / 5 MiB for schedules, a helper deadline and a QML watchdog.
   Selection changes cancel work and reject stale results. News links

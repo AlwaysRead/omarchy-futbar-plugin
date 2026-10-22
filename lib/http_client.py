@@ -79,6 +79,11 @@ def parse_json(body):
         if depth > 64 or visited > 300000:
             raise ValueError('JSON structure exceeds limit')
         if isinstance(value, dict):
+            # QML consumers must not mistake an object for an array. Even a
+            # tiny JSON body can otherwise supply a practically infinite loop
+            # bound, outside this subprocess's CPU and wall-clock limits.
+            if 'length' in value:
+                raise ValueError('JSON object contains array length')
             if len(value) > 1024 or any(len(key) > 128 for key in value):
                 raise ValueError('JSON object exceeds limit')
             pending.extend((item, depth + 1) for item in value.values())

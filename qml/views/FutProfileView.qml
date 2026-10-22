@@ -648,6 +648,7 @@ Column {
                       onClicked: playerHistory.season--
                     }
                     Text {
+                      textFormat: Text.PlainText
                       text: playerHistory.seasonLabel
                       anchors.verticalCenter: parent.verticalCenter
                       color: root.contentForeground; font.family: root.contentFontFamily; font.pixelSize: Style.font.caption

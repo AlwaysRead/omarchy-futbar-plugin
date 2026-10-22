@@ -199,7 +199,7 @@ Item {
             prof.careerAssists = statMap["goalAssists"] || ""
             prof.careerKeyPasses = statMap["shotAssists"] || ""
             prof.careerPasses = statMap["accuratePasses"] || statMap["totalPasses"] || ""
-            prof.careerPassPct = statMap["passPct"] ? (Math.round(parseFloat(statMap["passPct"]) * 100) + "%") : ""
+            prof.careerPassPct = FutData.formatPassPercentage(statMap["passPct"])
             prof.careerFreeKicks = statMap["freeKickGoals"] || ""
             prof.careerTackles = statMap["effectiveTackles"] || statMap["totalTackles"] || ""
             prof.careerInterceptions = statMap["interceptions"] || ""
@@ -1251,8 +1251,7 @@ Item {
             if (sMap["totalShots"] !== undefined) prof.shotsPerGame = String(Math.round(parseFloat(sMap["totalShots"])))
             if (sMap["shotsOnTarget"] !== undefined) prof.shotsOnTarget = String(Math.round(parseFloat(sMap["shotsOnTarget"])))
             if (sMap["passPct"] !== undefined) {
-              var pp = parseFloat(sMap["passPct"])
-              prof.passPct = (pp <= 1.0 ? Math.round(pp * 100) : Math.round(pp)) + "%"
+              prof.passPct = FutData.formatPassPercentage(sMap["passPct"])
             }
             if (sMap["cleanSheet"] !== undefined) prof.cleanSheets = String(Math.round(parseFloat(sMap["cleanSheet"])))
             if (sMap["totalTackles"] !== undefined) prof.tackles = String(Math.round(parseFloat(sMap["totalTackles"])))
